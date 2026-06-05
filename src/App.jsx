@@ -1,4 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
+import { createClient } from '@supabase/supabase-js';
+
+// ─── SUPABASE CONFIG ───────────────────────────────────────────────────────────
+// PASTE YOUR KEYS HERE
+const supabaseUrl = 'https://pxekejsjwxlrnaufmjxo.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4ZWtlanNqd3hscm5hdWZtanhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDIyMTQsImV4cCI6MjA5NjE3ODIxNH0.hdvJYKuu83GLZFjVFGmos9ypbKLHYtJ9thVFbxtwLhA';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ─── STYLES & CSS ─────────────────────────────────────────────────────────────
 const globalCss = `
@@ -19,12 +26,10 @@ const globalCss = `
 
   .main-content { padding: 20px; max-width: 1400px; margin: 0 auto; }
   
-  /* Responsive Card Grid */
   .jobs-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
   @media (min-width: 768px) { .jobs-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (min-width: 1100px) { .jobs-grid { grid-template-columns: repeat(3, 1fr); } }
   
-  /* Job Card Styling */
   .job-card { background: white; border-radius: 12px; border: 1px solid #DDE3EC; box-shadow: 0 2px 8px rgba(0,0,0,0.04); overflow: hidden; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; }
   .job-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.08); border-color: #cbd5e1; }
   
@@ -55,14 +60,12 @@ const globalCss = `
   .avatar { width: 24px; height: 24px; border-radius: 50%; background: #4A6380; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
   .avatar-owner { background: #E8601A; }
 
-  /* Modals */
   .modal-overlay { position: fixed; inset: 0; background: rgba(11,31,58,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 15px; backdrop-filter: blur(2px); }
   .modal-card { background: white; border-radius: 12px; width: 100%; max-width: 600px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
   .modal-header { padding: 16px 20px; background: #0B1F3A; color: white; display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
   .modal-close { background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-weight: bold; }
   .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
   
-  /* Form Elements */
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
   .form-group.full { grid-column: 1 / -1; }
@@ -71,26 +74,16 @@ const globalCss = `
   .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #E8601A; background: #fff; }
   .form-textarea { resize: vertical; min-height: 80px; }
   
-  /* Notes Area */
   .note-item { background: #F4F7FA; border-left: 3px solid #E8601A; padding: 12px; border-radius: 0 8px 8px 0; margin-bottom: 12px; }
   .note-meta { display: flex; justify-content: space-between; font-size: 11px; color: #8099B5; margin-bottom: 6px; font-weight: 600; }
   .note-body { font-size: 13px; line-height: 1.4; }
 `;
 
-// ─── CONSTANTS & DATA ─────────────────────────────────────────────────────────
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const JOB_TYPES = ["Site Work", "Valve Assembly", "Pump Assembly", "Valve Overhaul", "Pump Overhaul", "Mechanical Seal Refurb", "Testing"];
 const BUSINESS_UNITS = ["Pharma", "Industrial", "Mining", "Engineering", "Other"];
 const PEOPLE = ["Darragh", "Shauna", "Cathal", "Ross", "Dave", "Colin"];
 const STATUSES = ["In Progress", "Input Needed", "Complete"];
-
-const SEED_JOBS = [
-  {id:1,asm:"A007529",so:"296966",customer:"Busch Ire",job_type:"Valve Overhaul",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-20",due_date:"2025-11-28",est_hours:6,act_hours:6,status:"Complete"},
-  {id:2,asm:"A007582",so:"297516",customer:"BMD",job_type:"Mechanical Seal Refurb",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:6,act_hours:8,status:"In Progress"},
-];
-
-const SEED_NOTES = [
-  {id:1,job_id:1,author:"Darragh",body:"Completed ahead of schedule. Passed testing.",created_at:new Date().toISOString()},
-];
 
 const fd = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", { day: "2-digit", month: "short", year: "numeric" });
 const statusClass = (s) => s === "In Progress" ? "status-InProgress" : s === "Input Needed" ? "status-InputNeeded" : "status-Complete";
@@ -158,11 +151,10 @@ function JobCard({ job, notesCount, onStatusChange, onOpenNotes }) {
   );
 }
 
-// ─── MODALS ──────────────────────────────────────────────────────────────────
 function JobModal({ onSave, onClose }) {
   const [form, setForm] = useState({
     asm: "", so: "", customer: "", job_type: JOB_TYPES[0], business_unit: BUSINESS_UNITS[0], 
-    owner: PEOPLE[0], allocated_to: PEOPLE[0], date_issued: "", due_date: "", est_hours: "", act_hours: "", status: "In Progress", work_doc: ""
+    owner: PEOPLE[0], allocated_to: PEOPLE[0], date_issued: "", due_date: "", est_hours: "", act_hours: "", status: "In Progress"
   });
 
   const update = (field, val) => setForm(f => ({ ...f, [field]: val }));
@@ -213,7 +205,7 @@ function JobModal({ onSave, onClose }) {
             <div className="form-group"><label className="form-label">Act Hours</label><input type="number" className="form-input" value={form.act_hours} onChange={e=>update('act_hours', e.target.value)}/></div>
           </div>
           <div style={{marginTop: '20px', display: 'flex', justifyContent: 'flex-end'}}>
-            <button className="btn-primary" onClick={() => { onSave({...form, id: Date.now()}); onClose(); }}>Save Work Order</button>
+            <button className="btn-primary" onClick={() => { onSave(form); onClose(); }}>Save Work Order</button>
           </div>
         </div>
       </div>
@@ -263,41 +255,62 @@ export default function App() {
   
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
   
-  // Modals state
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
   const [activeNotesJob, setActiveNotesJob] = useState(null);
 
-  // Persistence wrapper for state
-  const [jobs, setJobs] = useState(() => {
-    const saved = localStorage.getItem('flexachem_jobs');
-    return saved ? JSON.parse(saved) : SEED_JOBS;
-  });
-  
-  const [notes, setNotes] = useState(() => {
-    const saved = localStorage.getItem('flexachem_notes');
-    return saved ? JSON.parse(saved) : SEED_NOTES;
-  });
+  const [jobs, setJobs] = useState([]);
+  const [notes, setNotes] = useState([]);
 
-  // Sync to local storage
-  useEffect(() => { localStorage.setItem('flexachem_jobs', JSON.stringify(jobs)); }, [jobs]);
-  useEffect(() => { localStorage.setItem('flexachem_notes', JSON.stringify(notes)); }, [notes]);
+  // Fetch Data from Supabase
+  useEffect(() => {
+    if (authenticated) {
+      fetchData();
+    }
+  }, [authenticated]);
 
-  // Actions
-  const updateStatus = (id, newStatus) => {
+  const fetchData = async () => {
+    setLoading(true);
+    const [jobsRes, notesRes] = await Promise.all([
+      supabase.from('jobs').select('*').order('id', { ascending: false }),
+      supabase.from('notes').select('*').order('created_at', { ascending: false })
+    ]);
+    
+    if (jobsRes.data) setJobs(jobsRes.data);
+    if (notesRes.data) setNotes(notesRes.data);
+    setLoading(false);
+  };
+
+  // Actions syncing with Supabase
+  const updateStatus = async (id, newStatus) => {
+    // Optimistic UI update
     setJobs(jobs.map(j => j.id === id ? { ...j, status: newStatus } : j));
+    await supabase.from('jobs').update({ status: newStatus }).eq('id', id);
   };
 
-  const addJob = (newJob) => {
-    setJobs([newJob, ...jobs]);
+  const addJob = async (newJobData) => {
+    // Need to handle empty numeric fields correctly for postgres
+    const formattedData = {
+        ...newJobData,
+        est_hours: newJobData.est_hours ? parseFloat(newJobData.est_hours) : 0,
+        act_hours: newJobData.act_hours ? parseFloat(newJobData.act_hours) : 0,
+        date_issued: newJobData.date_issued || null,
+        due_date: newJobData.due_date || null
+    };
+
+    const { data, error } = await supabase.from('jobs').insert([formattedData]).select();
+    if (data) setJobs([data[0], ...jobs]);
+    if (error) console.error("Error inserting job:", error);
   };
 
-  const addNote = (jobId, body) => {
-    const newNote = { id: Date.now(), job_id: jobId, author: "Service Tech", body: body, created_at: new Date().toISOString() };
-    setNotes([...notes, newNote]);
+  const addNote = async (jobId, body) => {
+    const newNoteData = { job_id: jobId, author: "Service Tech", body: body };
+    const { data, error } = await supabase.from('notes').insert([newNoteData]).select();
+    if (data) setNotes([data[0], ...notes]);
+    if (error) console.error("Error inserting note:", error);
   };
 
-  // Filtering
   const filteredJobs = useMemo(() => {
     let f = jobs;
     if (tab === "active") f = f.filter(j => j.status !== "Complete");
@@ -322,7 +335,6 @@ export default function App() {
       <style dangerouslySetInnerHTML={{__html: globalCss}} />
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
         
-        {/* Header */}
         <header className="app-header">
           <div className="header-title">Flexachem <span>Tracker</span></div>
           <input 
@@ -335,7 +347,6 @@ export default function App() {
           <button onClick={() => setAuthenticated(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}>Logout</button>
         </header>
 
-        {/* Navigation Tabs & Actions */}
         <div className="nav-tabs">
           <div className="tabs-group">
             <button className={`tab-btn ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab("all")}>All Jobs ({jobs.length})</button>
@@ -344,24 +355,28 @@ export default function App() {
           <button className="btn-primary" onClick={() => setIsAddJobOpen(true)}>＋ New Job</button>
         </div>
 
-        {/* Main Content (Responsive Grid) */}
         <main className="main-content" style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
-          <div className="jobs-grid">
-            {filteredJobs.map(j => (
-              <JobCard 
-                key={j.id} 
-                job={j} 
-                notesCount={notes.filter(n => n.job_id === j.id).length}
-                onStatusChange={updateStatus}
-                onOpenNotes={setActiveNotesJob}
-              />
-            ))}
-          </div>
-          {filteredJobs.length === 0 && <p style={{textAlign: 'center', marginTop: '40px', color: '#8099B5'}}>No jobs found matching your criteria.</p>}
+          {loading ? (
+             <p style={{textAlign: 'center', marginTop: '40px', color: '#8099B5'}}>Loading live data...</p>
+          ) : (
+            <>
+              <div className="jobs-grid">
+                {filteredJobs.map(j => (
+                  <JobCard 
+                    key={j.id} 
+                    job={j} 
+                    notesCount={notes.filter(n => n.job_id === j.id).length}
+                    onStatusChange={updateStatus}
+                    onOpenNotes={setActiveNotesJob}
+                  />
+                ))}
+              </div>
+              {filteredJobs.length === 0 && <p style={{textAlign: 'center', marginTop: '40px', color: '#8099B5'}}>No jobs found matching your criteria.</p>}
+            </>
+          )}
         </main>
       </div>
 
-      {/* Render Modals if open */}
       {isAddJobOpen && <JobModal onSave={addJob} onClose={() => setIsAddJobOpen(false)} />}
       {activeNotesJob && <NotesModal job={activeNotesJob} notes={notes} onAddNote={addNote} onClose={() => setActiveNotesJob(null)} />}
     </>
