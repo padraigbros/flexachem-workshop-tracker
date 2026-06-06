@@ -1,384 +1,408 @@
-import { useState, useMemo, useEffect } from "react";
-import { createClient } from '@supabase/supabase-js';
-
-// ─── SUPABASE CONFIG ───────────────────────────────────────────────────────────
-// PASTE YOUR KEYS HERE
-const supabaseUrl = 'https://pxekejsjwxlrnaufmjxo.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4ZWtlanNqd3hscm5hdWZtanhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDIyMTQsImV4cCI6MjA5NjE3ODIxNH0.hdvJYKuu83GLZFjVFGmos9ypbKLHYtJ9thVFbxtwLhA';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// ─── STYLES & CSS ─────────────────────────────────────────────────────────────
-const globalCss = `
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #F4F7FA; color: #1A2E44; }
-  
-  .app-header { background: #0B1F3A; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; color: white; position: sticky; top: 0; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-  .header-title { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
-  .header-title span { color: #E8601A; }
-  
-  .nav-tabs { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: white; border-bottom: 1px solid #DDE3EC; overflow-x: auto; gap: 15px; }
-  .tabs-group { display: flex; gap: 10px; }
-  .tab-btn { padding: 8px 16px; border: none; background: transparent; color: #8099B5; font-weight: 600; cursor: pointer; border-radius: 20px; transition: all 0.2s; white-space: nowrap; }
-  .tab-btn.active { background: #E8F7EF; color: #0E7C4A; }
-  
-  .btn-primary { background: #E8601A; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; white-space: nowrap; }
-  .btn-primary:hover { opacity: 0.9; }
-
-  .main-content { padding: 20px; max-width: 1400px; margin: 0 auto; }
-  
-  .jobs-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
-  @media (min-width: 768px) { .jobs-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (min-width: 1100px) { .jobs-grid { grid-template-columns: repeat(3, 1fr); } }
-  
-  .job-card { background: white; border-radius: 12px; border: 1px solid #DDE3EC; box-shadow: 0 2px 8px rgba(0,0,0,0.04); overflow: hidden; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; }
-  .job-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.08); border-color: #cbd5e1; }
-  
-  .card-header { padding: 16px; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #F4F7FA; }
-  .card-title-group { display: flex; flex-direction: column; }
-  .asm-number { font-size: 18px; font-weight: 800; color: #0B1F3A; }
-  .so-number { font-size: 12px; color: #8099B5; font-weight: 600; margin-top: 2px; }
-  
-  .status-select { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; border: 1px solid transparent; outline: none; cursor: pointer; appearance: auto; }
-  .status-Complete { background: #E8F7EF; color: #0E7C4A; border-color: #bbf7d0; }
-  .status-InProgress { background: #FFF4E5; color: #E8601A; border-color: #fed7aa; }
-  .status-InputNeeded { background: #FEF2F2; color: #C0392B; border-color: #fecaca; }
-  
-  .card-tags { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; background: #fafafa; border-bottom: 1px solid #F4F7FA; }
-  .tag { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: #EDF2F7; color: #4A6380; }
-  .tag-customer { background: #0B1F3A; color: white; }
-  
-  .card-details { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; }
-  .detail-block { display: flex; flex-direction: column; gap: 4px; }
-  .detail-label { font-size: 11px; text-transform: uppercase; color: #8099B5; font-weight: 700; letter-spacing: 0.5px; }
-  .detail-value { font-size: 13px; color: #1A2E44; font-weight: 500; display: flex; align-items: center; gap: 6px; }
-  .variance-high { color: #C0392B; font-weight: 700; }
-  
-  .card-footer { padding: 12px 16px; border-top: 1px solid #DDE3EC; display: flex; justify-content: flex-end; background: #fff; }
-  .btn-notes { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: #F4F7FA; border: 1px solid #DDE3EC; border-radius: 8px; color: #1A2E44; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-  .btn-notes:hover { background: #EDF2F7; }
-
-  .avatar { width: 24px; height: 24px; border-radius: 50%; background: #4A6380; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
-  .avatar-owner { background: #E8601A; }
-
-  .modal-overlay { position: fixed; inset: 0; background: rgba(11,31,58,0.7); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 15px; backdrop-filter: blur(2px); }
-  .modal-card { background: white; border-radius: 12px; width: 100%; max-width: 600px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
-  .modal-header { padding: 16px 20px; background: #0B1F3A; color: white; display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
-  .modal-close { background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-weight: bold; }
-  .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
-  
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-  .form-group { display: flex; flex-direction: column; gap: 6px; }
-  .form-group.full { grid-column: 1 / -1; }
-  .form-label { font-size: 11px; font-weight: 700; color: #8099B5; text-transform: uppercase; }
-  .form-input, .form-select, .form-textarea { padding: 10px 12px; border: 1px solid #DDE3EC; border-radius: 6px; font-family: inherit; font-size: 13px; outline: none; background: #F4F7FA; color: #1A2E44; }
-  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #E8601A; background: #fff; }
-  .form-textarea { resize: vertical; min-height: 80px; }
-  
-  .note-item { background: #F4F7FA; border-left: 3px solid #E8601A; padding: 12px; border-radius: 0 8px 8px 0; margin-bottom: 12px; }
-  .note-meta { display: flex; justify-content: space-between; font-size: 11px; color: #8099B5; margin-bottom: 6px; font-weight: 600; }
-  .note-body { font-size: 13px; line-height: 1.4; }
-`;
+import { useState, useEffect, useMemo, useRef } from "react";
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const JOB_TYPES = ["Site Work", "Valve Assembly", "Pump Assembly", "Valve Overhaul", "Pump Overhaul", "Mechanical Seal Refurb", "Testing"];
-const BUSINESS_UNITS = ["Pharma", "Industrial", "Mining", "Engineering", "Other"];
-const PEOPLE = ["Darragh", "Shauna", "Cathal", "Ross", "Dave", "Colin"];
-const STATUSES = ["In Progress", "Input Needed", "Complete"];
+const TODAY = new Date("2026-06-03");
+const JOB_TYPES = ["Valve Assembly","Pump Assembly","Valve Overhaul","Pump Overhaul","Mechanical Seal Refurb","Testing","Site Visit"];
+const PEOPLE = ["Darragh","Shauna","Cathal","Ross","Dave","Colin"];
+const BUS = ["Pharma","Industrial","Engineering","Mining","Other"];
 
-const fd = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", { day: "2-digit", month: "short", year: "numeric" });
-const statusClass = (s) => s === "In Progress" ? "status-InProgress" : s === "Input Needed" ? "status-InputNeeded" : "status-Complete";
+const COLORS = {
+  navy:"#0B1F3A",navyMid:"#122847",orange:"#E8601A",orangeMid:"#F9845A",orangeLt:"#FFF0E8",
+  steel:"#4A6380",steelLt:"#EDF2F7",slate:"#2D4A6A",mist:"#F5F7FA",rule:"#DDE3EC",
+  text:"#1A2E44",textMid:"#4A6380",textSoft:"#8099B5",
+  green:"#0E7C4A",greenLt:"#E8F7EF",red:"#C0392B",redLt:"#FEF2F2",
+};
+
+// ─── SEED DATA ────────────────────────────────────────────────────────────────
+const SEED_JOBS = [
+  {id:1,asm:"A007529",so:"296966",customer:"Busch Ire",job_type:"Valve Overhaul",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-20",due_date:"2025-11-28",est_hours:6,act_hours:6,status:"Complete",work_doc:"Work orders/A007529.pdf"},
+  {id:2,asm:"A007527",so:"296966",customer:"Busch Ire",job_type:"Valve Assembly",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-20",due_date:"2025-11-28",est_hours:2,act_hours:2,status:"Complete",work_doc:"Work orders/A007527.pdf"},
+  {id:3,asm:"A007445",so:"296987",customer:"Aughinish",job_type:"Pump Overhaul",business_unit:"Mining",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-18",due_date:"2025-11-28",est_hours:4,act_hours:6,status:"Complete",work_doc:"Work orders/A007445.pdf"},
+  {id:4,asm:"A007582",so:"297516",customer:"BMD",job_type:"Mechanical Seal Refurb",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:6,act_hours:3,status:"In Progress",work_doc:"Work orders/A007582.pdf"},
+  {id:5,asm:"A007583",so:"297516",customer:"BMD",job_type:"Mechanical Seal Refurb",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:3,act_hours:null,status:"In Progress",work_doc:"Work orders/A007583.pdf"},
+  {id:6,asm:"A007584",so:"297516",customer:"BMD",job_type:"Testing",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:1,act_hours:null,status:"Input Needed",work_doc:"Work orders/A007584.pdf"},
+  {id:7,asm:"A007585",so:"297516",customer:"BMD",job_type:"Testing",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:1,act_hours:null,status:"Input Needed",work_doc:"Work orders/A007585.pdf"},
+  {id:8,asm:"A007563",so:"296767",customer:"MSD",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-25",due_date:"2026-01-07",est_hours:18,act_hours:8,status:"In Progress",work_doc:"Work orders/A007563.pdf"},
+  {id:9,asm:"A007564",so:"296767",customer:"MSD",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-25",due_date:"2026-01-07",est_hours:7,act_hours:4,status:"In Progress",work_doc:"Work orders/A007564.pdf"},
+  {id:10,asm:"A007528",so:"296966",customer:"Busch Ire",job_type:"Pump Assembly",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-25",due_date:"2025-11-28",est_hours:10,act_hours:10,status:"Complete",work_doc:"Work orders/A007528.pdf"},
+  {id:11,asm:"A007471",so:"296754",customer:"BCD Engineering",job_type:"Valve Overhaul",business_unit:"Engineering",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-10",due_date:"2025-11-28",est_hours:4,act_hours:5,status:"Complete",work_doc:"Work orders/A007471.pdf"},
+  {id:12,asm:"A07427",so:"297068",customer:"European Refresh",job_type:"Valve Assembly",business_unit:"Industrial",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-24",due_date:"2025-12-05",est_hours:2,act_hours:null,status:"In Progress",work_doc:"Work orders/A007427.pdf"},
+  {id:13,asm:"A007587",so:"297522",customer:"Eli Lilly",job_type:"Site Visit",business_unit:"Pharma",owner:"Cathal",allocated_to:"Cathal",date_issued:"2025-11-22",due_date:"2025-11-28",est_hours:1,act_hours:1,status:"Complete",work_doc:"Work orders/A007587.pdf"},
+  {id:14,asm:"A007595",so:"297527",customer:"Jacobs",job_type:"Pump Overhaul",business_unit:"Engineering",owner:"Cathal",allocated_to:"Cathal",date_issued:"2025-11-24",due_date:"2025-11-28",est_hours:1,act_hours:1,status:"Complete",work_doc:"Work orders/A007595.pdf"},
+  {id:15,asm:"A007613",so:"296819",customer:"MSD Ballydine",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-28",due_date:"2025-12-05",est_hours:2,act_hours:null,status:"In Progress",work_doc:"Work orders/A007613.pdf"},
+  {id:16,asm:"A007615",so:"296819",customer:"MSD Ballydine",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-28",due_date:"2025-12-05",est_hours:2,act_hours:null,status:"In Progress",work_doc:"Work orders/A007615.pdf"},
+  {id:17,asm:"A007616",so:"297155",customer:"MSD Ballydine",job_type:"Valve Overhaul",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-28",due_date:"2026-01-15",est_hours:1,act_hours:null,status:"In Progress",work_doc:"Work orders/A007616.pdf"},
+  {id:18,asm:"A007618",so:"297155",customer:"MSD Ballydine",job_type:"Pump Overhaul",business_unit:"Pharma",owner:"Darragh",allocated_to:"Dave",date_issued:"2025-11-28",due_date:"2026-01-15",est_hours:4,act_hours:null,status:"Input Needed",work_doc:"Work orders/A007618.pdf"},
+  {id:19,asm:"A007623",so:"297080",customer:"EES",job_type:"Mechanical Seal Refurb",business_unit:"Industrial",owner:"Ross",allocated_to:"Ross",date_issued:"2025-12-01",due_date:"2025-12-05",est_hours:0.5,act_hours:0.5,status:"Complete",work_doc:"Work orders/A007623.pdf"},
+  {id:20,asm:"A007405",so:"296889",customer:"Eli Lilly",job_type:"Valve Overhaul",business_unit:"Pharma",owner:"Darragh",allocated_to:"Colin",date_issued:"2025-11-20",due_date:"2025-12-12",est_hours:6,act_hours:2,status:"In Progress",work_doc:"Work orders/A007405.pdf"},
+  {id:21,asm:"SITE-001",so:"TBA",customer:"Aughinish",job_type:"Site Visit",business_unit:"Mining",owner:"Darragh",allocated_to:"Colin",date_issued:"2025-12-01",due_date:"2026-04-01",est_hours:8,act_hours:null,status:"In Progress",work_doc:""},
+  {id:22,asm:"SITE-002",so:"TBA",customer:"Astrazeneca",job_type:"Site Visit",business_unit:"Pharma",owner:"Darragh",allocated_to:"Dave",date_issued:"2025-12-01",due_date:"2026-01-01",est_hours:16,act_hours:null,status:"In Progress",work_doc:""},
+  {id:23,asm:"SITE-003",so:"TBA",customer:"MSD Balline",job_type:"Site Visit",business_unit:"Pharma",owner:"Darragh",allocated_to:"Dave",date_issued:"2025-11-28",due_date:"2025-12-31",est_hours:4,act_hours:null,status:"Input Needed",work_doc:""},
+  {id:24,asm:"SITE-004",so:"TBA",customer:"Eli Lilly Limerick",job_type:"Site Visit",business_unit:"Pharma",owner:"Cathal",allocated_to:"Colin",date_issued:"2025-12-08",due_date:"2026-01-15",est_hours:4,act_hours:null,status:"In Progress",work_doc:""},
+  {id:25,asm:"A007509",so:"295768",customer:"Astrazeneca",job_type:"Pump Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-10-15",due_date:"2025-11-14",est_hours:2,act_hours:2,status:"Complete",work_doc:"Work orders/A007509.pdf"},
+];
+
+const SEED_NOTES = [
+  {id:1,job_id:1,author:"Darragh",body:"Completed ahead of schedule. Passed all pressure and leak tests.",created_at:"2025-11-28T09:14:00Z"},
+  {id:2,job_id:2,author:"Darragh",body:"All pressure tests passed. Shipped to site.",created_at:"2025-11-28T11:00:00Z"},
+  {id:3,job_id:3,author:"Darragh",body:"Extra time on bearing replacement — seating was heavily corroded.",created_at:"2025-11-27T14:30:00Z"},
+  {id:4,job_id:3,author:"Darragh",body:"Complete. Actual 6h vs 4h estimated. Noted on work order.",created_at:"2025-11-28T15:00:00Z"},
+  {id:5,job_id:4,author:"Shauna",body:"Seal lapping complete. Awaiting test bench slot — bench is booked Fri.",created_at:"2025-12-02T10:20:00Z"},
+  {id:6,job_id:5,author:"Shauna",body:"Parts cleaned and inspected, ready for assembly.",created_at:"2025-12-01T08:55:00Z"},
+  {id:7,job_id:6,author:"Shauna",body:"Test specification not yet received from BMD. Chasing their engineering contact.",created_at:"2025-12-03T16:00:00Z"},
+  {id:8,job_id:7,author:"Shauna",body:"Waiting on customer drawing revision B before proceeding.",created_at:"2025-12-03T16:05:00Z"},
+  {id:9,job_id:8,author:"Darragh",body:"Valve bodies machined. Actuator installation is next step.",created_at:"2025-12-01T13:00:00Z"},
+  {id:10,job_id:8,author:"Darragh",body:"Actuator fitted and calibrated. Moving to final inspection 08/12.",created_at:"2025-12-04T09:30:00Z"},
+  {id:11,job_id:9,author:"Darragh",body:"Running parallel with A007563. On track.",created_at:"2025-12-02T11:15:00Z"},
+  {id:12,job_id:10,author:"Darragh",body:"Shipped 28/11. Delivery confirmed by Busch Ire.",created_at:"2025-11-28T17:00:00Z"},
+  {id:13,job_id:11,author:"Shauna",body:"Minor additional seat lapping required — added 1 hour.",created_at:"2025-11-26T14:00:00Z"},
+  {id:14,job_id:15,author:"Darragh",body:"Parts kitted and staged. Starting Monday 01/12.",created_at:"2025-11-28T16:00:00Z"},
+  {id:15,job_id:17,author:"Darragh",body:"Assessment done. O-ring kit on order, delivery expected 05/12.",created_at:"2025-12-01T10:00:00Z"},
+  {id:16,job_id:18,author:"Dave",body:"Customer has not confirmed scope. Cannot proceed without written sign-off.",created_at:"2025-12-01T14:00:00Z"},
+  {id:17,job_id:19,author:"Ross",body:"Quick turnaround repair. Customer collected same day.",created_at:"2025-12-02T11:00:00Z"},
+  {id:18,job_id:20,author:"Colin",body:"Seat grinding done. Moving to pressure testing phase tomorrow.",created_at:"2025-12-05T15:30:00Z"},
+  {id:19,job_id:21,author:"Colin",body:"Rotating control valves confirmed for April 2026 window. Site access arranged.",created_at:"2025-12-01T09:00:00Z"},
+  {id:20,job_id:22,author:"Dave",body:"8 vertical pump alignments. Exact dates still TBC with Astrazeneca facilities team.",created_at:"2025-12-01T09:00:00Z"},
+  {id:21,job_id:23,author:"Dave",body:"Mag-drive investigation. Awaiting site access clearance from MSD HSE team.",created_at:"2025-11-28T13:00:00Z"},
+  {id:22,job_id:24,author:"Colin",body:"Valve issue investigation. Site access booked for January window.",created_at:"2025-12-08T10:00:00Z"},
+];
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+const fd = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", {day:"2-digit",month:"short",year:"numeric"});
+const fdShort = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", {day:"2-digit",month:"short"});
+const isOD = (due,status) => status!=="Complete"&&due&&new Date(due)<TODAY;
+const nowISO = () => new Date().toISOString();
+const isMobile = () => typeof window!=="undefined"&&window.innerWidth<1024;
+
+const STATUS={
+  "In Progress":{bg:"#FFF8E1",border:"#F59E0B",text:"#78350F",dot:"#F59E0B"},
+  "Input Needed":{bg:COLORS.redLt,border:COLORS.red,text:"#7F1D1D",dot:COLORS.red},
+  "Complete":{bg:COLORS.greenLt,border:COLORS.green,text:"#064E3B",dot:COLORS.green},
+};
+
+const AVATAR_COLORS={
+  Darragh:"#1E3A5F",Shauna:"#6B21A8",Cathal:"#065F46",Ross:"#7C2D12",Dave:"#1D4ED8",Colin:"#92400E",
+};
+
+const TYPE_ICON={
+  "Valve Assembly":"🔧","Pump Assembly":"⚙","Valve Overhaul":"🔩",
+  "Pump Overhaul":"🛠","Mechanical Seal Refurb":"💎","Testing":"🧪","Site Visit":"📍",
+};
 
 // ─── COMPONENTS ──────────────────────────────────────────────────────────────
-function Avatar({ name, isOwner }) {
-  return <div className={`avatar ${isOwner ? 'avatar-owner' : ''}`}>{name ? name[0] : '?'}</div>;
+
+function Avatar({name,size=30}){
+  return<div style={{width:size,height:size,borderRadius:"50%",background:AVATAR_COLORS[name]||COLORS.steel,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:800,flexShrink:0,fontFamily:"'DM Mono',monospace",letterSpacing:-0.5,border:`2px solid rgba(255,255,255,0.15)`}}>{name?.[0]}</div>;
 }
 
-function JobCard({ job, notesCount, onStatusChange, onOpenNotes }) {
-  const isOverBudget = job.act_hours > job.est_hours;
-  
-  return (
-    <div className="job-card">
-      <div className="card-header">
-        <div className="card-title-group">
-          <span className="asm-number">{job.asm || 'No ASM'}</span>
-          <span className="so-number">SO: {job.so || 'N/A'}</span>
+function StatusPill({status,small}){
+  const c=STATUS[status]||STATUS["In Progress"];
+  return<span style={{display:"inline-flex",alignItems:"center",gap:5,background:c.bg,border:`1px solid ${c.border}`,color:c.text,borderRadius:4,padding:small?"1px 7px":"3px 10px",fontSize:small?10:11,fontWeight:700,letterSpacing:0.03,whiteSpace:"nowrap"}}><span style={{width:6,height:6,borderRadius:"50%",background:c.dot,flexShrink:0}}/>{status}</span>;
+}
+
+function TypeBadge({type}){
+  return<span style={{display:"inline-flex",alignItems:"center",gap:4,background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,border:`1px solid ${COLORS.rule}`}}><span>{TYPE_ICON[type]||"🔧"}</span>{type}</span>;
+}
+
+function ProgressBar({val,max,color}){
+  const pct=max>0?Math.min(100,Math.round((val/max)*100)):0;
+  return<div style={{background:COLORS.steelLt,borderRadius:3,height:6,width:"100%",overflow:"hidden"}}><div style={{width:`${pct}%`,height:6,borderRadius:3,background:color||COLORS.orange,transition:"width 0.4s ease"}}/></div>;
+}
+
+function Toast({msg,type="success",onDone}){
+  useEffect(()=>{const t=setTimeout(onDone,2800);return()=>clearTimeout(t);},[]);
+  const bg=type==="error"?COLORS.red:type==="warn"?"#B45309":COLORS.orange;
+  return<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:bg,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:12,fontWeight:700,zIndex:1000,boxShadow:"0 6px 24px rgba(0,0,0,0.25)",animation:"slideUp 0.2s ease",whiteSpace:"nowrap"}}>{msg}</div>;
+}
+
+function LoginPage({onLogin}){
+  const[email,setEmail]=useState("");
+  const[password,setPassword]=useState("");
+  const[error,setError]=useState("");
+
+  function submit(){
+    if(!email.trim()||!password.trim()){setError("Email and password required");return;}
+    if(password.length<6){setError("Password must be 6+ characters");return;}
+    localStorage.setItem("flexachem_user",JSON.stringify({email,password,login_time:nowISO()}));
+    onLogin({email,password});
+  }
+
+  return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.navyMid} 100%)`,padding:20}}><div style={{background:"#fff",borderRadius:12,padding:40,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(11,31,58,0.4)"}}><div style={{textAlign:"center",marginBottom:32}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:COLORS.navy,marginBottom:8}}>Flexachem</div><div style={{fontSize:12,color:COLORS.textSoft,fontWeight:600,letterSpacing:0.1,textTransform:"uppercase"}}>Workshop Job Tracker</div><div style={{fontSize:13,color:COLORS.textMid,marginTop:16}}>Secure Access</div></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:11,fontWeight:800,color:COLORS.textMid,textTransform:"uppercase",letterSpacing:0.08,marginBottom:6}}>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"}}/></div><div style={{marginBottom:20}}><label style={{display:"block",fontSize:11,fontWeight:800,color:COLORS.textMid,textTransform:"uppercase",letterSpacing:0.08,marginBottom:6}}>Password</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••" onKeyDown={e=>e.key==="Enter"&&submit()} style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"}}/></div>{error&&<div style={{background:COLORS.redLt,border:`1px solid ${COLORS.red}`,color:COLORS.red,padding:10,borderRadius:6,fontSize:12,marginBottom:20,fontWeight:600}}>{error}</div>}<button onClick={submit} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:8,padding:"12px 0",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 4px 12px rgba(232,96,26,0.3)`,transition:"background 0.15s"}} onMouseEnter={e=>e.target.style.background="#C24F0E"} onMouseLeave={e=>e.target.style.background=COLORS.orange}>Sign In</button><div style={{textAlign:"center",marginTop:16,fontSize:11,color:COLORS.textSoft}}>Demo: any email, password 6+ chars</div></div></div>;
+}
+
+function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,onDeleteUser}){
+  const[text,setText]=useState("");
+  const[newStatus,setNewStatus]=useState("");
+
+  const displayNotes=allMode?[...notes].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,40):notes.filter(n=>n.job_id===job?.id).sort((a,b)=>b.created_at.localeCompare(a.created_at));
+
+  function submit(){
+    if(!text.trim()&&!newStatus)return;
+    onAddNote(text.trim(),newStatus||null);
+    setText("");setNewStatus("");
+  }
+
+  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:700,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -12px 48px rgba(11,31,58,0.25)",animation:"slideUp 0.22s ease"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"10px 12px"}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"8px 12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"7px 8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,marginTop:6,alignItems:"center",flexWrap:"wrap"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"5px 6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;
+}
+
+function JobModal({job,onSave,onClose}){
+  const[form,setForm]=useState(job?{...job,note:""}:{asm:"",so:"",customer:"",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"",due_date:"",est_hours:"",act_hours:"",status:"In Progress",work_doc:"",note:""});
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const inputStyle={width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"7px 8px",fontSize:11,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"};
+  const inp=(k,p="",t="text")=><input type={t} value={form[k]||""} placeholder={p} onChange={e=>set(k,e.target.value)} style={inputStyle}/>;
+  const sel=(k,opts)=><select value={form[k]||""} onChange={e=>set(k,e.target.value)} style={{...inputStyle,cursor:"pointer"}}>{opts.map(o=><option key={o}>{o}</option>)}</select>;
+
+  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:10}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:580,maxHeight:"90vh",overflow:"auto",boxShadow:"0 20px 60px rgba(11,31,58,0.3)"}}><div style={{background:COLORS.navy,padding:"10px 14px",borderRadius:"10px 10px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{color:"#fff",fontWeight:800,fontSize:13}}>{job?"Edit":"Add Job"}</div><button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:"50%",width:26,height:26,cursor:"pointer",fontSize:13}}>✕</button></div><div style={{padding:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Asm</label>{inp("asm")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>SO</label>{inp("so")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Customer</label>{inp("customer")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>BU</label>{sel("business_unit",BUS)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Type</label>{sel("job_type",JOB_TYPES)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Status</label>{sel("status",["In Progress","Input Needed","Complete"])}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Owner</label>{sel("owner",PEOPLE)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Alloc</label>{sel("allocated_to",PEOPLE)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Issued</label>{inp("date_issued","","date")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Due</label>{inp("due_date","","date")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Est h</label>{inp("est_hours","","number")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Act h</label>{inp("act_hours","","number")}</div><div style={{gridColumn:"span 2"}}><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Doc</label>{inp("work_doc")}</div><div style={{gridColumn:"span 2"}}><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Note</label><textarea value={form.note||""} onChange={e=>set("note",e.target.value)} placeholder="…" style={{...inputStyle,resize:"none",minHeight:50}}/></div></div><div style={{borderTop:`1px solid ${COLORS.rule}`,padding:"8px 14px",display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onClose} style={{background:COLORS.steelLt,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",color:COLORS.text}}>Cancel</button><button onClick={()=>onSave(form)} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 16px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{job?"Save":"Add"}</button></div></div></div>;
+}
+
+function KpiCard({value,label,accent}){
+  return<div style={{background:"#fff",borderRadius:10,borderTop:`4px solid ${accent}`,padding:"16px 18px",flex:1,minWidth:100,boxShadow:"0 1px 6px rgba(11,31,58,0.07)",border:`1px solid ${COLORS.rule}`}}><div style={{fontSize:28,fontWeight:800,color:accent,fontFamily:"'DM Mono',monospace",lineHeight:1}}>{value}</div><div style={{fontSize:10,textTransform:"uppercase",letterSpacing:0.1,color:COLORS.textSoft,marginTop:6,fontWeight:600}}>{label}</div></div>;
+}
+
+function DashboardView({jobs,notes,onFilterEmp}){
+  const open=jobs.filter(j=>j.status!=="Complete");
+  const ip=jobs.filter(j=>j.status==="In Progress").length;
+  const inp=jobs.filter(j=>j.status==="Input Needed").length;
+  const done=jobs.filter(j=>j.status==="Complete").length;
+  const od=jobs.filter(j=>isOD(j.due_date,j.status)).length;
+  const openHrs=open.reduce((a,j)=>a+(j.est_hours||0),0);
+
+  const byEmp=useMemo(()=>{const m={};jobs.forEach(j=>{const k=j.allocated_to;if(!m[k])m[k]={jobs:0,hrs:0,ip:0,inp:0};m[k].jobs++;m[k].hrs+=j.est_hours||0;if(j.status==="In Progress")m[k].ip++;if(j.status==="Input Needed")m[k].inp++;});return Object.entries(m).sort((a,b)=>b[1].hrs-a[1].hrs);},[jobs]);
+
+  const byBU=useMemo(()=>{const m={};jobs.forEach(j=>{if(!m[j.business_unit])m[j.business_unit]={jobs:0,open:0,inp:0};m[j.business_unit].jobs++;if(j.status!=="Complete")m[j.business_unit].open++;if(j.status==="Input Needed")m[j.business_unit].inp++;});return Object.entries(m).sort((a,b)=>b[1].jobs-a[1].jobs);},[jobs]);
+
+  const maxEmpHrs=Math.max(...byEmp.map(([,v])=>v.hrs),1);
+
+  return<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,padding:20,overflowY:"auto",height:"100%"}}><div style={{gridColumn:"span 2"}}><div style={{display:"flex",gap:12,flexWrap:"wrap"}}><KpiCard value={jobs.length} label="Total Jobs" accent={COLORS.navy}/><KpiCard value={ip} label="In Progress" accent="#F59E0B"/><KpiCard value={inp} label="Input Needed" accent={COLORS.red}/><KpiCard value={done} label="Complete" accent={COLORS.green}/><KpiCard value={od} label="Overdue" accent={od>0?COLORS.red:COLORS.textSoft}/><KpiCard value={`${openHrs}h`} label="Open Hours" accent={COLORS.orange}/></div></div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.navy,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>👤 By Employee</div>{byEmp.map(([name,v])=><div key={name} onClick={()=>onFilterEmp(name)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist} onMouseLeave={e=>e.currentTarget.style.background=""}><Avatar name={name} size={28}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{name}</span><span style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} jobs · {v.hrs}h</span></div><ProgressBar val={v.hrs} max={maxEmpHrs} color={COLORS.orange}/></div></div>)}</div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.slate,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏭 By Business Unit</div>{byBU.map(([bu,v])=><div key={bu} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{bu}</div><div style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} total · {v.open} open</div></div><div style={{display:"flex",gap:6}}>{v.inp>0&&<span style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:4,fontSize:10,fontWeight:700,padding:"2px 8px"}}>⚠ {v.inp}</span>}<span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:10,fontWeight:600,padding:"2px 8px"}}>{v.open} open</span></div></div>)}</div></div>;
+}
+
+function JobCard({job,notes,onStatusChange,onOpenNotes,onEdit}){
+  const od=isOD(job.due_date,job.status);
+  const jobNotes=notes.filter(n=>n.job_id===job.id);
+  const lastNote=jobNotes.sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];
+  const hasActuals=job.act_hours!=null;
+  const over=hasActuals&&job.act_hours>job.est_hours;
+
+  return<div style={{background:"#fff",borderRadius:10,marginBottom:12,border:`1px solid ${od?"#FECACA":COLORS.rule}`,overflow:"hidden",boxShadow:"0 1px 4px rgba(11,31,58,0.06)"}}>
+    {od&&<div style={{background:COLORS.red,color:"#fff",padding:"6px 16px",fontSize:11,fontWeight:700}}>⚠ OVERDUE — Due {fd(job.due_date)}</div>}
+    <div style={{padding:"14px 16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:10}}>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
+            <span style={{fontFamily:"'DM Mono',monospace",fontWeight:800,fontSize:13,color:COLORS.navy}}>{job.asm}</span>
+            <TypeBadge type={job.job_type}/>
+            <StatusPill status={job.status} small/>
+          </div>
+          <div style={{fontWeight:700,fontSize:15,color:COLORS.text,marginBottom:4}}>{job.customer}</div>
+          <div style={{fontSize:11,color:COLORS.textSoft}}>SO: {job.so||"TBA"} · Issued {fdShort(job.date_issued)} · Due <strong style={{color:od?COLORS.red:COLORS.text}}>{fd(job.due_date)}</strong></div>
         </div>
-        <select 
-          value={job.status} 
-          onChange={(e) => onStatusChange(job.id, e.target.value)}
-          className={`status-select ${statusClass(job.status)}`}
-        >
-          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        <select value={job.status} onChange={e=>onStatusChange(job.id,e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:600,background:"#fff",color:COLORS.text,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
+          <option>In Progress</option>
+          <option>Input Needed</option>
+          <option>Complete</option>
         </select>
       </div>
 
-      <div className="card-tags">
-        <span className="tag tag-customer">{job.customer || 'Unknown Customer'}</span>
-        <span className="tag">{job.job_type}</span>
-        <span className="tag">{job.business_unit}</span>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <Avatar name={job.allocated_to} size={24}/>
+        <span style={{fontSize:12,color:COLORS.text,fontWeight:600}}>{job.allocated_to}</span>
+        {job.allocated_to!==job.owner&&<><span style={{color:COLORS.rule}}>·</span><span style={{fontSize:11,color:COLORS.textSoft}}>Owner: {job.owner}</span></>}
+        <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:11,color:over?COLORS.red:COLORS.textMid,fontWeight:over?700:400}}>{hasActuals?`${job.act_hours}h / ${job.est_hours}h${over?" ↑":""}`:` ${job.est_hours}h est.`}</span>
       </div>
 
-      <div className="card-details">
-        <div className="detail-block">
-          <span className="detail-label">Team</span>
-          <span className="detail-value"><Avatar name={job.owner} isOwner /> {job.owner} (Own)</span>
-          <span className="detail-value"><Avatar name={job.allocated_to} /> {job.allocated_to} (Alloc)</span>
-        </div>
-        
-        <div className="detail-block">
-          <span className="detail-label">Timeline</span>
-          <span className="detail-value">Iss: {fd(job.date_issued)}</span>
-          <span className="detail-value">Due: {fd(job.due_date)}</span>
-        </div>
+      {hasActuals&&<div style={{marginBottom:10}}><ProgressBar val={job.act_hours} max={job.est_hours} color={over?COLORS.red:COLORS.orange}/></div>}
 
-        <div className="detail-block" style={{ gridColumn: '1 / -1', borderTop: '1px dashed #DDE3EC', paddingTop: '10px' }}>
-          <span className="detail-label">Hours Tracking</span>
-          <span className="detail-value" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-            <span>Est: {job.est_hours || 0} hrs</span>
-            <span className={isOverBudget ? 'variance-high' : ''}>
-              Act: {job.act_hours || 0} hrs {isOverBudget && "⚠️"}
-            </span>
-          </span>
-        </div>
-      </div>
+      {lastNote&&<div style={{background:COLORS.mist,borderLeft:`3px solid ${COLORS.orange}`,padding:"8px 12px",borderRadius:"0 6px 6px 0",marginBottom:10}}>
+        <div style={{fontSize:10,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace",marginBottom:3}}>{lastNote.author} · {new Date(lastNote.created_at).toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div>
+        <div style={{fontSize:12,color:COLORS.text,lineHeight:1.45}}>{lastNote.body}</div>
+      </div>}
 
-      <div className="card-footer">
-        <button className="btn-notes" onClick={() => onOpenNotes(job)}>
-          💬 Notes {notesCount > 0 && <span style={{background:'#E8601A', color:'white', borderRadius:'10px', padding:'2px 6px', fontSize:'10px'}}>{notesCount}</span>}
-        </button>
+      <div style={{display:"flex",gap:6}}>
+        <button onClick={()=>onOpenNotes(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,background:"#fff",cursor:"pointer",color:COLORS.steel,display:"flex",alignItems:"center",gap:4}}>💬 Notes <span style={{background:COLORS.steelLt,borderRadius:10,padding:"0 6px",fontSize:10,fontWeight:700}}>{jobNotes.length}</span></button>
+        <button onClick={()=>onEdit(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,background:"#fff",cursor:"pointer",color:COLORS.steel}}>✏ Edit</button>
+        {job.work_doc&&<button style={{border:`1px solid ${COLORS.navy}20`,borderRadius:6,padding:"6px 12px",fontSize:11,background:COLORS.steelLt,cursor:"pointer",color:COLORS.navy}}>📎 Work</button>}
       </div>
     </div>
-  );
+  </div>;
 }
 
-function JobModal({ onSave, onClose }) {
-  const [form, setForm] = useState({
-    asm: "", so: "", customer: "", job_type: JOB_TYPES[0], business_unit: BUSINESS_UNITS[0], 
-    owner: PEOPLE[0], allocated_to: PEOPLE[0], date_issued: "", due_date: "", est_hours: "", act_hours: "", status: "In Progress"
-  });
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+export default function App(){
+  const[user,setUser]=useState(null);
+  const[jobs,setJobs]=useState(SEED_JOBS);
+  const[notes,setNotes]=useState(SEED_NOTES);
+  const[tab,setTab]=useState("jobs");
+  const[filterStatus,setFilterStatus]=useState("");
+  const[filterEmp,setFilterEmp]=useState("");
+  const[search,setSearch]=useState("");
+  const[notesJobId,setNotesJobId]=useState(null);
+  const[allNotesOpen,setAllNotesOpen]=useState(false);
+  const[editJobId,setEditJobId]=useState(null);
+  const[addOpen,setAddOpen]=useState(false);
+  const[toast,setToast]=useState(null);
+  const[nextId,setNextId]=useState(26);
+  const[nextNoteId,setNextNoteId]=useState(SEED_NOTES.length+1);
 
-  const update = (field, val) => setForm(f => ({ ...f, [field]: val }));
+  useEffect(()=>{
+    const stored=localStorage.getItem("flexachem_user");
+    if(stored)setUser(JSON.parse(stored));
+    const storedNotes=localStorage.getItem("flexachem_notes");
+    if(storedNotes)setNotes(JSON.parse(storedNotes));
+    const storedJobs=localStorage.getItem("flexachem_jobs");
+    if(storedJobs)setJobs(JSON.parse(storedJobs));
+  },[]);
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <span>Add New Work Order</span>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div className="form-grid">
-            <div className="form-group"><label className="form-label">ASM Number</label><input className="form-input" value={form.asm} onChange={e=>update('asm', e.target.value)} placeholder="e.g. A007123"/></div>
-            <div className="form-group"><label className="form-label">Sales Order</label><input className="form-input" value={form.so} onChange={e=>update('so', e.target.value)} placeholder="e.g. 296000"/></div>
-            <div className="form-group full"><label className="form-label">Customer</label><input className="form-input" value={form.customer} onChange={e=>update('customer', e.target.value)}/></div>
-            
-            <div className="form-group">
-              <label className="form-label">Job Type</label>
-              <select className="form-select" value={form.job_type} onChange={e=>update('job_type', e.target.value)}>
-                {JOB_TYPES.map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Business Unit</label>
-              <select className="form-select" value={form.business_unit} onChange={e=>update('business_unit', e.target.value)}>
-                {BUSINESS_UNITS.map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
+  const filtered=useMemo(()=>jobs.filter(j=>{if(filterStatus&&j.status!==filterStatus)return false;if(filterEmp&&j.allocated_to!==filterEmp&&j.owner!==filterEmp)return false;const q=search.toLowerCase();if(q&&!j.customer.toLowerCase().includes(q)&&!j.asm.toLowerCase().includes(q)&&!j.so.toLowerCase().includes(q))return false;return true;}),[jobs,filterStatus,filterEmp,search]);
 
-            <div className="form-group">
-              <label className="form-label">Owner</label>
-              <select className="form-select" value={form.owner} onChange={e=>update('owner', e.target.value)}>
-                {PEOPLE.map(p => <option key={p}>{p}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Allocated To</label>
-              <select className="form-select" value={form.allocated_to} onChange={e=>update('allocated_to', e.target.value)}>
-                {PEOPLE.map(p => <option key={p}>{p}</option>)}
-              </select>
-            </div>
+  const inp_count=useMemo(()=>jobs.filter(j=>j.status==="Input Needed").length,[jobs]);
+  const od_count=useMemo(()=>jobs.filter(j=>isOD(j.due_date,j.status)).length,[jobs]);
 
-            <div className="form-group"><label className="form-label">Date Issued</label><input type="date" className="form-input" value={form.date_issued} onChange={e=>update('date_issued', e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">Due Date</label><input type="date" className="form-input" value={form.due_date} onChange={e=>update('due_date', e.target.value)}/></div>
+  function showToast(msg,type="success"){setToast({msg,type});}
 
-            <div className="form-group"><label className="form-label">Est Hours</label><input type="number" className="form-input" value={form.est_hours} onChange={e=>update('est_hours', e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">Act Hours</label><input type="number" className="form-input" value={form.act_hours} onChange={e=>update('act_hours', e.target.value)}/></div>
-          </div>
-          <div style={{marginTop: '20px', display: 'flex', justifyContent: 'flex-end'}}>
-            <button className="btn-primary" onClick={() => { onSave(form); onClose(); }}>Save Work Order</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function NotesModal({ job, notes, onAddNote, onClose }) {
-  const [newNote, setNewNote] = useState("");
-  const jobNotes = notes.filter(n => n.job_id === job.id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={e => e.stopPropagation()} style={{maxWidth: '500px'}}>
-        <div className="modal-header">
-          <span>Notes: {job.asm}</span>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body" style={{background: '#fff'}}>
-          <div style={{marginBottom: '20px'}}>
-            <textarea className="form-textarea" style={{width: '100%', marginBottom: '10px'}} placeholder="Add an update from the floor..." value={newNote} onChange={e => setNewNote(e.target.value)}></textarea>
-            <button className="btn-primary" style={{width: '100%'}} onClick={() => { if(newNote.trim()) { onAddNote(job.id, newNote); setNewNote(""); }}}>Post Note</button>
-          </div>
-          
-          <div>
-            {jobNotes.length === 0 ? <p style={{textAlign:'center', color:'#8099B5', fontSize:'13px'}}>No notes yet.</p> : null}
-            {jobNotes.map(n => (
-              <div key={n.id} className="note-item">
-                <div className="note-meta">
-                  <span>{n.author}</span>
-                  <span>{new Date(n.created_at).toLocaleString("en-IE", {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</span>
-                </div>
-                <div className="note-body">{n.body}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── MAIN APP ────────────────────────────────────────────────────────────────
-export default function App() {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [password, setPassword] = useState("");
-  
-  const [tab, setTab] = useState("all");
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  
-  const [isAddJobOpen, setIsAddJobOpen] = useState(false);
-  const [activeNotesJob, setActiveNotesJob] = useState(null);
-
-  const [jobs, setJobs] = useState([]);
-  const [notes, setNotes] = useState([]);
-
-  // Fetch Data from Supabase
-  useEffect(() => {
-    if (authenticated) {
-      fetchData();
-    }
-  }, [authenticated]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    const [jobsRes, notesRes] = await Promise.all([
-      supabase.from('jobs').select('*').order('id', { ascending: false }),
-      supabase.from('notes').select('*').order('created_at', { ascending: false })
-    ]);
-    
-    if (jobsRes.data) setJobs(jobsRes.data);
-    if (notesRes.data) setNotes(notesRes.data);
-    setLoading(false);
-  };
-
-  // Actions syncing with Supabase
-  const updateStatus = async (id, newStatus) => {
-    // Optimistic UI update
-    setJobs(jobs.map(j => j.id === id ? { ...j, status: newStatus } : j));
-    await supabase.from('jobs').update({ status: newStatus }).eq('id', id);
-  };
-
-  const addJob = async (newJobData) => {
-    // Need to handle empty numeric fields correctly for postgres
-    const formattedData = {
-        ...newJobData,
-        est_hours: newJobData.est_hours ? parseFloat(newJobData.est_hours) : 0,
-        act_hours: newJobData.act_hours ? parseFloat(newJobData.act_hours) : 0,
-        date_issued: newJobData.date_issued || null,
-        due_date: newJobData.due_date || null
-    };
-
-    const { data, error } = await supabase.from('jobs').insert([formattedData]).select();
-    if (data) setJobs([data[0], ...jobs]);
-    if (error) console.error("Error inserting job:", error);
-  };
-
-  const addNote = async (jobId, body) => {
-    const newNoteData = { job_id: jobId, author: "Service Tech", body: body };
-    const { data, error } = await supabase.from('notes').insert([newNoteData]).select();
-    if (data) setNotes([data[0], ...notes]);
-    if (error) console.error("Error inserting note:", error);
-  };
-
-  const filteredJobs = useMemo(() => {
-    let f = jobs;
-    if (tab === "active") f = f.filter(j => j.status !== "Complete");
-    if (search) f = f.filter(j => j.asm?.toLowerCase().includes(search.toLowerCase()) || j.customer?.toLowerCase().includes(search.toLowerCase()));
-    return f;
-  }, [jobs, tab, search]);
-
-  if (!authenticated) {
-    return (
-      <div style={{display:'flex',height:'100vh',alignItems:'center',justifyContent:'center',background:'#0B1F3A', fontFamily:'Inter, sans-serif'}}>
-        <div style={{padding:40,background:'white',borderRadius:16,boxShadow:'0 10px 25px rgba(0,0,0,0.5)',width:'100%',maxWidth:360,textAlign:'center'}}>
-          <h2 style={{color:'#0B1F3A',marginBottom:30,fontSize:24}}>Flexachem<span style={{color:'#E8601A'}}>Tracker</span></h2>
-          <input type="password" placeholder="Enter password" value={password} onChange={(e) => setPassword(e.target.value)} style={{width:'100%',padding:12,marginBottom:20,borderRadius:8,border:'1px solid #cbd5e1',outline:'none',fontSize:16,boxSizing:'border-box'}}/>
-          <button onClick={() => password === "flexachem2026" && setAuthenticated(true)} style={{width:'100%',background:'#E8601A',color:'white',border:'none',padding:14,borderRadius:8,fontSize:16,fontWeight:600,cursor:'pointer'}}>Login</button>
-        </div>
-      </div>
-    );
+  function updateStatus(id,status){
+    const updated=jobs.map(j=>j.id===id?{...j,status}:j);
+    setJobs(updated);
+    localStorage.setItem("flexachem_jobs",JSON.stringify(updated));
+    showToast(`Status → ${status}`);
   }
 
-  return (
-    <>
-      <style dangerouslySetInnerHTML={{__html: globalCss}} />
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-        
-        <header className="app-header">
-          <div className="header-title">Flexachem <span>Tracker</span></div>
-          <input 
-            type="text" 
-            placeholder="Search ASM or Customer..." 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', outline: 'none', width: '250px' }}
-          />
-          <button onClick={() => setAuthenticated(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}>Logout</button>
-        </header>
+  function openNotes(jobId){setNotesJobId(jobId);setAllNotesOpen(false);}
 
-        <div className="nav-tabs">
-          <div className="tabs-group">
-            <button className={`tab-btn ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab("all")}>All Jobs ({jobs.length})</button>
-            <button className={`tab-btn ${tab === 'active' ? 'active' : ''}`} onClick={() => setTab("active")}>Active ({jobs.filter(j => j.status !== 'Complete').length})</button>
+  function addNote(body,newStatus){
+    if(!notesJobId)return;
+    const updated=[...notes];
+    if(body){
+      const job=jobs.find(j=>j.id===notesJobId);
+      updated.push({id:nextNoteId,job_id:notesJobId,author:job?.allocated_to||"Team",body,created_at:nowISO()});
+      setNextNoteId(n=>n+1);
+    }
+    setNotes(updated);
+    localStorage.setItem("flexachem_notes",JSON.stringify(updated));
+    if(newStatus){
+      const jobsUpdated=jobs.map(j=>j.id===notesJobId?{...j,status:newStatus}:j);
+      setJobs(jobsUpdated);
+      localStorage.setItem("flexachem_jobs",JSON.stringify(jobsUpdated));
+    }
+    showToast("Note posted ✓");
+    setNotesJobId(null);
+  }
+
+  function saveJob(form){
+    const noteText=form.note?.trim();
+    const updated=[...jobs];
+    const notesUpdated=[...notes];
+    if(editJobId){
+      const idx=updated.findIndex(j=>j.id===editJobId);
+      if(idx>=0)updated[idx]={...updated[idx],...form,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};
+      if(noteText){
+        const job=jobs.find(j=>j.id===editJobId);
+        notesUpdated.push({id:nextNoteId,job_id:editJobId,author:job?.allocated_to||"Team",body:noteText,created_at:nowISO()});
+        setNextNoteId(n=>n+1);
+      }
+      showToast("Job updated ✓");
+    }else{
+      const id=nextId;
+      setNextId(n=>n+1);
+      const newJob={...form,id,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};
+      updated.push(newJob);
+      if(noteText){
+        notesUpdated.push({id:nextNoteId,job_id:id,author:form.allocated_to||"Team",body:noteText,created_at:nowISO()});
+        setNextNoteId(n=>n+1);
+      }
+      showToast("Job added ✓");
+    }
+    setJobs(updated);
+    localStorage.setItem("flexachem_jobs",JSON.stringify(updated));
+    setNotes(notesUpdated);
+    localStorage.setItem("flexachem_notes",JSON.stringify(notesUpdated));
+    setAddOpen(false);
+    setEditJobId(null);
+  }
+
+  function logout(){
+    localStorage.removeItem("flexachem_user");
+    setUser(null);
+  }
+
+  if(!user)return<LoginPage onLogin={setUser}/>;
+
+  const editJob=editJobId?jobs.find(j=>j.id===editJobId):null;
+  const notesJob=notesJobId?jobs.find(j=>j.id===notesJobId):null;
+  const isMob=isMobile();
+
+  return<>
+    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=Mulish:wght@300;400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}html,body,#root{height:100%;width:100%;}body{font-family:'Mulish',sans-serif;background:${COLORS.mist};}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-thumb{background:${COLORS.rule};border-radius:3px;}@keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}`}</style>
+
+    <div style={{height:"100vh",display:"flex",flexDirection:isMob?"column":"row",background:COLORS.mist}}>
+      {/* SIDEBAR (Desktop) or HEADER (Mobile) */}
+      <div style={{background:COLORS.navy,flexShrink:0,width:isMob?"100%":240,padding:isMob?"10px 12px":"16px 14px",borderRight:isMob?"none":`1px solid ${COLORS.rule}`,borderBottom:isMob?`1px solid ${COLORS.rule}`:"none",display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isMob?8:14}}>
+          <div style={{background:COLORS.orange,borderRadius:6,width:isMob?30:32,height:isMob?30:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:isMob?14:16}}>⚙</span></div>
+          <div style={{flex:isMob?0:1}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:isMob?12:14,color:"#fff",letterSpacing:-0.3}}>Flexachem</div>
+            {!isMob&&<div style={{fontSize:8,color:COLORS.orange,fontWeight:700,letterSpacing:0.08,textTransform:"uppercase",marginTop:1}}>Tracker</div>}
           </div>
-          <button className="btn-primary" onClick={() => setIsAddJobOpen(true)}>＋ New Job</button>
+          {isMob&&<div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>
+            {od_count>0&&<div style={{background:COLORS.red,color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:8,fontWeight:800}}>{od_count}</div>}
+            {inp_count>0&&<div style={{background:"#F59E0B",color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:8,fontWeight:800}}>⚠{inp_count}</div>}
+            <button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:4,padding:"3px 6px",fontSize:9,fontWeight:800,cursor:"pointer"}}>＋</button>
+          </div>}
         </div>
 
-        <main className="main-content" style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
-          {loading ? (
-             <p style={{textAlign: 'center', marginTop: '40px', color: '#8099B5'}}>Loading live data...</p>
-          ) : (
-            <>
-              <div className="jobs-grid">
-                {filteredJobs.map(j => (
-                  <JobCard 
-                    key={j.id} 
-                    job={j} 
-                    notesCount={notes.filter(n => n.job_id === j.id).length}
-                    onStatusChange={updateStatus}
-                    onOpenNotes={setActiveNotesJob}
-                  />
-                ))}
-              </div>
-              {filteredJobs.length === 0 && <p style={{textAlign: 'center', marginTop: '40px', color: '#8099B5'}}>No jobs found matching your criteria.</p>}
-            </>
-          )}
-        </main>
+        {!isMob&&<>
+          {od_count>0&&<div style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>{od_count} overdue</div>}
+          {inp_count>0&&<div style={{background:"#FFF8E1",color:"#78350F",border:`1px solid #F59E0B`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>⚠ {inp_count} need input</div>}
+          <button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:16}}>＋ Add Job</button>
+        </>}
+
+        <div style={{display:"flex",flexDirection:"column",gap:isMob?4:6,marginBottom:isMob?8:16,flex:isMob?0:1}}>
+          {["jobs","dash","search"].map(t=>{const icons={jobs:"📋",dash:"📊",search:"🔍"};return<button key={t} onClick={()=>setTab(t)} style={{textAlign:"left",background:tab===t?COLORS.mist:"transparent",color:tab===t?COLORS.navy:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:isMob?"6px 8px":"10px 12px",fontSize:isMob?10:12,fontWeight:tab===t?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:isMob?4:8}}>{icons[t]}</span>{!isMob&&(t==="jobs"?"Jobs":t==="dash"?"Dashboard":"Search")}</button>;})}
+          {!isMob&&<button onClick={()=>setAllNotesOpen(true)} style={{textAlign:"left",background:"transparent",color:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:"10px 12px",fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:8}}>💬</span>All Notes</button>}
+        </div>
+
+        {!isMob&&<div style={{borderTop:`1px solid rgba(255,255,255,0.1)`,paddingTop:12}}>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:600,marginBottom:6,textTransform:"uppercase",letterSpacing:0.05}}>Logged in</div>
+          <div style={{fontSize:11,color:"#fff",marginBottom:8,wordBreak:"break-all"}}>{user.email}</div>
+          <button onClick={logout} style={{width:"100%",background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",border:"none",borderRadius:6,padding:"8px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Sign Out</button>
+        </div>}
       </div>
 
-      {isAddJobOpen && <JobModal onSave={addJob} onClose={() => setIsAddJobOpen(false)} />}
-      {activeNotesJob && <NotesModal job={activeNotesJob} notes={notes} onAddNote={addNote} onClose={() => setActiveNotesJob(null)} />}
-    </>
-  );
+      {/* MAIN CONTENT */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {tab==="jobs"&&<>
+          {!isMob&&<div style={{padding:"12px 16px",background:"#fff",borderBottom:`1px solid ${COLORS.rule}`,flexShrink:0,display:"flex",gap:10,alignItems:"center"}}>
+            <div style={{display:"flex",gap:6,flex:1}}>
+              {["","In Progress","Input Needed","Complete"].map(s=><button key={s} onClick={()=>setFilterStatus(s)} style={{background:filterStatus===s?"#fff":`${COLORS.steelLt}`,color:filterStatus===s?COLORS.navy:COLORS.textMid,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:filterStatus===s?700:500,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>{s||"All"}</button>)}
+            </div>
+            <select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,background:"#fff",color:COLORS.text,cursor:"pointer",fontFamily:"inherit"}}>
+              <option value="">All People</option>
+              {PEOPLE.map(p=><option key={p}>{p}</option>)}
+            </select>
+            <div style={{display:"flex",alignItems:"center",gap:6,background:COLORS.steelLt,borderRadius:6,padding:"6px 10px",fontSize:10,color:COLORS.textMid}}>{filtered.length}/{jobs.length}</div>
+          </div>}
+          {isMob&&<div style={{padding:"8px 10px",background:"#fff",borderBottom:`1px solid ${COLORS.rule}`,flexShrink:0,display:"flex",gap:5,alignItems:"center",overflowX:"auto"}}>
+            {["","In Progress","Input Needed","Complete"].map(s=><button key={s} onClick={()=>setFilterStatus(s)} style={{background:filterStatus===s?"#fff":`rgba(0,0,0,0.05)`,color:filterStatus===s?COLORS.navy:COLORS.text,border:"none",borderRadius:5,padding:"3px 8px",fontSize:9,fontWeight:filterStatus===s?700:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit"}}>{s||"All"}</button>)}
+            <select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)} style={{border:"none",borderRadius:5,padding:"3px 6px",fontSize:9,background:`rgba(0,0,0,0.05)`,color:COLORS.text,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
+              <option value="">All</option>
+              {PEOPLE.map(p=><option key={p}>{p}</option>)}
+            </select>
+          </div>}
+          <div style={{flex:1,overflowY:"auto",padding:isMob?"10px":"16px"}}>
+            {filtered.map(j=><JobCard key={j.id} job={j} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}}/>)}
+          </div>
+        </>}
+
+        {tab==="dash"&&<DashboardView jobs={jobs} notes={notes} onFilterEmp={name=>{setFilterEmp(name);setTab("jobs");}}/>}
+
+        {tab==="search"&&<div style={{padding:16,overflowY:"auto",flex:1}}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search assembly, customer, or SO…" autoFocus style={{width:"100%",maxWidth:400,border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"10px 12px",fontSize:12,fontFamily:"inherit",background:"#fff",color:COLORS.text,marginBottom:16}}/>
+          {filtered.map(j=><JobCard key={j.id} job={j} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}}/>)}
+        </div>}
+      </div>
+    </div>
+
+    {(notesJobId||allNotesOpen)&&<NotesPanel job={notesJob} notes={notes} allJobs={jobs} allMode={allNotesOpen} onClose={()=>{setNotesJobId(null);setAllNotesOpen(false);}} onAddNote={addNote}/>}
+    {addOpen&&<JobModal job={editJob} onSave={saveJob} onClose={()=>{setAddOpen(false);setEditJobId(null);}}/>}
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
+  </>;
 }
