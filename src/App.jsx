@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 
-// ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const TODAY = new Date("2026-06-03");
 const JOB_TYPES = ["Valve Assembly","Pump Assembly","Valve Overhaul","Pump Overhaul","Mechanical Seal Refurb","Testing","Site Visit"];
 const PEOPLE = ["Darragh","Shauna","Cathal","Ross","Dave","Colin"];
@@ -13,7 +12,6 @@ const COLORS = {
   green:"#0E7C4A",greenLt:"#E8F7EF",red:"#C0392B",redLt:"#FEF2F2",
 };
 
-// ─── SEED DATA ────────────────────────────────────────────────────────────────
 const SEED_JOBS = [
   {id:1,asm:"A007529",so:"296966",customer:"Busch Ire",job_type:"Valve Overhaul",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-20",due_date:"2025-11-28",est_hours:6,act_hours:6,status:"Complete",work_doc:"Work orders/A007529.pdf"},
   {id:2,asm:"A007527",so:"296966",customer:"Busch Ire",job_type:"Valve Assembly",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-20",due_date:"2025-11-28",est_hours:2,act_hours:2,status:"Complete",work_doc:"Work orders/A007527.pdf"},
@@ -67,7 +65,6 @@ const SEED_NOTES = [
   {id:22,job_id:24,author:"Colin",body:"Valve issue investigation. Site access booked for January window.",created_at:"2025-12-08T10:00:00Z"},
 ];
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fd = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", {day:"2-digit",month:"short",year:"numeric"});
 const fdShort = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", {day:"2-digit",month:"short"});
 const isOD = (due,status) => status!=="Complete"&&due&&new Date(due)<TODAY;
@@ -80,40 +77,18 @@ const STATUS={
   "Complete":{bg:COLORS.greenLt,border:COLORS.green,text:"#064E3B",dot:COLORS.green},
 };
 
-const AVATAR_COLORS={
-  Darragh:"#1E3A5F",Shauna:"#6B21A8",Cathal:"#065F46",Ross:"#7C2D12",Dave:"#1D4ED8",Colin:"#92400E",
-};
+const AVATAR_COLORS={Darragh:"#1E3A5F",Shauna:"#6B21A8",Cathal:"#065F46",Ross:"#7C2D12",Dave:"#1D4ED8",Colin:"#92400E"};
+const TYPE_ICON={"Valve Assembly":"🔧","Pump Assembly":"⚙","Valve Overhaul":"🔩","Pump Overhaul":"🛠","Mechanical Seal Refurb":"💎","Testing":"🧪","Site Visit":"📍"};
 
-const TYPE_ICON={
-  "Valve Assembly":"🔧","Pump Assembly":"⚙","Valve Overhaul":"🔩",
-  "Pump Overhaul":"🛠","Mechanical Seal Refurb":"💎","Testing":"🧪","Site Visit":"📍",
-};
+function Avatar({name,size=30}){return<div style={{width:size,height:size,borderRadius:"50%",background:AVATAR_COLORS[name]||COLORS.steel,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:800,flexShrink:0,fontFamily:"'DM Mono',monospace",letterSpacing:-0.5,border:`2px solid rgba(255,255,255,0.15)`}}>{name?.[0]}</div>;}
 
-// ─── COMPONENTS ──────────────────────────────────────────────────────────────
+function StatusPill({status,small}){const c=STATUS[status]||STATUS["In Progress"];return<span style={{display:"inline-flex",alignItems:"center",gap:5,background:c.bg,border:`1px solid ${c.border}`,color:c.text,borderRadius:4,padding:small?"1px 7px":"3px 10px",fontSize:small?10:11,fontWeight:700,letterSpacing:0.03,whiteSpace:"nowrap"}}><span style={{width:6,height:6,borderRadius:"50%",background:c.dot,flexShrink:0}}/>{status}</span>;}
 
-function Avatar({name,size=30}){
-  return<div style={{width:size,height:size,borderRadius:"50%",background:AVATAR_COLORS[name]||COLORS.steel,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:800,flexShrink:0,fontFamily:"'DM Mono',monospace",letterSpacing:-0.5,border:`2px solid rgba(255,255,255,0.15)`}}>{name?.[0]}</div>;
-}
+function TypeBadge({type}){return<span style={{display:"inline-flex",alignItems:"center",gap:4,background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,border:`1px solid ${COLORS.rule}`}}><span>{TYPE_ICON[type]||"🔧"}</span>{type}</span>;}
 
-function StatusPill({status,small}){
-  const c=STATUS[status]||STATUS["In Progress"];
-  return<span style={{display:"inline-flex",alignItems:"center",gap:5,background:c.bg,border:`1px solid ${c.border}`,color:c.text,borderRadius:4,padding:small?"1px 7px":"3px 10px",fontSize:small?10:11,fontWeight:700,letterSpacing:0.03,whiteSpace:"nowrap"}}><span style={{width:6,height:6,borderRadius:"50%",background:c.dot,flexShrink:0}}/>{status}</span>;
-}
+function ProgressBar({val,max,color}){const pct=max>0?Math.min(100,Math.round((val/max)*100)):0;return<div style={{background:COLORS.steelLt,borderRadius:3,height:6,width:"100%",overflow:"hidden"}}><div style={{width:`${pct}%`,height:6,borderRadius:3,background:color||COLORS.orange,transition:"width 0.4s ease"}}/></div>;}
 
-function TypeBadge({type}){
-  return<span style={{display:"inline-flex",alignItems:"center",gap:4,background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,border:`1px solid ${COLORS.rule}`}}><span>{TYPE_ICON[type]||"🔧"}</span>{type}</span>;
-}
-
-function ProgressBar({val,max,color}){
-  const pct=max>0?Math.min(100,Math.round((val/max)*100)):0;
-  return<div style={{background:COLORS.steelLt,borderRadius:3,height:6,width:"100%",overflow:"hidden"}}><div style={{width:`${pct}%`,height:6,borderRadius:3,background:color||COLORS.orange,transition:"width 0.4s ease"}}/></div>;
-}
-
-function Toast({msg,type="success",onDone}){
-  useEffect(()=>{const t=setTimeout(onDone,2800);return()=>clearTimeout(t);},[]);
-  const bg=type==="error"?COLORS.red:type==="warn"?"#B45309":COLORS.orange;
-  return<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:bg,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:12,fontWeight:700,zIndex:1000,boxShadow:"0 6px 24px rgba(0,0,0,0.25)",animation:"slideUp 0.2s ease",whiteSpace:"nowrap"}}>{msg}</div>;
-}
+function Toast({msg,type="success",onDone}){useEffect(()=>{const t=setTimeout(onDone,2800);return()=>clearTimeout(t);},[]);const bg=type==="error"?COLORS.red:type==="warn"?"#B45309":COLORS.orange;return<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:bg,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:12,fontWeight:700,zIndex:1000,boxShadow:"0 6px 24px rgba(0,0,0,0.25)",animation:"slideUp 0.2s ease",whiteSpace:"nowrap"}}>{msg}</div>;}
 
 function LoginPage({onLogin}){
   const[email,setEmail]=useState("");
@@ -127,10 +102,9 @@ function LoginPage({onLogin}){
     onLogin({email,password});
   }
 
-  return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.navyMid} 100%)`,padding:20}}><div style={{background:"#fff",borderRadius:12,padding:40,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(11,31,58,0.4)"}}><div style={{textAlign:"center",marginBottom:32}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:COLORS.navy,marginBottom:8}}>Flexachem</div><div style={{fontSize:12,color:COLORS.textSoft,fontWeight:600,letterSpacing:0.1,textTransform:"uppercase"}}>Workshop Job Tracker</div><div style={{fontSize:13,color:COLORS.textMid,marginTop:16}}>Secure Access</div></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:11,fontWeight:800,color:COLORS.textMid,textTransform:"uppercase",letterSpacing:0.08,marginBottom:6}}>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"}}/></div><div style={{marginBottom:20}}><label style={{display:"block",fontSize:11,fontWeight:800,color:COLORS.textMid,textTransform:"uppercase",letterSpacing:0.08,marginBottom:6}}>Password</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••" onKeyDown={e=>e.key==="Enter"&&submit()} style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"}}/></div>{error&&<div style={{background:COLORS.redLt,border:`1px solid ${COLORS.red}`,color:COLORS.red,padding:10,borderRadius:6,fontSize:12,marginBottom:20,fontWeight:600}}>{error}</div>}<button onClick={submit} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:8,padding:"12px 0",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 4px 12px rgba(232,96,26,0.3)`,transition:"background 0.15s"}} onMouseEnter={e=>e.target.style.background="#C24F0E"} onMouseLeave={e=>e.target.style.background=COLORS.orange}>Sign In</button><div style={{textAlign:"center",marginTop:16,fontSize:11,color:COLORS.textSoft}}>Demo: any email, password 6+ chars</div></div></div>;
-}
+  return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.navyMid} 100%)`,padding:20}}><div style={{background:"#fff",borderRadius:12,padding:40,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(11,31,58,0.4)"}}><div style={{textAlign:"center",marginBottom:32}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:COLORS.navy,marginBottom:8}}>Flexachem</div><div style={{fontSize:12,color:COLORS.textSoft,fontWeight:600,letterSpacing:0.1,textTransform:"uppercase"}}>Workshop Job Tracker</div><div style={{fontSize:13,color:COLORS.textMid,marginTop:16}}>Secure Access</div></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:11,fontWeight:800,color:COLORS.textMid,textTransform:"uppercase",letterSpacing:0.08,marginBottom:6}}>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"}}/></div><div style={{marginBottom:20}}><label style={{display:"block",fontSize:11,fontWeight:800,color:COLORS.textMid,textTransform:"uppercase",letterSpacing:0.08,marginBottom:6}}>Password</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••" onKeyDown={e=>e.key==="Enter"&&submit()} style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"}}/></div>{error&&<div style={{background:COLORS.redLt,border:`1px solid ${COLORS.red}`,color:COLORS.red,padding:10,borderRadius:6,fontSize:12,marginBottom:20,fontWeight:600}}>{error}</div>}<button onClick={submit} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:8,padding:"12px 0",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 4px 12px rgba(232,96,26,0.3)`,transition:"background 0.15s"}} onMouseEnter={e=>e.target.style.background="#C24F0E"} onMouseLeave={e=>e.target.style.background=COLORS.orange}>Sign In</button><div style={{textAlign:"center",marginTop:16,fontSize:11,color:COLORS.textSoft}}>Demo: any email, password 6+ chars</div></div></div>;}
 
-function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,onDeleteUser}){
+function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,user}){
   const[text,setText]=useState("");
   const[newStatus,setNewStatus]=useState("");
 
@@ -142,8 +116,7 @@ function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,onDeleteUser}){
     setText("");setNewStatus("");
   }
 
-  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:700,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -12px 48px rgba(11,31,58,0.25)",animation:"slideUp 0.22s ease"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"10px 12px"}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"8px 12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"7px 8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,marginTop:6,alignItems:"center",flexWrap:"wrap"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"5px 6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;
-}
+  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:700,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -12px 48px rgba(11,31,58,0.25)",animation:"slideUp 0.22s ease"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"12px",minHeight:0}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"8px 12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist,flexShrink:0}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"7px 8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,marginTop:6,alignItems:"center",flexWrap:"wrap"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"5px 6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;}
 
 function JobModal({job,onSave,onClose}){
   const[form,setForm]=useState(job?{...job,note:""}:{asm:"",so:"",customer:"",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"",due_date:"",est_hours:"",act_hours:"",status:"In Progress",work_doc:"",note:""});
@@ -152,12 +125,9 @@ function JobModal({job,onSave,onClose}){
   const inp=(k,p="",t="text")=><input type={t} value={form[k]||""} placeholder={p} onChange={e=>set(k,e.target.value)} style={inputStyle}/>;
   const sel=(k,opts)=><select value={form[k]||""} onChange={e=>set(k,e.target.value)} style={{...inputStyle,cursor:"pointer"}}>{opts.map(o=><option key={o}>{o}</option>)}</select>;
 
-  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:10}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:580,maxHeight:"90vh",overflow:"auto",boxShadow:"0 20px 60px rgba(11,31,58,0.3)"}}><div style={{background:COLORS.navy,padding:"10px 14px",borderRadius:"10px 10px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{color:"#fff",fontWeight:800,fontSize:13}}>{job?"Edit":"Add Job"}</div><button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:"50%",width:26,height:26,cursor:"pointer",fontSize:13}}>✕</button></div><div style={{padding:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Asm</label>{inp("asm")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>SO</label>{inp("so")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Customer</label>{inp("customer")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>BU</label>{sel("business_unit",BUS)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Type</label>{sel("job_type",JOB_TYPES)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Status</label>{sel("status",["In Progress","Input Needed","Complete"])}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Owner</label>{sel("owner",PEOPLE)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Alloc</label>{sel("allocated_to",PEOPLE)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Issued</label>{inp("date_issued","","date")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Due</label>{inp("due_date","","date")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Est h</label>{inp("est_hours","","number")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Act h</label>{inp("act_hours","","number")}</div><div style={{gridColumn:"span 2"}}><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Doc</label>{inp("work_doc")}</div><div style={{gridColumn:"span 2"}}><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Note</label><textarea value={form.note||""} onChange={e=>set("note",e.target.value)} placeholder="…" style={{...inputStyle,resize:"none",minHeight:50}}/></div></div><div style={{borderTop:`1px solid ${COLORS.rule}`,padding:"8px 14px",display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onClose} style={{background:COLORS.steelLt,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",color:COLORS.text}}>Cancel</button><button onClick={()=>onSave(form)} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 16px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{job?"Save":"Add"}</button></div></div></div>;
-}
+  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:10}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:580,maxHeight:"90vh",overflow:"auto",boxShadow:"0 20px 60px rgba(11,31,58,0.3)"}}><div style={{background:COLORS.navy,padding:"10px 14px",borderRadius:"10px 10px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{color:"#fff",fontWeight:800,fontSize:13}}>{job?"Edit":"Add Job"}</div><button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:"50%",width:26,height:26,cursor:"pointer",fontSize:13}}>✕</button></div><div style={{padding:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Asm</label>{inp("asm")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>SO</label>{inp("so")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Customer</label>{inp("customer")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>BU</label>{sel("business_unit",BUS)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Type</label>{sel("job_type",JOB_TYPES)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Status</label>{sel("status",["In Progress","Input Needed","Complete"])}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Owner</label>{sel("owner",PEOPLE)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Alloc</label>{sel("allocated_to",PEOPLE)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Issued</label>{inp("date_issued","","date")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Due</label>{inp("due_date","","date")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Est h</label>{inp("est_hours","","number")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Act h</label>{inp("act_hours","","number")}</div><div style={{gridColumn:"span 2"}}><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Doc</label>{inp("work_doc")}</div><div style={{gridColumn:"span 2"}}><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Note</label><textarea value={form.note||""} onChange={e=>set("note",e.target.value)} placeholder="…" style={{...inputStyle,resize:"none",minHeight:50}}/></div></div><div style={{borderTop:`1px solid ${COLORS.rule}`,padding:"8px 14px",display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onClose} style={{background:COLORS.steelLt,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",color:COLORS.text}}>Cancel</button><button onClick={()=>onSave(form)} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 16px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{job?"Save":"Add"}</button></div></div></div>;}
 
-function KpiCard({value,label,accent}){
-  return<div style={{background:"#fff",borderRadius:10,borderTop:`4px solid ${accent}`,padding:"16px 18px",flex:1,minWidth:100,boxShadow:"0 1px 6px rgba(11,31,58,0.07)",border:`1px solid ${COLORS.rule}`}}><div style={{fontSize:28,fontWeight:800,color:accent,fontFamily:"'DM Mono',monospace",lineHeight:1}}>{value}</div><div style={{fontSize:10,textTransform:"uppercase",letterSpacing:0.1,color:COLORS.textSoft,marginTop:6,fontWeight:600}}>{label}</div></div>;
-}
+function KpiCard({value,label,accent}){return<div style={{background:"#fff",borderRadius:10,borderTop:`4px solid ${accent}`,padding:"16px 18px",flex:1,minWidth:100,boxShadow:"0 1px 6px rgba(11,31,58,0.07)",border:`1px solid ${COLORS.rule}`}}><div style={{fontSize:28,fontWeight:800,color:accent,fontFamily:"'DM Mono',monospace",lineHeight:1}}>{value}</div><div style={{fontSize:10,textTransform:"uppercase",letterSpacing:0.1,color:COLORS.textSoft,marginTop:6,fontWeight:600}}>{label}</div></div>;}
 
 function DashboardView({jobs,notes,onFilterEmp}){
   const open=jobs.filter(j=>j.status!=="Complete");
@@ -171,10 +141,11 @@ function DashboardView({jobs,notes,onFilterEmp}){
 
   const byBU=useMemo(()=>{const m={};jobs.forEach(j=>{if(!m[j.business_unit])m[j.business_unit]={jobs:0,open:0,inp:0};m[j.business_unit].jobs++;if(j.status!=="Complete")m[j.business_unit].open++;if(j.status==="Input Needed")m[j.business_unit].inp++;});return Object.entries(m).sort((a,b)=>b[1].jobs-a[1].jobs);},[jobs]);
 
+  const byCustomer=useMemo(()=>{const m={};jobs.forEach(j=>{if(!m[j.customer])m[j.customer]={jobs:0,open:0,complete:0};m[j.customer].jobs++;if(j.status!=="Complete")m[j.customer].open++;if(j.status==="Complete")m[j.customer].complete++;});return Object.entries(m).sort((a,b)=>b[1].jobs-a[1].jobs);},[jobs]);
+
   const maxEmpHrs=Math.max(...byEmp.map(([,v])=>v.hrs),1);
 
-  return<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,padding:20,overflowY:"auto",height:"100%"}}><div style={{gridColumn:"span 2"}}><div style={{display:"flex",gap:12,flexWrap:"wrap"}}><KpiCard value={jobs.length} label="Total Jobs" accent={COLORS.navy}/><KpiCard value={ip} label="In Progress" accent="#F59E0B"/><KpiCard value={inp} label="Input Needed" accent={COLORS.red}/><KpiCard value={done} label="Complete" accent={COLORS.green}/><KpiCard value={od} label="Overdue" accent={od>0?COLORS.red:COLORS.textSoft}/><KpiCard value={`${openHrs}h`} label="Open Hours" accent={COLORS.orange}/></div></div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.navy,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>👤 By Employee</div>{byEmp.map(([name,v])=><div key={name} onClick={()=>onFilterEmp(name)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist} onMouseLeave={e=>e.currentTarget.style.background=""}><Avatar name={name} size={28}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{name}</span><span style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} jobs · {v.hrs}h</span></div><ProgressBar val={v.hrs} max={maxEmpHrs} color={COLORS.orange}/></div></div>)}</div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.slate,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏭 By Business Unit</div>{byBU.map(([bu,v])=><div key={bu} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{bu}</div><div style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} total · {v.open} open</div></div><div style={{display:"flex",gap:6}}>{v.inp>0&&<span style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:4,fontSize:10,fontWeight:700,padding:"2px 8px"}}>⚠ {v.inp}</span>}<span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:10,fontWeight:600,padding:"2px 8px"}}>{v.open} open</span></div></div>)}</div></div>;
-}
+  return<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,padding:20,overflowY:"auto",height:"100%"}}><div style={{gridColumn:"span 3"}}><div style={{display:"flex",gap:12,flexWrap:"wrap"}}><KpiCard value={jobs.length} label="Total Jobs" accent={COLORS.navy}/><KpiCard value={ip} label="In Progress" accent="#F59E0B"/><KpiCard value={inp} label="Input Needed" accent={COLORS.red}/><KpiCard value={done} label="Complete" accent={COLORS.green}/><KpiCard value={od} label="Overdue" accent={od>0?COLORS.red:COLORS.textSoft}/><KpiCard value={`${openHrs}h`} label="Open Hours" accent={COLORS.orange}/></div></div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.navy,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>👤 By Employee</div>{byEmp.map(([name,v])=><div key={name} onClick={()=>onFilterEmp(name)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist} onMouseLeave={e=>e.currentTarget.style.background=""}><Avatar name={name} size={28}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{name}</span><span style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} jobs</span></div><ProgressBar val={v.hrs} max={maxEmpHrs} color={COLORS.orange}/></div></div>)}</div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.slate,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏭 By Business Unit</div>{byBU.map(([bu,v])=><div key={bu} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{bu}</div><div style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} total</div></div><div style={{display:"flex",gap:6}}>{v.inp>0&&<span style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>⚠{v.inp}</span>}<span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open}</span></div></div>)}</div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.orange,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏢 By Customer</div>{byCustomer.map(([cust,v])=><div key={cust} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust}</div><div style={{fontSize:9,color:COLORS.textSoft}}>{v.jobs} jobs</div></div><div style={{display:"flex",gap:6"}}><span style={{background:COLORS.greenLt,color:COLORS.green,border:`1px solid ${COLORS.green}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>✓{v.complete}</span><span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open}</span></div></div>)}</div></div>;}
 
 function JobCard({job,notes,onStatusChange,onOpenNotes,onEdit}){
   const od=isOD(job.due_date,job.status);
@@ -183,50 +154,8 @@ function JobCard({job,notes,onStatusChange,onOpenNotes,onEdit}){
   const hasActuals=job.act_hours!=null;
   const over=hasActuals&&job.act_hours>job.est_hours;
 
-  return<div style={{background:"#fff",borderRadius:10,marginBottom:12,border:`1px solid ${od?"#FECACA":COLORS.rule}`,overflow:"hidden",boxShadow:"0 1px 4px rgba(11,31,58,0.06)"}}>
-    {od&&<div style={{background:COLORS.red,color:"#fff",padding:"6px 16px",fontSize:11,fontWeight:700}}>⚠ OVERDUE — Due {fd(job.due_date)}</div>}
-    <div style={{padding:"14px 16px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:10}}>
-        <div style={{flex:1}}>
-          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
-            <span style={{fontFamily:"'DM Mono',monospace",fontWeight:800,fontSize:13,color:COLORS.navy}}>{job.asm}</span>
-            <TypeBadge type={job.job_type}/>
-            <StatusPill status={job.status} small/>
-          </div>
-          <div style={{fontWeight:700,fontSize:15,color:COLORS.text,marginBottom:4}}>{job.customer}</div>
-          <div style={{fontSize:11,color:COLORS.textSoft}}>SO: {job.so||"TBA"} · Issued {fdShort(job.date_issued)} · Due <strong style={{color:od?COLORS.red:COLORS.text}}>{fd(job.due_date)}</strong></div>
-        </div>
-        <select value={job.status} onChange={e=>onStatusChange(job.id,e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:600,background:"#fff",color:COLORS.text,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
-          <option>In Progress</option>
-          <option>Input Needed</option>
-          <option>Complete</option>
-        </select>
-      </div>
+  return<div style={{background:"#fff",borderRadius:10,marginBottom:12,border:`1px solid ${od?"#FECACA":COLORS.rule}`,overflow:"hidden",boxShadow:"0 1px 4px rgba(11,31,58,0.06)"}}>{od&&<div style={{background:COLORS.red,color:"#fff",padding:"6px 16px",fontSize:11,fontWeight:700}}>⚠ OVERDUE — Due {fd(job.due_date)}</div>}<div style={{padding:"14px 16px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:10}}><div style={{flex:1}}><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6}}><span style={{fontFamily:"'DM Mono',monospace",fontWeight:800,fontSize:13,color:COLORS.navy}}>{job.asm}</span><TypeBadge type={job.job_type}/><StatusPill status={job.status} small/></div><div style={{fontWeight:700,fontSize:15,color:COLORS.text,marginBottom:4}}>{job.customer}</div><div style={{fontSize:11,color:COLORS.textSoft}}>SO: {job.so||"TBA"} · Issued {fdShort(job.date_issued)} · Due <strong style={{color:od?COLORS.red:COLORS.text}}>{fd(job.due_date)}</strong></div></div><select value={job.status} onChange={e=>onStatusChange(job.id,e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:600,background:"#fff",color:COLORS.text,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}><option>In Progress</option><option>Input Needed</option><option>Complete</option></select></div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><Avatar name={job.allocated_to} size={24}/><span style={{fontSize:12,color:COLORS.text,fontWeight:600}}>{job.allocated_to}</span>{job.allocated_to!==job.owner&&<><span style={{color:COLORS.rule}}>·</span><span style={{fontSize:11,color:COLORS.textSoft}}>Owner: {job.owner}</span></>}<span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:11,color:over?COLORS.red:COLORS.textMid,fontWeight:over?700:400}}>{hasActuals?`${job.act_hours}h / ${job.est_hours}h${over?" ↑":""}`:` ${job.est_hours}h est.`}</span></div>{hasActuals&&<div style={{marginBottom:10}}><ProgressBar val={job.act_hours} max={job.est_hours} color={over?COLORS.red:COLORS.orange}/></div>}{lastNote&&<div style={{background:COLORS.mist,borderLeft:`3px solid ${COLORS.orange}`,padding:"8px 12px",borderRadius:"0 6px 6px 0",marginBottom:10}}><div style={{fontSize:10,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace",marginBottom:3}}>{lastNote.author} · {new Date(lastNote.created_at).toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div><div style={{fontSize:12,color:COLORS.text,lineHeight:1.45}}>{lastNote.body}</div></div>}<div style={{display:"flex",gap:6}}><button onClick={()=>onOpenNotes(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,background:"#fff",cursor:"pointer",color:COLORS.steel,display:"flex",alignItems:"center",gap:4}}>💬 Notes <span style={{background:COLORS.steelLt,borderRadius:10,padding:"0 6px",fontSize:10,fontWeight:700}}>{jobNotes.length}</span></button><button onClick={()=>onEdit(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,background:"#fff",cursor:"pointer",color:COLORS.steel}}>✏ Edit</button>{job.work_doc&&<button style={{border:`1px solid ${COLORS.navy}20`,borderRadius:6,padding:"6px 12px",fontSize:11,background:COLORS.steelLt,cursor:"pointer",color:COLORS.navy}}>📎 Work</button>}</div></div></div>;}
 
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-        <Avatar name={job.allocated_to} size={24}/>
-        <span style={{fontSize:12,color:COLORS.text,fontWeight:600}}>{job.allocated_to}</span>
-        {job.allocated_to!==job.owner&&<><span style={{color:COLORS.rule}}>·</span><span style={{fontSize:11,color:COLORS.textSoft}}>Owner: {job.owner}</span></>}
-        <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:11,color:over?COLORS.red:COLORS.textMid,fontWeight:over?700:400}}>{hasActuals?`${job.act_hours}h / ${job.est_hours}h${over?" ↑":""}`:` ${job.est_hours}h est.`}</span>
-      </div>
-
-      {hasActuals&&<div style={{marginBottom:10}}><ProgressBar val={job.act_hours} max={job.est_hours} color={over?COLORS.red:COLORS.orange}/></div>}
-
-      {lastNote&&<div style={{background:COLORS.mist,borderLeft:`3px solid ${COLORS.orange}`,padding:"8px 12px",borderRadius:"0 6px 6px 0",marginBottom:10}}>
-        <div style={{fontSize:10,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace",marginBottom:3}}>{lastNote.author} · {new Date(lastNote.created_at).toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div>
-        <div style={{fontSize:12,color:COLORS.text,lineHeight:1.45}}>{lastNote.body}</div>
-      </div>}
-
-      <div style={{display:"flex",gap:6}}>
-        <button onClick={()=>onOpenNotes(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,background:"#fff",cursor:"pointer",color:COLORS.steel,display:"flex",alignItems:"center",gap:4}}>💬 Notes <span style={{background:COLORS.steelLt,borderRadius:10,padding:"0 6px",fontSize:10,fontWeight:700}}>{jobNotes.length}</span></button>
-        <button onClick={()=>onEdit(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,background:"#fff",cursor:"pointer",color:COLORS.steel}}>✏ Edit</button>
-        {job.work_doc&&<button style={{border:`1px solid ${COLORS.navy}20`,borderRadius:6,padding:"6px 12px",fontSize:11,background:COLORS.steelLt,cursor:"pointer",color:COLORS.navy}}>📎 Work</button>}
-      </div>
-    </div>
-  </div>;
-}
-
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App(){
   const[user,setUser]=useState(null);
   const[jobs,setJobs]=useState(SEED_JOBS);
@@ -243,14 +172,9 @@ export default function App(){
   const[nextId,setNextId]=useState(26);
   const[nextNoteId,setNextNoteId]=useState(SEED_NOTES.length+1);
 
-  useEffect(()=>{
-    const stored=localStorage.getItem("flexachem_user");
-    if(stored)setUser(JSON.parse(stored));
-    const storedNotes=localStorage.getItem("flexachem_notes");
-    if(storedNotes)setNotes(JSON.parse(storedNotes));
-    const storedJobs=localStorage.getItem("flexachem_jobs");
-    if(storedJobs)setJobs(JSON.parse(storedJobs));
-  },[]);
+  useEffect(()=>{const stored=localStorage.getItem("flexachem_user");if(stored)setUser(JSON.parse(stored));},[]);
+
+  useEffect(()=>{if(!user)return;const storedNotes=localStorage.getItem("flexachem_notes");if(storedNotes)try{setNotes(JSON.parse(storedNotes));}catch(e){}const storedJobs=localStorage.getItem("flexachem_jobs");if(storedJobs)try{setJobs(JSON.parse(storedJobs));}catch(e){}},[user]);
 
   const filtered=useMemo(()=>jobs.filter(j=>{if(filterStatus&&j.status!==filterStatus)return false;if(filterEmp&&j.allocated_to!==filterEmp&&j.owner!==filterEmp)return false;const q=search.toLowerCase();if(q&&!j.customer.toLowerCase().includes(q)&&!j.asm.toLowerCase().includes(q)&&!j.so.toLowerCase().includes(q))return false;return true;}),[jobs,filterStatus,filterEmp,search]);
 
@@ -259,70 +183,15 @@ export default function App(){
 
   function showToast(msg,type="success"){setToast({msg,type});}
 
-  function updateStatus(id,status){
-    const updated=jobs.map(j=>j.id===id?{...j,status}:j);
-    setJobs(updated);
-    localStorage.setItem("flexachem_jobs",JSON.stringify(updated));
-    showToast(`Status → ${status}`);
-  }
+  function updateStatus(id,status){const updated=jobs.map(j=>j.id===id?{...j,status}:j);setJobs(updated);localStorage.setItem("flexachem_jobs",JSON.stringify(updated));showToast(`Status → ${status}`);}
 
   function openNotes(jobId){setNotesJobId(jobId);setAllNotesOpen(false);}
 
-  function addNote(body,newStatus){
-    if(!notesJobId)return;
-    const updated=[...notes];
-    if(body){
-      const job=jobs.find(j=>j.id===notesJobId);
-      updated.push({id:nextNoteId,job_id:notesJobId,author:job?.allocated_to||"Team",body,created_at:nowISO()});
-      setNextNoteId(n=>n+1);
-    }
-    setNotes(updated);
-    localStorage.setItem("flexachem_notes",JSON.stringify(updated));
-    if(newStatus){
-      const jobsUpdated=jobs.map(j=>j.id===notesJobId?{...j,status:newStatus}:j);
-      setJobs(jobsUpdated);
-      localStorage.setItem("flexachem_jobs",JSON.stringify(jobsUpdated));
-    }
-    showToast("Note posted ✓");
-    setNotesJobId(null);
-  }
+  function addNote(body,newStatus){if(!notesJobId)return;const updated=[...notes];if(body){const job=jobs.find(j=>j.id===notesJobId);const authorName=user?.email?.split("@")[0]||"Team";updated.push({id:nextNoteId,job_id:notesJobId,author:authorName,body,created_at:nowISO()});setNextNoteId(n=>n+1);}setNotes(updated);localStorage.setItem("flexachem_notes",JSON.stringify(updated));if(newStatus){const jobsUpdated=jobs.map(j=>j.id===notesJobId?{...j,status:newStatus}:j);setJobs(jobsUpdated);localStorage.setItem("flexachem_jobs",JSON.stringify(jobsUpdated));}showToast("Note posted ✓");setNotesJobId(null);}
 
-  function saveJob(form){
-    const noteText=form.note?.trim();
-    const updated=[...jobs];
-    const notesUpdated=[...notes];
-    if(editJobId){
-      const idx=updated.findIndex(j=>j.id===editJobId);
-      if(idx>=0)updated[idx]={...updated[idx],...form,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};
-      if(noteText){
-        const job=jobs.find(j=>j.id===editJobId);
-        notesUpdated.push({id:nextNoteId,job_id:editJobId,author:job?.allocated_to||"Team",body:noteText,created_at:nowISO()});
-        setNextNoteId(n=>n+1);
-      }
-      showToast("Job updated ✓");
-    }else{
-      const id=nextId;
-      setNextId(n=>n+1);
-      const newJob={...form,id,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};
-      updated.push(newJob);
-      if(noteText){
-        notesUpdated.push({id:nextNoteId,job_id:id,author:form.allocated_to||"Team",body:noteText,created_at:nowISO()});
-        setNextNoteId(n=>n+1);
-      }
-      showToast("Job added ✓");
-    }
-    setJobs(updated);
-    localStorage.setItem("flexachem_jobs",JSON.stringify(updated));
-    setNotes(notesUpdated);
-    localStorage.setItem("flexachem_notes",JSON.stringify(notesUpdated));
-    setAddOpen(false);
-    setEditJobId(null);
-  }
+  function saveJob(form){const noteText=form.note?.trim();const updated=[...jobs];const notesUpdated=[...notes];if(editJobId){const idx=updated.findIndex(j=>j.id===editJobId);if(idx>=0)updated[idx]={...updated[idx],...form,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};if(noteText){const job=jobs.find(j=>j.id===editJobId);const authorName=user?.email?.split("@")[0]||"Team";notesUpdated.push({id:nextNoteId,job_id:editJobId,author:authorName,body:noteText,created_at:nowISO()});setNextNoteId(n=>n+1);}showToast("Job updated ✓");}else{const id=nextId;setNextId(n=>n+1);const newJob={...form,id,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};updated.push(newJob);if(noteText){const authorName=user?.email?.split("@")[0]||"Team";notesUpdated.push({id:nextNoteId,job_id:id,author:authorName,body:noteText,created_at:nowISO()});setNextNoteId(n=>n+1);}showToast("Job added ✓");}setJobs(updated);localStorage.setItem("flexachem_jobs",JSON.stringify(updated));setNotes(notesUpdated);localStorage.setItem("flexachem_notes",JSON.stringify(notesUpdated));setAddOpen(false);setEditJobId(null);}
 
-  function logout(){
-    localStorage.removeItem("flexachem_user");
-    setUser(null);
-  }
+  function logout(){localStorage.removeItem("flexachem_user");setUser(null);}
 
   if(!user)return<LoginPage onLogin={setUser}/>;
 
@@ -330,79 +199,12 @@ export default function App(){
   const notesJob=notesJobId?jobs.find(j=>j.id===notesJobId):null;
   const isMob=isMobile();
 
-  return<>
-    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=Mulish:wght@300;400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}html,body,#root{height:100%;width:100%;}body{font-family:'Mulish',sans-serif;background:${COLORS.mist};}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-thumb{background:${COLORS.rule};border-radius:3px;}@keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}`}</style>
+  return<><style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=Mulish:wght@300;400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}html,body,#root{height:100%;width:100%;}body{font-family:'Mulish',sans-serif;background:${COLORS.mist};}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-thumb{background:${COLORS.rule};border-radius:3px;}@keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}`}</style>
 
     <div style={{height:"100vh",display:"flex",flexDirection:isMob?"column":"row",background:COLORS.mist}}>
-      {/* SIDEBAR (Desktop) or HEADER (Mobile) */}
-      <div style={{background:COLORS.navy,flexShrink:0,width:isMob?"100%":240,padding:isMob?"10px 12px":"16px 14px",borderRight:isMob?"none":`1px solid ${COLORS.rule}`,borderBottom:isMob?`1px solid ${COLORS.rule}`:"none",display:"flex",flexDirection:"column"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isMob?8:14}}>
-          <div style={{background:COLORS.orange,borderRadius:6,width:isMob?30:32,height:isMob?30:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:isMob?14:16}}>⚙</span></div>
-          <div style={{flex:isMob?0:1}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:isMob?12:14,color:"#fff",letterSpacing:-0.3}}>Flexachem</div>
-            {!isMob&&<div style={{fontSize:8,color:COLORS.orange,fontWeight:700,letterSpacing:0.08,textTransform:"uppercase",marginTop:1}}>Tracker</div>}
-          </div>
-          {isMob&&<div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>
-            {od_count>0&&<div style={{background:COLORS.red,color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:8,fontWeight:800}}>{od_count}</div>}
-            {inp_count>0&&<div style={{background:"#F59E0B",color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:8,fontWeight:800}}>⚠{inp_count}</div>}
-            <button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:4,padding:"3px 6px",fontSize:9,fontWeight:800,cursor:"pointer"}}>＋</button>
-          </div>}
-        </div>
+      <div style={{background:COLORS.navy,flexShrink:0,width:isMob?"100%":240,padding:isMob?"10px 12px":"16px 14px",borderRight:isMob?"none":`1px solid ${COLORS.rule}`,borderBottom:isMob?`1px solid ${COLORS.rule}`:"none",display:"flex",flexDirection:"column"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isMob?8:14}}><div style={{background:COLORS.orange,borderRadius:6,width:isMob?30:32,height:isMob?30:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:isMob?14:16}}>⚙</span></div><div style={{flex:isMob?0:1}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:isMob?12:14,color:"#fff",letterSpacing:-0.3}}>Flexachem</div>{!isMob&&<div style={{fontSize:8,color:COLORS.orange,fontWeight:700,letterSpacing:0.08,textTransform:"uppercase",marginTop:1}}>Tracker</div>}</div>{isMob&&<div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>{od_count>0&&<div style={{background:COLORS.red,color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:8,fontWeight:800}}>{od_count}</div>}{inp_count>0&&<div style={{background:"#F59E0B",color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:8,fontWeight:800}}>⚠{inp_count}</div>}<button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:4,padding:"3px 6px",fontSize:9,fontWeight:800,cursor:"pointer"}}>＋</button></div>}</div>{!isMob&&<>{od_count>0&&<div style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>{od_count} overdue</div>}{inp_count>0&&<div style={{background:"#FFF8E1",color:"#78350F",border:`1px solid #F59E0B`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>⚠ {inp_count} need input</div>}<button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:16}}>＋ Add Job</button></>}<div style={{display:"flex",flexDirection:"column",gap:isMob?4:6,marginBottom:isMob?8:16,flex:isMob?0:1}}>{["jobs","dash","search"].map(t=>{const icons={jobs:"📋",dash:"📊",search:"🔍"};return<button key={t} onClick={()=>setTab(t)} style={{textAlign:"left",background:tab===t?COLORS.mist:"transparent",color:tab===t?COLORS.navy:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:isMob?"6px 8px":"10px 12px",fontSize:isMob?10:12,fontWeight:tab===t?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:isMob?4:8}}>{icons[t]}</span>{!isMob&&(t==="jobs"?"Jobs":t==="dash"?"Dashboard":"Search")}</button>;})} {!isMob&&<button onClick={()=>setAllNotesOpen(true)} style={{textAlign:"left",background:"transparent",color:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:"10px 12px",fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:8}}>💬</span>All Notes</button>}</div>{!isMob&&<div style={{borderTop:`1px solid rgba(255,255,255,0.1)`,paddingTop:12}}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:600,marginBottom:6,textTransform:"uppercase",letterSpacing:0.05}}>Logged in</div><div style={{fontSize:11,color:"#fff",marginBottom:8,wordBreak:"break-all"}}>{user.email}</div><button onClick={logout} style={{width:"100%",background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",border:"none",borderRadius:6,padding:"8px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Sign Out</button></div>}</div>
 
-        {!isMob&&<>
-          {od_count>0&&<div style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>{od_count} overdue</div>}
-          {inp_count>0&&<div style={{background:"#FFF8E1",color:"#78350F",border:`1px solid #F59E0B`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>⚠ {inp_count} need input</div>}
-          <button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:16}}>＋ Add Job</button>
-        </>}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>{tab==="jobs"&&<>{!isMob&&<div style={{padding:"12px 16px",background:"#fff",borderBottom:`1px solid ${COLORS.rule}`,flexShrink:0,display:"flex",gap:10,alignItems:"center"}}><div style={{display:"flex",gap:6,flex:1}}>{["","In Progress","Input Needed","Complete"].map(s=><button key={s} onClick={()=>setFilterStatus(s)} style={{background:filterStatus===s?"#fff":`${COLORS.steelLt}`,color:filterStatus===s?COLORS.navy:COLORS.textMid,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:filterStatus===s?700:500,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>{s||"All"}</button>)}</div><select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,background:"#fff",color:COLORS.text,cursor:"pointer",fontFamily:"inherit"}}><option value="">All People</option>{PEOPLE.map(p=><option key={p}>{p}</option>)}</select><div style={{display:"flex",alignItems:"center",gap:6,background:COLORS.steelLt,borderRadius:6,padding:"6px 10px",fontSize:10,color:COLORS.textMid}}>{filtered.length}/{jobs.length}</div></div>}{isMob&&<div style={{padding:"8px 10px",background:"#fff",borderBottom:`1px solid ${COLORS.rule}`,flexShrink:0,display:"flex",gap:5,alignItems:"center",overflowX:"auto"}}>{["","In Progress","Input Needed","Complete"].map(s=><button key={s} onClick={()=>setFilterStatus(s)} style={{background:filterStatus===s?"#fff":`rgba(0,0,0,0.05)`,color:filterStatus===s?COLORS.navy:COLORS.text,border:"none",borderRadius:5,padding:"3px 8px",fontSize:9,fontWeight:filterStatus===s?700:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit"}}>{s||"All"}</button>)}<select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)} style={{border:"none",borderRadius:5,padding:"3px 6px",fontSize:9,background:`rgba(0,0,0,0.05)`,color:COLORS.text,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}><option value="">All</option>{PEOPLE.map(p=><option key={p}>{p}</option>)}</select></div>}<div style={{flex:1,overflowY:"auto",padding:isMob?"10px":"16px"}}>{filtered.map(j=><JobCard key={j.id} job={j} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}}/>)}</div></>} {tab==="dash"&&<DashboardView jobs={jobs} notes={notes} onFilterEmp={name=>{setFilterEmp(name);setTab("jobs");}}/>}{tab==="search"&&<div style={{padding:16,overflowY:"auto",flex:1}}><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search assembly, customer, or SO…" autoFocus style={{width:"100%",maxWidth:400,border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"10px 12px",fontSize:12,fontFamily:"inherit",background:"#fff",color:COLORS.text,marginBottom:16}}/>{filtered.map(j=><JobCard key={j.id} job={j} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}}/>)}</div>}</div></div>
 
-        <div style={{display:"flex",flexDirection:"column",gap:isMob?4:6,marginBottom:isMob?8:16,flex:isMob?0:1}}>
-          {["jobs","dash","search"].map(t=>{const icons={jobs:"📋",dash:"📊",search:"🔍"};return<button key={t} onClick={()=>setTab(t)} style={{textAlign:"left",background:tab===t?COLORS.mist:"transparent",color:tab===t?COLORS.navy:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:isMob?"6px 8px":"10px 12px",fontSize:isMob?10:12,fontWeight:tab===t?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:isMob?4:8}}>{icons[t]}</span>{!isMob&&(t==="jobs"?"Jobs":t==="dash"?"Dashboard":"Search")}</button>;})}
-          {!isMob&&<button onClick={()=>setAllNotesOpen(true)} style={{textAlign:"left",background:"transparent",color:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:"10px 12px",fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:8}}>💬</span>All Notes</button>}
-        </div>
-
-        {!isMob&&<div style={{borderTop:`1px solid rgba(255,255,255,0.1)`,paddingTop:12}}>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:600,marginBottom:6,textTransform:"uppercase",letterSpacing:0.05}}>Logged in</div>
-          <div style={{fontSize:11,color:"#fff",marginBottom:8,wordBreak:"break-all"}}>{user.email}</div>
-          <button onClick={logout} style={{width:"100%",background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",border:"none",borderRadius:6,padding:"8px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Sign Out</button>
-        </div>}
-      </div>
-
-      {/* MAIN CONTENT */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        {tab==="jobs"&&<>
-          {!isMob&&<div style={{padding:"12px 16px",background:"#fff",borderBottom:`1px solid ${COLORS.rule}`,flexShrink:0,display:"flex",gap:10,alignItems:"center"}}>
-            <div style={{display:"flex",gap:6,flex:1}}>
-              {["","In Progress","Input Needed","Complete"].map(s=><button key={s} onClick={()=>setFilterStatus(s)} style={{background:filterStatus===s?"#fff":`${COLORS.steelLt}`,color:filterStatus===s?COLORS.navy:COLORS.textMid,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:filterStatus===s?700:500,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>{s||"All"}</button>)}
-            </div>
-            <select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,background:"#fff",color:COLORS.text,cursor:"pointer",fontFamily:"inherit"}}>
-              <option value="">All People</option>
-              {PEOPLE.map(p=><option key={p}>{p}</option>)}
-            </select>
-            <div style={{display:"flex",alignItems:"center",gap:6,background:COLORS.steelLt,borderRadius:6,padding:"6px 10px",fontSize:10,color:COLORS.textMid}}>{filtered.length}/{jobs.length}</div>
-          </div>}
-          {isMob&&<div style={{padding:"8px 10px",background:"#fff",borderBottom:`1px solid ${COLORS.rule}`,flexShrink:0,display:"flex",gap:5,alignItems:"center",overflowX:"auto"}}>
-            {["","In Progress","Input Needed","Complete"].map(s=><button key={s} onClick={()=>setFilterStatus(s)} style={{background:filterStatus===s?"#fff":`rgba(0,0,0,0.05)`,color:filterStatus===s?COLORS.navy:COLORS.text,border:"none",borderRadius:5,padding:"3px 8px",fontSize:9,fontWeight:filterStatus===s?700:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit"}}>{s||"All"}</button>)}
-            <select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)} style={{border:"none",borderRadius:5,padding:"3px 6px",fontSize:9,background:`rgba(0,0,0,0.05)`,color:COLORS.text,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
-              <option value="">All</option>
-              {PEOPLE.map(p=><option key={p}>{p}</option>)}
-            </select>
-          </div>}
-          <div style={{flex:1,overflowY:"auto",padding:isMob?"10px":"16px"}}>
-            {filtered.map(j=><JobCard key={j.id} job={j} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}}/>)}
-          </div>
-        </>}
-
-        {tab==="dash"&&<DashboardView jobs={jobs} notes={notes} onFilterEmp={name=>{setFilterEmp(name);setTab("jobs");}}/>}
-
-        {tab==="search"&&<div style={{padding:16,overflowY:"auto",flex:1}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search assembly, customer, or SO…" autoFocus style={{width:"100%",maxWidth:400,border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"10px 12px",fontSize:12,fontFamily:"inherit",background:"#fff",color:COLORS.text,marginBottom:16}}/>
-          {filtered.map(j=><JobCard key={j.id} job={j} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}}/>)}
-        </div>}
-      </div>
-    </div>
-
-    {(notesJobId||allNotesOpen)&&<NotesPanel job={notesJob} notes={notes} allJobs={jobs} allMode={allNotesOpen} onClose={()=>{setNotesJobId(null);setAllNotesOpen(false);}} onAddNote={addNote}/>}
-    {addOpen&&<JobModal job={editJob} onSave={saveJob} onClose={()=>{setAddOpen(false);setEditJobId(null);}}/>}
-    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
-  </>;
+    {(notesJobId||allNotesOpen)&&<NotesPanel job={notesJob} notes={notes} allJobs={jobs} allMode={allNotesOpen} onClose={()=>{setNotesJobId(null);setAllNotesOpen(false);}} onAddNote={addNote} user={user}/>}{addOpen&&<JobModal job={editJob} onSave={saveJob} onClose={()=>{setAddOpen(false);setEditJobId(null);}}/>}{toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}</>;
 }
