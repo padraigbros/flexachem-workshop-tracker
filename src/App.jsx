@@ -7,8 +7,7 @@ import {
   useSensor,
   useSensors,
   PointerSensor,
-  useDroppable,
-} from "@dnd-kit/core";
+  useDroppable,} from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -124,7 +123,7 @@ function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,user}){
     onAddNote(text.trim(),newStatus||null);
     setText("");setNewStatus("");
   }
-  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:700,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(11,31,58,0.3)"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"12px",minHeight:0}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist,flexShrink:0,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",maxWidth:500,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;}
+  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:700,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -12px 48px rgba(11,31,58,0.25)",animation:"slideUp 0.22s ease"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"12px",minHeight:0}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist,flexShrink:0,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",maxWidth:500,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;}
 
 function JobModal({job,onSave,onClose}){
   const[form,setForm]=useState(job?{...job,note:""}:{asm:"",so:"",customer:"",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"",due_date:"",est_hours:"",act_hours:"",status:"In Progress",work_doc:"",note:""});
@@ -209,7 +208,7 @@ function KanbanColumn({ status, jobs, notes, onStatusChange, onOpenNotes, onEdit
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const c = STATUS[status];
   return (
-    <div style={{ flex:"1 1 320px", minWidth:280, maxWidth:380, background: isOver ? c.bg : COLORS.mist, borderRadius:16, display:"flex", flexDirection:"column", height:"100%", maxHeight:"calc(100vh - 140px)", boxShadow:"0 2px 8px rgba(0,0,0,0.05)", border: isOver ? `2px solid ${c.border}` : "2px solid transparent", transition:"all 0.15s" }}>
+    <div style={{ flex:"1 1 0", minWidth:0, background: isOver ? c.bg : COLORS.mist, borderRadius:16, display:"flex", flexDirection:"column", height:"100%", maxHeight:"calc(100vh - 140px)", boxShadow:"0 2px 8px rgba(0,0,0,0.05)", border: isOver ? `2px solid ${c.border}` : "2px solid transparent", transition:"background 0.15s, border 0.15s" }}>
       <div style={{ padding:"12px 16px", background:"#fff", borderBottom:`1px solid ${COLORS.rule}`, borderRadius:"16px 16px 0 0", fontWeight:800, fontSize:13, display:"flex", justifyContent:"space-between" }}>
         <span>{status}</span><span style={{ fontSize:11, color:COLORS.textSoft }}>({columnJobs.length})</span>
       </div>
@@ -235,10 +234,12 @@ function KanbanView({ jobs, notes, onStatusChange, onOpenNotes, onEdit, filterSt
     if (!over) return;
     const draggedJob = jobs.find(j => j.id === active.id);
     if (!draggedJob) return;
-    // over.id can be a column status string OR another job's id
-    const newStatus = statuses.includes(String(over.id))
-      ? over.id
-      : jobs.find(j => j.id === over.id)?.status;
+    let newStatus = null;
+    if (columnsToShow.includes(over.id)) newStatus = over.id;
+    else {
+      const targetJob = jobs.find(j => j.id === over.id);
+      if (targetJob) newStatus = targetJob.status;
+    }
     if (newStatus && draggedJob.status !== newStatus) onStatusChange(draggedJob.id, newStatus);
   };
   return (
@@ -252,38 +253,99 @@ function KanbanView({ jobs, notes, onStatusChange, onOpenNotes, onEdit, filterSt
 }
 
 // -------------------- Gantt View --------------------
-function GanttView({ jobs }) {
-  const validJobs = jobs.filter(j => j.date_issued && j.due_date);
-  const minDate = useMemo(() => validJobs.length ? new Date(Math.min(...validJobs.flatMap(j=>[new Date(j.date_issued), new Date(j.due_date)]).map(d=>d.getTime()))) : new Date(), [validJobs]);
-  const maxDate = useMemo(() => validJobs.length ? new Date(Math.max(...validJobs.flatMap(j=>[new Date(j.date_issued), new Date(j.due_date)]).map(d=>d.getTime()))) : new Date(), [validJobs]);
-  const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000*60*60*24)) + 1);
-  const getBarStyle = (startStr, endStr) => {
-    if (!startStr || !endStr) return { display:"none" };
-    const start = new Date(startStr), end = new Date(endStr);
-    const startOffset = Math.max(0, (start - minDate) / (1000*60*60*24));
-    const width = Math.max(2, (end - start) / (1000*60*60*24));
-    return { left: `${(startOffset/totalDays)*100}%`, width: `${(width/totalDays)*100}%`, position:"absolute", height:28, borderRadius:4, backgroundColor:COLORS.orange, transition:"all 0.2s", cursor:"pointer" };
-  };
-  if (!validJobs.length) return <div style={{ padding:40, textAlign:"center", color:COLORS.textSoft }}>No jobs with valid start/end dates for Gantt view.</div>;
-  const timelineLabels = [];
-  const steps = Math.min(12, totalDays);
-  for (let i=0; i<=totalDays; i+=Math.max(1, Math.floor(totalDays/steps))) {
-    timelineLabels.push({ date: new Date(minDate.getTime()+i*86400000), offset: (i/totalDays)*100 });
+function GanttView({ jobs, onEdit }) {
+  const DAY = 18; // px per day
+  const ROW = 44;
+  const LABEL_W = 220;
+
+  const validJobs = useMemo(() => [...jobs].filter(j => j.date_issued && j.due_date).sort((a,b)=>new Date(a.date_issued)-new Date(b.date_issued)), [jobs]);
+
+  const minDate = useMemo(() => {
+    if (!validJobs.length) return new Date();
+    const d = new Date(Math.min(...validJobs.map(j => new Date(j.date_issued).getTime())));
+    d.setDate(d.getDate() - 3); return d;
+  }, [validJobs]);
+
+  const maxDate = useMemo(() => {
+    if (!validJobs.length) return new Date();
+    const d = new Date(Math.max(...validJobs.map(j => new Date(j.due_date).getTime())));
+    d.setDate(d.getDate() + 3); return d;
+  }, [validJobs]);
+
+  const totalDays = Math.ceil((maxDate - minDate) / 86400000);
+  const totalW = totalDays * DAY;
+  const todayOffset = Math.floor((TODAY - minDate) / 86400000) * DAY;
+
+  // Build month labels
+  const months = [];
+  let cur = new Date(minDate); cur.setDate(1);
+  while (cur <= maxDate) {
+    const offset = Math.max(0, Math.floor((cur - minDate) / 86400000)) * DAY;
+    months.push({ label: cur.toLocaleDateString("en-IE", { month:"short", year:"2-digit" }), offset });
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
   }
+
+  const barLeft  = (d) => Math.floor((new Date(d) - minDate) / 86400000) * DAY;
+  const barWidth = (s, e) => Math.max(DAY, Math.ceil((new Date(e) - new Date(s)) / 86400000) * DAY);
+  const barColor = (job) => {
+    if (job.status === "Complete") return COLORS.green;
+    if (job.status === "Input Needed") return COLORS.red;
+    if (isOD(job.due_date, job.status)) return "#C0392B";
+    return COLORS.orange;
+  };
+
+  if (!validJobs.length) return <div style={{ padding:40, textAlign:"center", color:COLORS.textSoft }}>No jobs with dates.</div>;
+
   return (
-    <div style={{ height:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:16 }}>
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:12 }}>
       <div style={{ flex:1, overflow:"auto", border:`1px solid ${COLORS.rule}`, borderRadius:8, background:"#fff" }}>
-        <div style={{ minWidth:800 }}>
-          <div style={{ display:"flex", borderBottom:`1px solid ${COLORS.rule}`, background:COLORS.mist, position:"sticky", top:0, zIndex:2 }}>
-            <div style={{ width:220, flexShrink:0, padding:"8px 12px", fontWeight:700, fontSize:12, borderRight:`1px solid ${COLORS.rule}`, background:COLORS.mist }}>Job</div>
-            <div style={{ flex:1, position:"relative", minHeight:38 }}><div style={{ position:"relative", height:"100%", width:"100%" }}>{timelineLabels.map(({date,offset},idx)=><div key={idx} style={{ position:"absolute", left:`${offset}%`, bottom:0, fontSize:9, color:COLORS.textSoft, transform:"translateX(-50%)", whiteSpace:"nowrap" }}>{date.toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div>)}</div></div>
+        <div style={{ display:"flex", minWidth: LABEL_W + totalW }}>
+          {/* Left label column */}
+          <div style={{ width:LABEL_W, flexShrink:0, position:"sticky", left:0, zIndex:3, background:"#fff" }}>
+            {/* header spacer */}
+            <div style={{ height:48, borderBottom:`1px solid ${COLORS.rule}`, borderRight:`1px solid ${COLORS.rule}`, background:COLORS.mist, display:"flex", alignItems:"center", padding:"0 12px", fontWeight:700, fontSize:11, color:COLORS.textMid }}>Job</div>
+            {validJobs.map(job => (
+              <div key={job.id} onClick={() => onEdit(job.id)} style={{ height:ROW, borderBottom:`1px solid ${COLORS.rule}`, borderRight:`1px solid ${COLORS.rule}`, padding:"0 12px", display:"flex", flexDirection:"column", justifyContent:"center", cursor:"pointer", background:"#fff" }}
+                onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist}
+                onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                <div style={{ fontFamily:"'DM Mono',monospace", fontWeight:700, fontSize:11, color:COLORS.navy }}>{job.asm}</div>
+                <div style={{ fontSize:9, color:COLORS.textSoft, marginTop:1 }}>{job.customer}</div>
+              </div>
+            ))}
           </div>
-          {validJobs.map(job=>(
-            <div key={job.id} style={{ display:"flex", borderBottom:`1px solid ${COLORS.rule}`, alignItems:"center", minHeight:48 }}>
-              <div style={{ width:220, flexShrink:0, padding:"8px 12px", borderRight:`1px solid ${COLORS.rule}`, fontSize:12, fontWeight:600, background:"#fff" }}><div>{job.asm}</div><div style={{ fontSize:10, color:COLORS.textSoft }}>{job.customer}</div></div>
-              <div style={{ flex:1, position:"relative", height:48, background:"#fff" }}><div style={getBarStyle(job.date_issued, job.due_date)} title={`${job.asm}: ${fd(job.date_issued)} → ${fd(job.due_date)}`} /></div>
+
+          {/* Timeline area */}
+          <div style={{ flex:1, position:"relative" }}>
+            {/* Month header */}
+            <div style={{ height:48, borderBottom:`1px solid ${COLORS.rule}`, position:"sticky", top:0, zIndex:2, background:COLORS.mist, display:"flex", alignItems:"flex-end", paddingBottom:4 }}>
+              {months.map((m,i) => (
+                <div key={i} style={{ position:"absolute", left:m.offset, fontSize:9, fontWeight:700, color:COLORS.textMid, paddingLeft:4, borderLeft:`1px solid ${COLORS.rule}`, height:"100%", display:"flex", alignItems:"flex-end", paddingBottom:4, whiteSpace:"nowrap" }}>{m.label}</div>
+              ))}
+              {/* Today label */}
+              {todayOffset >= 0 && todayOffset <= totalW && (
+                <div style={{ position:"absolute", left:todayOffset, fontSize:8, fontWeight:800, color:COLORS.orange, top:4, whiteSpace:"nowrap", transform:"translateX(-50%)" }}>Today</div>
+              )}
             </div>
-          ))}
+
+            {/* Grid + Bars */}
+            <div style={{ position:"relative" }}>
+              {/* Today line */}
+              {todayOffset >= 0 && todayOffset <= totalW && (
+                <div style={{ position:"absolute", left:todayOffset, top:0, bottom:0, width:2, background:COLORS.orange, opacity:0.5, zIndex:1 }} />
+              )}
+
+              {validJobs.map(job => (
+                <div key={job.id} onClick={() => onEdit(job.id)} style={{ height:ROW, borderBottom:`1px solid ${COLORS.rule}`, position:"relative", cursor:"pointer" }}
+                  onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist}
+                  onMouseLeave={e=>e.currentTarget.style.background=""}>
+                  {/* Subtle grid lines every 14px */}
+                  <div style={{ position:"absolute", left:barLeft(job.date_issued), top:"50%", transform:"translateY(-50%)", width:barWidth(job.date_issued, job.due_date), height:22, borderRadius:4, background:barColor(job), display:"flex", alignItems:"center", paddingLeft:6, overflow:"hidden", zIndex:1 }}>
+                    <span style={{ fontSize:9, fontWeight:700, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{job.asm}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -292,30 +354,7 @@ function GanttView({ jobs }) {
 
 // -------------------- List View --------------------
 function ListView({ jobs, notes, onStatusChange, onOpenNotes, onEdit }) {
-  const [sort, setSort] = useState("due_asc");
-  const sorted = useMemo(() => [...jobs].sort((a, b) => {
-    if (sort === "due_asc")  return new Date(a.due_date||0) - new Date(b.due_date||0);
-    if (sort === "due_desc") return new Date(b.due_date||0) - new Date(a.due_date||0);
-    if (sort === "cust_asc") return (a.customer||"").localeCompare(b.customer||"");
-    if (sort === "cust_desc")return (b.customer||"").localeCompare(a.customer||"");
-    return 0;
-  }), [jobs, sort]);
-  const btnStyle = (k) => ({ border:`1px solid ${COLORS.rule}`, borderRadius:6, padding:"5px 10px", fontSize:10, cursor:"pointer", fontFamily:"inherit", background: sort===k ? COLORS.navy : "#fff", color: sort===k ? "#fff" : COLORS.textMid, fontWeight: sort===k ? 700 : 400 });
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
-      <div style={{ padding:"8px 16px", background:"#fff", borderBottom:`1px solid ${COLORS.rule}`, display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
-        <span style={{ fontSize:10, color:COLORS.textSoft, fontWeight:600, marginRight:4 }}>Sort:</span>
-        <button style={btnStyle("due_asc")}  onClick={()=>setSort("due_asc")}>Due ↑</button>
-        <button style={btnStyle("due_desc")} onClick={()=>setSort("due_desc")}>Due ↓</button>
-        <button style={btnStyle("cust_asc")} onClick={()=>setSort("cust_asc")}>Customer A→Z</button>
-        <button style={btnStyle("cust_desc")}onClick={()=>setSort("cust_desc")}>Customer Z→A</button>
-      </div>
-      <div style={{ padding:16, overflowY:"auto", flex:1 }}>
-        {sorted.map(job=><JobCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} />)}
-        {!sorted.length && <div style={{ textAlign:"center", padding:48, color:COLORS.textSoft }}>No jobs match filters</div>}
-      </div>
-    </div>
-  );
+  return <div style={{ padding:16, overflowY:"auto", height:"100%" }}>{jobs.map(job=><JobCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} />)}{!jobs.length && <div style={{ textAlign:"center", padding:48, color:COLORS.textSoft }}>No jobs match filters</div>}</div>;
 }
 
 // -------------------- Main App --------------------
@@ -379,7 +418,7 @@ export default function App(){
   const renderContent = () => {
     if (activeView === "dashboard") return <DashboardView jobs={jobs} notes={notes} onFilterEmp={name=>{setFilterEmp(name);setActiveView("list");}} />;
     if (activeView === "kanban") return <KanbanView jobs={filtered} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} filterStatus={filterStatus} />;
-    if (activeView === "gantt") return <GanttView jobs={filtered} />;
+    if (activeView === "gantt") return <GanttView jobs={filtered} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} />;
     return <ListView jobs={filtered} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} />;
   };
 
