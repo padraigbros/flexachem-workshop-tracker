@@ -1,4 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// Initialize Supabase
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 const TODAY = new Date("2026-06-03");
 const JOB_TYPES = ["Valve Assembly","Pump Assembly","Valve Overhaul","Pump Overhaul","Mechanical Seal Refurb","Testing","Site Visit"];
@@ -65,6 +71,9 @@ const SEED_NOTES = [
   {id:22,job_id:24,author:"Colin",body:"Valve issue investigation. Site access booked for January window.",created_at:"2025-12-08T10:00:00Z"},
 ];
 
+const TYPE_ICON={Valve:"🚪","Valve Assembly":"🚪","Valve Overhaul":"⚙","Pump Assembly":"⚙","Pump Overhaul":"⚙","Mechanical Seal Refurb":"🔩",Testing:"✓",Site:"📍"};
+const AVATAR_COLORS={Darragh:"#E8601A",Shauna:"#0E7C4A",Cathal:"#2D4A6A",Ross:"#B45309",Dave:"#7C3AED",Colin:"#0D92C4"};
+
 const fd = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", {day:"2-digit",month:"short",year:"numeric"});
 const fdShort = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", {day:"2-digit",month:"short"});
 const isOD = (due,status) => status!=="Complete"&&due&&new Date(due)<TODAY;
@@ -77,9 +86,6 @@ const STATUS={
   "Complete":{bg:COLORS.greenLt,border:COLORS.green,text:"#064E3B",dot:COLORS.green},
 };
 
-const AVATAR_COLORS={Darragh:"#1E3A5F",Shauna:"#6B21A8",Cathal:"#065F46",Ross:"#7C2D12",Dave:"#1D4ED8",Colin:"#92400E"};
-const TYPE_ICON={"Valve Assembly":"🔧","Pump Assembly":"⚙","Valve Overhaul":"🔩","Pump Overhaul":"🛠","Mechanical Seal Refurb":"💎","Testing":"🧪","Site Visit":"📍"};
-
 function Avatar({name,size=30}){return<div style={{width:size,height:size,borderRadius:"50%",background:AVATAR_COLORS[name]||COLORS.steel,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:800,flexShrink:0,fontFamily:"'DM Mono',monospace",letterSpacing:-0.5,border:`2px solid rgba(255,255,255,0.15)`}}>{name?.[0]}</div>;}
 
 function StatusPill({status,small}){const c=STATUS[status]||STATUS["In Progress"];return<span style={{display:"inline-flex",alignItems:"center",gap:5,background:c.bg,border:`1px solid ${c.border}`,color:c.text,borderRadius:4,padding:small?"1px 7px":"3px 10px",fontSize:small?10:11,fontWeight:700,letterSpacing:0.03,whiteSpace:"nowrap"}}><span style={{width:6,height:6,borderRadius:"50%",background:c.dot,flexShrink:0}}/>{status}</span>;}
@@ -90,19 +96,7 @@ function ProgressBar({val,max,color}){const pct=max>0?Math.min(100,Math.round((v
 
 function Toast({msg,type="success",onDone}){useEffect(()=>{const t=setTimeout(onDone,2800);return()=>clearTimeout(t);},[]);const bg=type==="error"?COLORS.red:type==="warn"?"#B45309":COLORS.orange;return<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:bg,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:12,fontWeight:700,zIndex:1000,boxShadow:"0 6px 24px rgba(0,0,0,0.25)",animation:"slideUp 0.2s ease",whiteSpace:"nowrap"}}>{msg}</div>;}
 
-function LoginPage({onLogin}){
-  const[email,setEmail]=useState("");
-  const[password,setPassword]=useState("");
-  const[error,setError]=useState("");
-
-  function submit(){
-    if(!email.trim()||!password.trim()){setError("Email and password required");return;}
-    if(password.length<6){setError("Password must be 6+ characters");return;}
-    localStorage.setItem("flexachem_user",JSON.stringify({email,password,login_time:nowISO()}));
-    onLogin({email,password});
-  }
-
-  return<div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:`linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.navyMid} 100%)`,padding:20}}><div style={{background:"#fff",borderRadius:12,padding:40,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(11,31,58,0.4)"}}><div style={{textAlign:"center",marginBottom:32}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:COLORS.navy,marginBottom:8}}>Flexachem</div><div style={{fontSize:12,color:COLORS.textSoft,fontWeight:600,letterSpacing:0.1,textTransform:"uppercase"}}>Workshop Job Tracker</div><div style={{fontSize:13,color:COLORS.textMid,marginTop:16}}>Secure Access</div></div><div style={{marginBottom:16}}><label style={{display:"block",fontSize:11,fontWeight:800,color:COLORS.textMid,textTransform:"uppercase",letterSpacing:0.08,marginBottom:6}}>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"}}/></div><div style={{marginBottom:20}}><label style={{display:"block",fontSize:11,fontWeight:800,color:COLORS.textMid,textTransform:"uppercase",letterSpacing:0.08,marginBottom:6}}>Password</label><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••" onKeyDown={e=>e.key==="Enter"&&submit()} style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"}}/></div>{error&&<div style={{background:COLORS.redLt,border:`1px solid ${COLORS.red}`,color:COLORS.red,padding:10,borderRadius:6,fontSize:12,marginBottom:20,fontWeight:600}}>{error}</div>}<button onClick={submit} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:8,padding:"12px 0",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 4px 12px rgba(232,96,26,0.3)`,transition:"background 0.15s"}} onMouseEnter={e=>e.target.style.background="#C24F0E"} onMouseLeave={e=>e.target.style.background=COLORS.orange}>Sign In</button><div style={{textAlign:"center",marginTop:16,fontSize:11,color:COLORS.textSoft}}>Demo: any email, password 6+ chars</div></div></div>;}
+function LoginPage({onLogin}){const[email,setEmail]=useState("");return<div style={{height:"100vh",background:COLORS.navy,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{background:"#fff",borderRadius:12,padding:40,maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:COLORS.navy,marginBottom:6}}>Flexachem</div><div style={{fontSize:12,color:COLORS.textSoft,marginBottom:24}}>Workshop Tracker</div><input value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&onLogin({email})} placeholder="Email (any value)" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:12,fontSize:12,marginBottom:12,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><button onClick={()=>onLogin({email:email||"user@flexachem.com"})} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:10,fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Login</button></div></div>;}
 
 function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,user}){
   const[text,setText]=useState("");
@@ -116,7 +110,7 @@ function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,user}){
     setText("");setNewStatus("");
   }
 
-  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:700,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -12px 48px rgba(11,31,58,0.25)",animation:"slideUp 0.22s ease"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"12px",minHeight:0}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"8px 12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist,flexShrink:0}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"7px 8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,marginTop:6,alignItems:"center",flexWrap:"wrap"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"5px 6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;}
+  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:700,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -12px 48px rgba(11,31,58,0.25)",animation:"slideUp 0.22s ease"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"12px",minHeight:0}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist,flexShrink:0,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",maxWidth:500,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;}
 
 function JobModal({job,onSave,onClose}){
   const[form,setForm]=useState(job?{...job,note:""}:{asm:"",so:"",customer:"",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"",due_date:"",est_hours:"",act_hours:"",status:"In Progress",work_doc:"",note:""});
@@ -130,12 +124,11 @@ function JobModal({job,onSave,onClose}){
 function KpiCard({value,label,accent}){return<div style={{background:"#fff",borderRadius:10,borderTop:`4px solid ${accent}`,padding:"16px 18px",flex:1,minWidth:100,boxShadow:"0 1px 6px rgba(11,31,58,0.07)",border:`1px solid ${COLORS.rule}`}}><div style={{fontSize:28,fontWeight:800,color:accent,fontFamily:"'DM Mono',monospace",lineHeight:1}}>{value}</div><div style={{fontSize:10,textTransform:"uppercase",letterSpacing:0.1,color:COLORS.textSoft,marginTop:6,fontWeight:600}}>{label}</div></div>;}
 
 function DashboardView({jobs,notes,onFilterEmp}){
-  const open=jobs.filter(j=>j.status!=="Complete");
   const ip=jobs.filter(j=>j.status==="In Progress").length;
   const inp=jobs.filter(j=>j.status==="Input Needed").length;
   const done=jobs.filter(j=>j.status==="Complete").length;
   const od=jobs.filter(j=>isOD(j.due_date,j.status)).length;
-  const openHrs=open.reduce((a,j)=>a+(j.est_hours||0),0);
+  const openHrs=jobs.filter(j=>j.status!=="Complete").reduce((a,j)=>a+(j.est_hours||0),0);
 
   const byEmp=useMemo(()=>{const m={};jobs.forEach(j=>{const k=j.allocated_to;if(!m[k])m[k]={jobs:0,hrs:0,ip:0,inp:0};m[k].jobs++;m[k].hrs+=j.est_hours||0;if(j.status==="In Progress")m[k].ip++;if(j.status==="Input Needed")m[k].inp++;});return Object.entries(m).sort((a,b)=>b[1].hrs-a[1].hrs);},[jobs]);
 
@@ -146,7 +139,6 @@ function DashboardView({jobs,notes,onFilterEmp}){
   const maxEmpHrs=Math.max(...byEmp.map(([,v])=>v.hrs),1);
 
   return<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,padding:20,overflowY:"auto",height:"100%"}}><div style={{gridColumn:"span 3"}}><div style={{display:"flex",gap:12,flexWrap:"wrap"}}><KpiCard value={jobs.length} label="Total Jobs" accent={COLORS.navy}/><KpiCard value={ip} label="In Progress" accent="#F59E0B"/><KpiCard value={inp} label="Input Needed" accent={COLORS.red}/><KpiCard value={done} label="Complete" accent={COLORS.green}/><KpiCard value={od} label="Overdue" accent={od>0?COLORS.red:COLORS.textSoft}/><KpiCard value={`${openHrs}h`} label="Open Hours" accent={COLORS.orange}/></div></div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.navy,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>👤 By Employee</div>{byEmp.map(([name,v])=><div key={name} onClick={()=>onFilterEmp(name)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist} onMouseLeave={e=>e.currentTarget.style.background=""}><Avatar name={name} size={28}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{name}</span><span style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} jobs</span></div><ProgressBar val={v.hrs} max={maxEmpHrs} color={COLORS.orange}/></div></div>)}</div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.slate,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏭 By Business Unit</div>{byBU.map(([bu,v])=><div key={bu} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{bu}</div><div style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} total</div></div><div style={{display:"flex",gap:6}}>{v.inp>0&&<span style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>⚠{v.inp}</span>}<span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open}</span></div></div>)}</div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.orange,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏢 By Customer</div>{byCustomer.map(([cust,v])=><div key={cust} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust}</div><div style={{fontSize:9,color:COLORS.textSoft}}>{v.jobs} jobs</div></div><div style={{display:"flex",gap:6}}><span style={{background:COLORS.greenLt,color:COLORS.green,border:`1px solid ${COLORS.green}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>✓{v.complete}</span><span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open}</span></div></div>)}</div></div>;}
-  
 
 function JobCard({job,notes,onStatusChange,onOpenNotes,onEdit}){
   const od=isOD(job.due_date,job.status);
@@ -172,10 +164,30 @@ export default function App(){
   const[toast,setToast]=useState(null);
   const[nextId,setNextId]=useState(26);
   const[nextNoteId,setNextNoteId]=useState(SEED_NOTES.length+1);
+  const[loading,setLoading]=useState(true);
 
-  useEffect(()=>{const stored=localStorage.getItem("flexachem_user");if(stored)setUser(JSON.parse(stored));},[]);
+  // Load user from localStorage
+  useEffect(()=>{const stored=localStorage.getItem("flexachem_user");if(stored)setUser(JSON.parse(stored));else{const newUser={email:"user@flexachem.com"};localStorage.setItem("flexachem_user",JSON.stringify(newUser));setUser(newUser);}setLoading(false);},[]);
 
-  useEffect(()=>{if(!user)return;const storedNotes=localStorage.getItem("flexachem_notes");if(storedNotes)try{setNotes(JSON.parse(storedNotes));}catch(e){}const storedJobs=localStorage.getItem("flexachem_jobs");if(storedJobs)try{setJobs(JSON.parse(storedJobs));}catch(e){}},[user]);
+  // Load data from Supabase when user is set
+  useEffect(()=>{if(!user||!supabase)return;loadData();},[user]);
+
+  async function loadData(){
+    try{
+      const{data:jobsData}=await supabase.from("jobs").select("*");
+      const{data:notesData}=await supabase.from("notes").select("*");
+      if(jobsData?.length>0)setJobs(jobsData);
+      if(notesData?.length>0)setNotes(notesData);
+    }catch(err){console.warn("Could not load from Supabase, using local data",err);}
+  }
+
+  async function syncToSupabase(jobs,notes){
+    if(!supabase)return;
+    try{
+      await supabase.from("jobs").upsert(jobs);
+      await supabase.from("notes").upsert(notes);
+    }catch(err){console.warn("Sync to Supabase failed",err);}
+  }
 
   const filtered=useMemo(()=>jobs.filter(j=>{if(filterStatus&&j.status!==filterStatus)return false;if(filterEmp&&j.allocated_to!==filterEmp&&j.owner!==filterEmp)return false;const q=search.toLowerCase();if(q&&!j.customer.toLowerCase().includes(q)&&!j.asm.toLowerCase().includes(q)&&!j.so.toLowerCase().includes(q))return false;return true;}),[jobs,filterStatus,filterEmp,search]);
 
@@ -184,17 +196,17 @@ export default function App(){
 
   function showToast(msg,type="success"){setToast({msg,type});}
 
-  function updateStatus(id,status){const updated=jobs.map(j=>j.id===id?{...j,status}:j);setJobs(updated);localStorage.setItem("flexachem_jobs",JSON.stringify(updated));showToast(`Status → ${status}`);}
+  function updateStatus(id,status){const updated=jobs.map(j=>j.id===id?{...j,status}:j);setJobs(updated);syncToSupabase(updated,notes);showToast(`Status → ${status}`);}
 
   function openNotes(jobId){setNotesJobId(jobId);setAllNotesOpen(false);}
 
-  function addNote(body,newStatus){if(!notesJobId)return;const updated=[...notes];if(body){const job=jobs.find(j=>j.id===notesJobId);const authorName=user?.email?.split("@")[0]||"Team";updated.push({id:nextNoteId,job_id:notesJobId,author:authorName,body,created_at:nowISO()});setNextNoteId(n=>n+1);}setNotes(updated);localStorage.setItem("flexachem_notes",JSON.stringify(updated));if(newStatus){const jobsUpdated=jobs.map(j=>j.id===notesJobId?{...j,status:newStatus}:j);setJobs(jobsUpdated);localStorage.setItem("flexachem_jobs",JSON.stringify(jobsUpdated));}showToast("Note posted ✓");setNotesJobId(null);}
+  function addNote(body,newStatus){if(!notesJobId)return;const updated=[...notes];if(body){const job=jobs.find(j=>j.id===notesJobId);const authorName=user?.email?.split("@")[0]||"Team";updated.push({id:nextNoteId,job_id:notesJobId,author:authorName,body,created_at:nowISO()});setNextNoteId(n=>n+1);}setNotes(updated);if(newStatus){const jobsUpdated=jobs.map(j=>j.id===notesJobId?{...j,status:newStatus}:j);setJobs(jobsUpdated);syncToSupabase(jobsUpdated,updated);}else{syncToSupabase(jobs,updated);}showToast("Note posted ✓");setNotesJobId(null);}
 
-  function saveJob(form){const noteText=form.note?.trim();const updated=[...jobs];const notesUpdated=[...notes];if(editJobId){const idx=updated.findIndex(j=>j.id===editJobId);if(idx>=0)updated[idx]={...updated[idx],...form,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};if(noteText){const job=jobs.find(j=>j.id===editJobId);const authorName=user?.email?.split("@")[0]||"Team";notesUpdated.push({id:nextNoteId,job_id:editJobId,author:authorName,body:noteText,created_at:nowISO()});setNextNoteId(n=>n+1);}showToast("Job updated ✓");}else{const id=nextId;setNextId(n=>n+1);const newJob={...form,id,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};updated.push(newJob);if(noteText){const authorName=user?.email?.split("@")[0]||"Team";notesUpdated.push({id:nextNoteId,job_id:id,author:authorName,body:noteText,created_at:nowISO()});setNextNoteId(n=>n+1);}showToast("Job added ✓");}setJobs(updated);localStorage.setItem("flexachem_jobs",JSON.stringify(updated));setNotes(notesUpdated);localStorage.setItem("flexachem_notes",JSON.stringify(notesUpdated));setAddOpen(false);setEditJobId(null);}
+  function saveJob(form){const noteText=form.note?.trim();const updated=[...jobs];const notesUpdated=[...notes];if(editJobId){const idx=updated.findIndex(j=>j.id===editJobId);if(idx>=0)updated[idx]={...updated[idx],...form,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};if(noteText){const job=jobs.find(j=>j.id===editJobId);const authorName=user?.email?.split("@")[0]||"Team";notesUpdated.push({id:nextNoteId,job_id:editJobId,author:authorName,body:noteText,created_at:nowISO()});setNextNoteId(n=>n+1);}showToast("Job updated ✓");}else{const id=nextId;setNextId(n=>n+1);const newJob={...form,id,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};updated.push(newJob);if(noteText){const authorName=user?.email?.split("@")[0]||"Team";notesUpdated.push({id:nextNoteId,job_id:id,author:authorName,body:noteText,created_at:nowISO()});setNextNoteId(n=>n+1);}showToast("Job added ✓");}setJobs(updated);setNotes(notesUpdated);syncToSupabase(updated,notesUpdated);setAddOpen(false);setEditJobId(null);}
 
   function logout(){localStorage.removeItem("flexachem_user");setUser(null);}
 
-  if(!user)return<LoginPage onLogin={setUser}/>;
+  if(loading||!user)return<LoginPage onLogin={setUser}/>;
 
   const editJob=editJobId?jobs.find(j=>j.id===editJobId):null;
   const notesJob=notesJobId?jobs.find(j=>j.id===notesJobId):null;
