@@ -216,7 +216,7 @@ function KanbanColumn({ status, jobs, notes, onStatusChange, onOpenNotes, onEdit
         <SortableContext items={columnJobs.map(j=>j.id)} strategy={verticalListSortingStrategy}>
           {columnJobs.map(job => <KanbanDraggableCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} isDragging={activeId === job.id} />)}
         </SortableContext>
-        {columnJobs.length === 0 && <div style={{ textAlign:"center", padding:32, color:COLORS.textSoft, fontSize:12, border:`2px dashed ${COLORS.rule}`, borderRadius:8, marginTop:8 }}>Drop here</div>}
+        {columnJobs.length === 0 && <div style={{ textAlign:"center", padding:32, color:COLORS.textSoft, fontSize:12, border:`2px dashed ${COLORS.rule}`, borderRadius:8 }}>Drop here</div>}
       </div>
     </div>
   );
@@ -226,7 +226,7 @@ function KanbanView({ jobs, notes, onStatusChange, onOpenNotes, onEdit, filterSt
   const [activeId, setActiveId] = useState(null);
   const statuses = ["In Progress", "Input Needed", "Complete"];
   const columnsToShow = filterStatus ? [filterStatus] : statuses;
-  const sensors = useSensors(useSensor(PointerSensor));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const handleDragStart = (event) => setActiveId(event.active.id);
   const handleDragEnd = (event) => {
     setActiveId(null);
@@ -253,99 +253,38 @@ function KanbanView({ jobs, notes, onStatusChange, onOpenNotes, onEdit, filterSt
 }
 
 // -------------------- Gantt View --------------------
-function GanttView({ jobs, onEdit }) {
-  const DAY = 18; // px per day
-  const ROW = 44;
-  const LABEL_W = 220;
-
-  const validJobs = useMemo(() => [...jobs].filter(j => j.date_issued && j.due_date).sort((a,b)=>new Date(a.date_issued)-new Date(b.date_issued)), [jobs]);
-
-  const minDate = useMemo(() => {
-    if (!validJobs.length) return new Date();
-    const d = new Date(Math.min(...validJobs.map(j => new Date(j.date_issued).getTime())));
-    d.setDate(d.getDate() - 3); return d;
-  }, [validJobs]);
-
-  const maxDate = useMemo(() => {
-    if (!validJobs.length) return new Date();
-    const d = new Date(Math.max(...validJobs.map(j => new Date(j.due_date).getTime())));
-    d.setDate(d.getDate() + 3); return d;
-  }, [validJobs]);
-
-  const totalDays = Math.ceil((maxDate - minDate) / 86400000);
-  const totalW = totalDays * DAY;
-  const todayOffset = Math.floor((TODAY - minDate) / 86400000) * DAY;
-
-  // Build month labels
-  const months = [];
-  let cur = new Date(minDate); cur.setDate(1);
-  while (cur <= maxDate) {
-    const offset = Math.max(0, Math.floor((cur - minDate) / 86400000)) * DAY;
-    months.push({ label: cur.toLocaleDateString("en-IE", { month:"short", year:"2-digit" }), offset });
-    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
-  }
-
-  const barLeft  = (d) => Math.floor((new Date(d) - minDate) / 86400000) * DAY;
-  const barWidth = (s, e) => Math.max(DAY, Math.ceil((new Date(e) - new Date(s)) / 86400000) * DAY);
-  const barColor = (job) => {
-    if (job.status === "Complete") return COLORS.green;
-    if (job.status === "Input Needed") return COLORS.red;
-    if (isOD(job.due_date, job.status)) return "#C0392B";
-    return COLORS.orange;
+function GanttView({ jobs }) {
+  const validJobs = jobs.filter(j => j.date_issued && j.due_date);
+  const minDate = useMemo(() => validJobs.length ? new Date(Math.min(...validJobs.flatMap(j=>[new Date(j.date_issued), new Date(j.due_date)]).map(d=>d.getTime()))) : new Date(), [validJobs]);
+  const maxDate = useMemo(() => validJobs.length ? new Date(Math.max(...validJobs.flatMap(j=>[new Date(j.date_issued), new Date(j.due_date)]).map(d=>d.getTime()))) : new Date(), [validJobs]);
+  const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000*60*60*24)) + 1);
+  const getBarStyle = (startStr, endStr) => {
+    if (!startStr || !endStr) return { display:"none" };
+    const start = new Date(startStr), end = new Date(endStr);
+    const startOffset = Math.max(0, (start - minDate) / (1000*60*60*24));
+    const width = Math.max(2, (end - start) / (1000*60*60*24));
+    return { left: `${(startOffset/totalDays)*100}%`, width: `${(width/totalDays)*100}%`, position:"absolute", height:28, borderRadius:4, backgroundColor:COLORS.orange, transition:"all 0.2s", cursor:"pointer" };
   };
-
-  if (!validJobs.length) return <div style={{ padding:40, textAlign:"center", color:COLORS.textSoft }}>No jobs with dates.</div>;
-
+  if (!validJobs.length) return <div style={{ padding:40, textAlign:"center", color:COLORS.textSoft }}>No jobs with valid start/end dates for Gantt view.</div>;
+  const timelineLabels = [];
+  const steps = Math.min(12, totalDays);
+  for (let i=0; i<=totalDays; i+=Math.max(1, Math.floor(totalDays/steps))) {
+    timelineLabels.push({ date: new Date(minDate.getTime()+i*86400000), offset: (i/totalDays)*100 });
+  }
   return (
-    <div style={{ height:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:12 }}>
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:16 }}>
       <div style={{ flex:1, overflow:"auto", border:`1px solid ${COLORS.rule}`, borderRadius:8, background:"#fff" }}>
-        <div style={{ display:"flex", minWidth: LABEL_W + totalW }}>
-          {/* Left label column */}
-          <div style={{ width:LABEL_W, flexShrink:0, position:"sticky", left:0, zIndex:3, background:"#fff" }}>
-            {/* header spacer */}
-            <div style={{ height:48, borderBottom:`1px solid ${COLORS.rule}`, borderRight:`1px solid ${COLORS.rule}`, background:COLORS.mist, display:"flex", alignItems:"center", padding:"0 12px", fontWeight:700, fontSize:11, color:COLORS.textMid }}>Job</div>
-            {validJobs.map(job => (
-              <div key={job.id} onClick={() => onEdit(job.id)} style={{ height:ROW, borderBottom:`1px solid ${COLORS.rule}`, borderRight:`1px solid ${COLORS.rule}`, padding:"0 12px", display:"flex", flexDirection:"column", justifyContent:"center", cursor:"pointer", background:"#fff" }}
-                onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist}
-                onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                <div style={{ fontFamily:"'DM Mono',monospace", fontWeight:700, fontSize:11, color:COLORS.navy }}>{job.asm}</div>
-                <div style={{ fontSize:9, color:COLORS.textSoft, marginTop:1 }}>{job.customer}</div>
-              </div>
-            ))}
+        <div style={{ minWidth:800 }}>
+          <div style={{ display:"flex", borderBottom:`1px solid ${COLORS.rule}`, background:COLORS.mist, position:"sticky", top:0, zIndex:2 }}>
+            <div style={{ width:220, flexShrink:0, padding:"8px 12px", fontWeight:700, fontSize:12, borderRight:`1px solid ${COLORS.rule}`, background:COLORS.mist }}>Job</div>
+            <div style={{ flex:1, position:"relative", minHeight:38 }}><div style={{ position:"relative", height:"100%", width:"100%" }}>{timelineLabels.map(({date,offset},idx)=><div key={idx} style={{ position:"absolute", left:`${offset}%`, bottom:0, fontSize:9, color:COLORS.textSoft, transform:"translateX(-50%)", whiteSpace:"nowrap" }}>{date.toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div>)}</div></div>
           </div>
-
-          {/* Timeline area */}
-          <div style={{ flex:1, position:"relative" }}>
-            {/* Month header */}
-            <div style={{ height:48, borderBottom:`1px solid ${COLORS.rule}`, position:"sticky", top:0, zIndex:2, background:COLORS.mist, display:"flex", alignItems:"flex-end", paddingBottom:4 }}>
-              {months.map((m,i) => (
-                <div key={i} style={{ position:"absolute", left:m.offset, fontSize:9, fontWeight:700, color:COLORS.textMid, paddingLeft:4, borderLeft:`1px solid ${COLORS.rule}`, height:"100%", display:"flex", alignItems:"flex-end", paddingBottom:4, whiteSpace:"nowrap" }}>{m.label}</div>
-              ))}
-              {/* Today label */}
-              {todayOffset >= 0 && todayOffset <= totalW && (
-                <div style={{ position:"absolute", left:todayOffset, fontSize:8, fontWeight:800, color:COLORS.orange, top:4, whiteSpace:"nowrap", transform:"translateX(-50%)" }}>Today</div>
-              )}
+          {validJobs.map(job=>(
+            <div key={job.id} style={{ display:"flex", borderBottom:`1px solid ${COLORS.rule}`, alignItems:"center", minHeight:48 }}>
+              <div style={{ width:220, flexShrink:0, padding:"8px 12px", borderRight:`1px solid ${COLORS.rule}`, fontSize:12, fontWeight:600, background:"#fff" }}><div>{job.asm}</div><div style={{ fontSize:10, color:COLORS.textSoft }}>{job.customer}</div></div>
+              <div style={{ flex:1, position:"relative", height:48, background:"#fff" }}><div style={getBarStyle(job.date_issued, job.due_date)} title={`${job.asm}: ${fd(job.date_issued)} → ${fd(job.due_date)}`} /></div>
             </div>
-
-            {/* Grid + Bars */}
-            <div style={{ position:"relative" }}>
-              {/* Today line */}
-              {todayOffset >= 0 && todayOffset <= totalW && (
-                <div style={{ position:"absolute", left:todayOffset, top:0, bottom:0, width:2, background:COLORS.orange, opacity:0.5, zIndex:1 }} />
-              )}
-
-              {validJobs.map(job => (
-                <div key={job.id} onClick={() => onEdit(job.id)} style={{ height:ROW, borderBottom:`1px solid ${COLORS.rule}`, position:"relative", cursor:"pointer" }}
-                  onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist}
-                  onMouseLeave={e=>e.currentTarget.style.background=""}>
-                  {/* Subtle grid lines every 14px */}
-                  <div style={{ position:"absolute", left:barLeft(job.date_issued), top:"50%", transform:"translateY(-50%)", width:barWidth(job.date_issued, job.due_date), height:22, borderRadius:4, background:barColor(job), display:"flex", alignItems:"center", paddingLeft:6, overflow:"hidden", zIndex:1 }}>
-                    <span style={{ fontSize:9, fontWeight:700, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{job.asm}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>
@@ -354,7 +293,29 @@ function GanttView({ jobs, onEdit }) {
 
 // -------------------- List View --------------------
 function ListView({ jobs, notes, onStatusChange, onOpenNotes, onEdit }) {
-  return <div style={{ padding:16, overflowY:"auto", height:"100%" }}>{jobs.map(job=><JobCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} />)}{!jobs.length && <div style={{ textAlign:"center", padding:48, color:COLORS.textSoft }}>No jobs match filters</div>}</div>;
+  const [sort, setSort] = useState("due_asc");
+  const sorted = useMemo(() => [...jobs].sort((a, b) => {
+    if (sort === "due_asc")  return new Date(a.due_date||0) - new Date(b.due_date||0);
+    if (sort === "due_desc") return new Date(b.due_date||0) - new Date(a.due_date||0);
+    if (sort === "cust_asc") return (a.customer||"").localeCompare(b.customer||"");
+    if (sort === "cust_desc")return (b.customer||"").localeCompare(a.customer||"");
+    return 0;
+  }), [jobs, sort]);
+  const btn = (k, label) => (
+    <button onClick={()=>setSort(k)} style={{ border:`1px solid ${COLORS.rule}`, borderRadius:6, padding:"5px 10px", fontSize:10, cursor:"pointer", fontFamily:"inherit", background: sort===k ? COLORS.navy : "#fff", color: sort===k ? "#fff" : COLORS.textMid, fontWeight: sort===k ? 700 : 400 }}>{label}</button>
+  );
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+      <div style={{ padding:"8px 16px", background:"#fff", borderBottom:`1px solid ${COLORS.rule}`, display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
+        <span style={{ fontSize:10, color:COLORS.textSoft, fontWeight:600, marginRight:4 }}>Sort:</span>
+        {btn("due_asc","Due ↑")}{btn("due_desc","Due ↓")}{btn("cust_asc","Customer A→Z")}{btn("cust_desc","Customer Z→A")}
+      </div>
+      <div style={{ padding:16, overflowY:"auto", flex:1 }}>
+        {sorted.map(job=><JobCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} />)}
+        {!sorted.length && <div style={{ textAlign:"center", padding:48, color:COLORS.textSoft }}>No jobs match filters</div>}
+      </div>
+    </div>
+  );
 }
 
 // -------------------- Main App --------------------
@@ -418,7 +379,7 @@ export default function App(){
   const renderContent = () => {
     if (activeView === "dashboard") return <DashboardView jobs={jobs} notes={notes} onFilterEmp={name=>{setFilterEmp(name);setActiveView("list");}} />;
     if (activeView === "kanban") return <KanbanView jobs={filtered} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} filterStatus={filterStatus} />;
-    if (activeView === "gantt") return <GanttView jobs={filtered} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} />;
+    if (activeView === "gantt") return <GanttView jobs={filtered} />;
     return <ListView jobs={filtered} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} />;
   };
 
@@ -433,7 +394,7 @@ export default function App(){
         {!isMob&&<>{od_count>0&&<div style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>{od_count} overdue</div>}{inp_count>0&&<div style={{background:"#FFF8E1",color:"#78350F",border:`1px solid #F59E0B`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>⚠ {inp_count} need input</div>}<button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:16}}>＋ Add Job</button></>}
         <div style={{display:"flex",flexDirection:"column",gap:isMob?4:6,marginBottom:isMob?8:16,flex:isMob?0:1}}>
           {[ {key:"list",label:"📋 List"},{key:"kanban",label:"📌 Kanban"},{key:"gantt",label:"📅 Gantt"},{key:"dashboard",label:"📊 Dashboard"} ].map(({key,label})=>(
-            <button key={key} onClick={()=>setActiveView(key)} style={{textAlign:"left",background:activeView===key?COLORS.mist:"transparent",color:activeView===key?COLORS.navy:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:isMob?"6px 8px":"10px 12px",fontSize:isMob?10:12,fontWeight:activeView===key?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:isMob?4:8}}>{label.split(" ")[0]}</span>{!isMob && label}</button>
+            <button key={key} onClick={()=>setActiveView(key)} style={{textAlign:"left",background:activeView===key?COLORS.mist:"transparent",color:activeView===key?COLORS.navy:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:isMob?"6px 8px":"10px 12px",fontSize:isMob?10:12,fontWeight:activeView===key?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:isMob?4:8}}>{label.split(" ")[0]}</span>{!isMob && label.split(" ").slice(1).join(" ")}</button>
           ))}
           {!isMob && <button onClick={()=>setAllNotesOpen(true)} style={{textAlign:"left",background:"transparent",color:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:"10px 12px",fontSize:12,fontWeight:500,cursor:"pointer"}}><span style={{marginRight:8}}>💬</span>All Notes</button>}
         </div>
