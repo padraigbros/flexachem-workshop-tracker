@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   PointerSensor,
+  useDroppable,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -123,7 +124,7 @@ function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,user}){
     onAddNote(text.trim(),newStatus||null);
     setText("");setNewStatus("");
   }
-  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:700,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -12px 48px rgba(11,31,58,0.25)",animation:"slideUp 0.22s ease"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"12px",minHeight:0}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist,flexShrink:0,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",maxWidth:500,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;}
+  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:700,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(11,31,58,0.3)"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"12px",minHeight:0}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist,flexShrink:0,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",maxWidth:500,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;}
 
 function JobModal({job,onSave,onClose}){
   const[form,setForm]=useState(job?{...job,note:""}:{asm:"",so:"",customer:"",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"",due_date:"",est_hours:"",act_hours:"",status:"In Progress",work_doc:"",note:""});
@@ -205,31 +206,18 @@ function KanbanDraggableCard({ job, notes, onStatusChange, onOpenNotes, onEdit, 
 
 function KanbanColumn({ status, jobs, notes, onStatusChange, onOpenNotes, onEdit, activeId }) {
   const columnJobs = jobs.filter(j => j.status === status);
-  const sensors = useSensors(useSensor(PointerSensor));
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const c = STATUS[status];
   return (
-    <div style={{ flex:"1 1 320px", minWidth:280, maxWidth:380, background:COLORS.mist, borderRadius:16, display:"flex", flexDirection:"column", height:"100%", maxHeight:"calc(100vh - 140px)", boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
+    <div style={{ flex:"1 1 320px", minWidth:280, maxWidth:380, background: isOver ? c.bg : COLORS.mist, borderRadius:16, display:"flex", flexDirection:"column", height:"100%", maxHeight:"calc(100vh - 140px)", boxShadow:"0 2px 8px rgba(0,0,0,0.05)", border: isOver ? `2px solid ${c.border}` : "2px solid transparent", transition:"all 0.15s" }}>
       <div style={{ padding:"12px 16px", background:"#fff", borderBottom:`1px solid ${COLORS.rule}`, borderRadius:"16px 16px 0 0", fontWeight:800, fontSize:13, display:"flex", justifyContent:"space-between" }}>
         <span>{status}</span><span style={{ fontSize:11, color:COLORS.textSoft }}>({columnJobs.length})</span>
       </div>
-      <div style={{ flex:1, overflowY:"auto", padding:12 }}>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => {
-          const { active, over } = event;
-          if (!over) return;
-          const draggedJob = jobs.find(j => j.id === active.id);
-          if (!draggedJob) return;
-          let newStatus = null;
-          if (status === over.id) newStatus = status;
-          else {
-            const targetJob = jobs.find(j => j.id === over.id);
-            if (targetJob) newStatus = targetJob.status;
-          }
-          if (newStatus && draggedJob.status !== newStatus) onStatusChange(draggedJob.id, newStatus);
-        }}>
-          <SortableContext items={columnJobs.map(j=>j.id)} strategy={verticalListSortingStrategy}>
-            {columnJobs.map(job => <KanbanDraggableCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} isDragging={activeId === job.id} />)}
-          </SortableContext>
-        </DndContext>
-        {columnJobs.length === 0 && <div style={{ textAlign:"center", padding:32, color:COLORS.textSoft, fontSize:12 }}>No jobs</div>}
+      <div ref={setNodeRef} style={{ flex:1, overflowY:"auto", padding:12 }}>
+        <SortableContext items={columnJobs.map(j=>j.id)} strategy={verticalListSortingStrategy}>
+          {columnJobs.map(job => <KanbanDraggableCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} isDragging={activeId === job.id} />)}
+        </SortableContext>
+        {columnJobs.length === 0 && <div style={{ textAlign:"center", padding:32, color:COLORS.textSoft, fontSize:12, border:`2px dashed ${COLORS.rule}`, borderRadius:8, marginTop:8 }}>Drop here</div>}
       </div>
     </div>
   );
@@ -247,12 +235,10 @@ function KanbanView({ jobs, notes, onStatusChange, onOpenNotes, onEdit, filterSt
     if (!over) return;
     const draggedJob = jobs.find(j => j.id === active.id);
     if (!draggedJob) return;
-    let newStatus = null;
-    if (columnsToShow.includes(over.id)) newStatus = over.id;
-    else {
-      const targetJob = jobs.find(j => j.id === over.id);
-      if (targetJob) newStatus = targetJob.status;
-    }
+    // over.id can be a column status string OR another job's id
+    const newStatus = statuses.includes(String(over.id))
+      ? over.id
+      : jobs.find(j => j.id === over.id)?.status;
     if (newStatus && draggedJob.status !== newStatus) onStatusChange(draggedJob.id, newStatus);
   };
   return (
@@ -306,7 +292,30 @@ function GanttView({ jobs }) {
 
 // -------------------- List View --------------------
 function ListView({ jobs, notes, onStatusChange, onOpenNotes, onEdit }) {
-  return <div style={{ padding:16, overflowY:"auto", height:"100%" }}>{jobs.map(job=><JobCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} />)}{!jobs.length && <div style={{ textAlign:"center", padding:48, color:COLORS.textSoft }}>No jobs match filters</div>}</div>;
+  const [sort, setSort] = useState("due_asc");
+  const sorted = useMemo(() => [...jobs].sort((a, b) => {
+    if (sort === "due_asc")  return new Date(a.due_date||0) - new Date(b.due_date||0);
+    if (sort === "due_desc") return new Date(b.due_date||0) - new Date(a.due_date||0);
+    if (sort === "cust_asc") return (a.customer||"").localeCompare(b.customer||"");
+    if (sort === "cust_desc")return (b.customer||"").localeCompare(a.customer||"");
+    return 0;
+  }), [jobs, sort]);
+  const btnStyle = (k) => ({ border:`1px solid ${COLORS.rule}`, borderRadius:6, padding:"5px 10px", fontSize:10, cursor:"pointer", fontFamily:"inherit", background: sort===k ? COLORS.navy : "#fff", color: sort===k ? "#fff" : COLORS.textMid, fontWeight: sort===k ? 700 : 400 });
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+      <div style={{ padding:"8px 16px", background:"#fff", borderBottom:`1px solid ${COLORS.rule}`, display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
+        <span style={{ fontSize:10, color:COLORS.textSoft, fontWeight:600, marginRight:4 }}>Sort:</span>
+        <button style={btnStyle("due_asc")}  onClick={()=>setSort("due_asc")}>Due ↑</button>
+        <button style={btnStyle("due_desc")} onClick={()=>setSort("due_desc")}>Due ↓</button>
+        <button style={btnStyle("cust_asc")} onClick={()=>setSort("cust_asc")}>Customer A→Z</button>
+        <button style={btnStyle("cust_desc")}onClick={()=>setSort("cust_desc")}>Customer Z→A</button>
+      </div>
+      <div style={{ padding:16, overflowY:"auto", flex:1 }}>
+        {sorted.map(job=><JobCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} />)}
+        {!sorted.length && <div style={{ textAlign:"center", padding:48, color:COLORS.textSoft }}>No jobs match filters</div>}
+      </div>
+    </div>
+  );
 }
 
 // -------------------- Main App --------------------
