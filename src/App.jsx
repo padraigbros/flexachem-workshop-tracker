@@ -123,6 +123,7 @@ function JobModal({job,onSave,onClose}){
 
 function KpiCard({value,label,accent}){return<div style={{background:"#fff",borderRadius:10,borderTop:`4px solid ${accent}`,padding:"16px 18px",flex:1,minWidth:100,boxShadow:"0 1px 6px rgba(11,31,58,0.07)",border:`1px solid ${COLORS.rule}`}}><div style={{fontSize:28,fontWeight:800,color:accent,fontFamily:"'DM Mono',monospace",lineHeight:1}}>{value}</div><div style={{fontSize:10,textTransform:"uppercase",letterSpacing:0.1,color:COLORS.textSoft,marginTop:6,fontWeight:600}}>{label}</div></div>;}
 
+// Dashboard with new Due Date widget
 function DashboardView({jobs,notes,onFilterEmp}){
   const ip=jobs.filter(j=>j.status==="In Progress").length;
   const inp=jobs.filter(j=>j.status==="Input Needed").length;
@@ -136,9 +137,56 @@ function DashboardView({jobs,notes,onFilterEmp}){
 
   const byCustomer=useMemo(()=>{const m={};jobs.forEach(j=>{if(!m[j.customer])m[j.customer]={jobs:0,open:0,complete:0};m[j.customer].jobs++;if(j.status!=="Complete")m[j.customer].open++;if(j.status==="Complete")m[j.customer].complete++;});return Object.entries(m).sort((a,b)=>b[1].jobs-a[1].jobs);},[jobs]);
 
+  // New: Jobs sorted by due date descending (most recent due first)
+  const jobsByDueDate = useMemo(() => {
+    return [...jobs]
+      .filter(j => j.due_date) // only jobs with a due date
+      .sort((a, b) => new Date(b.due_date) - new Date(a.due_date));
+  }, [jobs]);
+
   const maxEmpHrs=Math.max(...byEmp.map(([,v])=>v.hrs),1);
 
-  return<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,padding:20,overflowY:"auto",height:"100%"}}><div style={{gridColumn:"span 3"}}><div style={{display:"flex",gap:12,flexWrap:"wrap"}}><KpiCard value={jobs.length} label="Total Jobs" accent={COLORS.navy}/><KpiCard value={ip} label="In Progress" accent="#F59E0B"/><KpiCard value={inp} label="Input Needed" accent={COLORS.red}/><KpiCard value={done} label="Complete" accent={COLORS.green}/><KpiCard value={od} label="Overdue" accent={od>0?COLORS.red:COLORS.textSoft}/><KpiCard value={`${openHrs}h`} label="Open Hours" accent={COLORS.orange}/></div></div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.navy,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>👤 By Employee</div>{byEmp.map(([name,v])=><div key={name} onClick={()=>onFilterEmp(name)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist} onMouseLeave={e=>e.currentTarget.style.background=""}><Avatar name={name} size={28}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{name}</span><span style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} jobs</span></div><ProgressBar val={v.hrs} max={maxEmpHrs} color={COLORS.orange}/></div></div>)}</div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.slate,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏭 By Business Unit</div>{byBU.map(([bu,v])=><div key={bu} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{bu}</div><div style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} total</div></div><div style={{display:"flex",gap:6}}>{v.inp>0&&<span style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>⚠{v.inp}</span>}<span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open}</span></div></div>)}</div><div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.orange,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏢 By Customer</div>{byCustomer.map(([cust,v])=><div key={cust} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust}</div><div style={{fontSize:9,color:COLORS.textSoft}}>{v.jobs} jobs</div></div><div style={{display:"flex",gap:6}}><span style={{background:COLORS.greenLt,color:COLORS.green,border:`1px solid ${COLORS.green}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>✓{v.complete}</span><span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open}</span></div></div>)}</div></div>;}
+  return<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,padding:20,overflowY:"auto",height:"100%"}}>
+    <div style={{gridColumn:"span 3"}}><div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+      <KpiCard value={jobs.length} label="Total Jobs" accent={COLORS.navy}/>
+      <KpiCard value={ip} label="In Progress" accent="#F59E0B"/>
+      <KpiCard value={inp} label="Input Needed" accent={COLORS.red}/>
+      <KpiCard value={done} label="Complete" accent={COLORS.green}/>
+      <KpiCard value={od} label="Overdue" accent={od>0?COLORS.red:COLORS.textSoft}/>
+      <KpiCard value={`${openHrs}h`} label="Open Hours" accent={COLORS.orange}/>
+    </div></div>
+
+    {/* Due Date Widget */}
+    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden",gridColumn:"span 1"}}>
+      <div style={{background:COLORS.orange,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>📅 Due Date (Descending)</div>
+      <div style={{maxHeight:400,overflowY:"auto"}}>
+        {jobsByDueDate.length === 0 && <div style={{padding:16,color:COLORS.textSoft,fontSize:11}}>No due dates</div>}
+        {jobsByDueDate.map(job => (
+          <div key={job.id} style={{padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`,cursor:"pointer"}} onClick={() => onFilterEmp?.(job.allocated_to)}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><span style={{fontWeight:700,fontSize:12}}>{job.asm}</span> <span style={{fontSize:10,color:COLORS.textSoft}}>{job.customer}</span></div>
+              <span style={{fontSize:10,fontWeight:600,color:isOD(job.due_date,job.status)?COLORS.red:COLORS.textMid}}>{fd(job.due_date)}</span>
+            </div>
+            <div style={{fontSize:10,color:COLORS.textSoft}}>{job.allocated_to} · {job.status}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}>
+      <div style={{background:COLORS.navy,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>👤 By Employee</div>
+      {byEmp.map(([name,v])=><div key={name} onClick={()=>onFilterEmp(name)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist} onMouseLeave={e=>e.currentTarget.style.background=""}><Avatar name={name} size={28}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{name}</span><span style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} jobs</span></div><ProgressBar val={v.hrs} max={maxEmpHrs} color={COLORS.orange}/></div></div>)}
+    </div>
+    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}>
+      <div style={{background:COLORS.slate,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏭 By Business Unit</div>
+      {byBU.map(([bu,v])=><div key={bu} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{bu}</div><div style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} total</div></div><div style={{display:"flex",gap:6}}>{v.inp>0&&<span style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>⚠{v.inp}</span>}<span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open}</span></div></div>)}
+    </div>
+    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}>
+      <div style={{background:COLORS.orange,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏢 By Customer</div>
+      {byCustomer.map(([cust,v])=><div key={cust} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust}</div><div style={{fontSize:9,color:COLORS.textSoft}}>{v.jobs} jobs</div></div><div style={{display:"flex",gap:6}}><span style={{background:COLORS.greenLt,color:COLORS.green,border:`1px solid ${COLORS.green}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>✓{v.complete}</span><span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open}</span></div></div>)}
+    </div>
+  </div>;
+}
 
 function JobCard({job,notes,onStatusChange,onOpenNotes,onEdit}){
   const od=isOD(job.due_date,job.status);
@@ -149,17 +197,17 @@ function JobCard({job,notes,onStatusChange,onOpenNotes,onEdit}){
 
   return<div style={{background:"#fff",borderRadius:10,marginBottom:12,border:`1px solid ${od?"#FECACA":COLORS.rule}`,overflow:"hidden",boxShadow:"0 1px 4px rgba(11,31,58,0.06)"}}>{od&&<div style={{background:COLORS.red,color:"#fff",padding:"6px 16px",fontSize:11,fontWeight:700}}>⚠ OVERDUE — Due {fd(job.due_date)}</div>}<div style={{padding:"14px 16px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:10}}><div style={{flex:1}}><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6}}><span style={{fontFamily:"'DM Mono',monospace",fontWeight:800,fontSize:13,color:COLORS.navy}}>{job.asm}</span><TypeBadge type={job.job_type}/><StatusPill status={job.status} small/></div><div style={{fontWeight:700,fontSize:15,color:COLORS.text,marginBottom:4}}>{job.customer}</div><div style={{fontSize:11,color:COLORS.textSoft}}>SO: {job.so||"TBA"} · Issued {fdShort(job.date_issued)} · Due <strong style={{color:od?COLORS.red:COLORS.text}}>{fd(job.due_date)}</strong></div></div><select value={job.status} onChange={e=>onStatusChange(job.id,e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:600,background:"#fff",color:COLORS.text,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}><option>In Progress</option><option>Input Needed</option><option>Complete</option></select></div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}><Avatar name={job.allocated_to} size={24}/><span style={{fontSize:12,color:COLORS.text,fontWeight:600}}>{job.allocated_to}</span>{job.allocated_to!==job.owner&&<><span style={{color:COLORS.rule}}>·</span><span style={{fontSize:11,color:COLORS.textSoft}}>Owner: {job.owner}</span></>}<span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:11,color:over?COLORS.red:COLORS.textMid,fontWeight:over?700:400}}>{hasActuals?`${job.act_hours}h / ${job.est_hours}h${over?" ↑":""}`:` ${job.est_hours}h est.`}</span></div>{hasActuals&&<div style={{marginBottom:10}}><ProgressBar val={job.act_hours} max={job.est_hours} color={over?COLORS.red:COLORS.orange}/></div>}{lastNote&&<div style={{background:COLORS.mist,borderLeft:`3px solid ${COLORS.orange}`,padding:"8px 12px",borderRadius:"0 6px 6px 0",marginBottom:10}}><div style={{fontSize:10,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace",marginBottom:3}}>{lastNote.author} · {new Date(lastNote.created_at).toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div><div style={{fontSize:12,color:COLORS.text,lineHeight:1.45}}>{lastNote.body}</div></div>}<div style={{display:"flex",gap:6}}><button onClick={()=>onOpenNotes(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,background:"#fff",cursor:"pointer",color:COLORS.steel,display:"flex",alignItems:"center",gap:4}}>💬 Notes <span style={{background:COLORS.steelLt,borderRadius:10,padding:"0 6px",fontSize:10,fontWeight:700}}>{jobNotes.length}</span></button><button onClick={()=>onEdit(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,background:"#fff",cursor:"pointer",color:COLORS.steel}}>✏ Edit</button>{job.work_doc&&<button style={{border:`1px solid ${COLORS.navy}20`,borderRadius:6,padding:"6px 12px",fontSize:11,background:COLORS.steelLt,cursor:"pointer",color:COLORS.navy}}>📎 Work</button>}</div></div></div>;}
 
-// --- Kanban View Component ---
+// --- Kanban View Component (improved layout) ---
 function KanbanView({ jobs, notes, onStatusChange, onOpenNotes, onEdit, filterStatus }) {
   const statuses = ["In Progress", "Input Needed", "Complete"];
   const columnsToShow = filterStatus ? [filterStatus] : statuses;
 
   return (
-    <div style={{ display: "flex", gap: 16, padding: 16, overflowX: "auto", height: "100%" }}>
+    <div style={{ display: "flex", gap: 16, padding: 16, overflowX: "auto", height: "100%", alignItems: "flex-start" }}>
       {columnsToShow.map(status => {
         const columnJobs = jobs.filter(j => j.status === status);
         return (
-          <div key={status} style={{ flex: 1, minWidth: 280, background: COLORS.mist, borderRadius: 12, display: "flex", flexDirection: "column", maxHeight: "100%" }}>
+          <div key={status} style={{ flex: "1 1 300px", minWidth: 300, background: COLORS.mist, borderRadius: 12, display: "flex", flexDirection: "column", maxHeight: "100%" }}>
             <div style={{ padding: "10px 12px", background: "#fff", borderBottom: `1px solid ${COLORS.rule}`, borderRadius: "12px 12px 0 0", fontWeight: 800, fontSize: 12, color: COLORS.text }}>
               {status} <span style={{ fontSize: 10, color: COLORS.textSoft, fontWeight: 400 }}>({columnJobs.length})</span>
             </div>
@@ -176,10 +224,10 @@ function KanbanView({ jobs, notes, onStatusChange, onOpenNotes, onEdit, filterSt
   );
 }
 
-// --- Gantt View Component ---
+// --- Gantt View Component (fixed date scaling and visibility) ---
 function GanttView({ jobs }) {
   const containerRef = useRef(null);
-  // Filter jobs with valid dates
+  // Filter jobs with valid date_issued and due_date
   const validJobs = jobs.filter(j => j.date_issued && j.due_date);
   const minDate = useMemo(() => {
     if (validJobs.length === 0) return new Date();
@@ -191,25 +239,37 @@ function GanttView({ jobs }) {
     const dates = validJobs.flatMap(j => [new Date(j.date_issued), new Date(j.due_date)]);
     return new Date(Math.max(...dates.map(d => d.getTime())));
   }, [validJobs]);
-  const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+  const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1); // +1 to include end date
 
   const getBarStyle = (startStr, endStr) => {
     if (!startStr || !endStr) return { display: "none" };
     const start = new Date(startStr);
     const end = new Date(endStr);
     const startOffset = Math.max(0, (start - minDate) / (1000 * 60 * 60 * 24));
-    const width = Math.max(1, (end - start) / (1000 * 60 * 60 * 24));
+    const width = Math.max(2, (end - start) / (1000 * 60 * 60 * 24)); // min width 2px
     return {
       left: `${(startOffset / totalDays) * 100}%`,
       width: `${(width / totalDays) * 100}%`,
       position: "absolute",
       height: 28,
       borderRadius: 4,
+      backgroundColor: COLORS.orange,
+      transition: "all 0.2s",
+      cursor: "pointer",
     };
   };
 
   if (validJobs.length === 0) {
     return <div style={{ padding: 40, textAlign: "center", color: COLORS.textSoft }}>No jobs with valid start/end dates for Gantt view.</div>;
+  }
+
+  // Generate timeline labels (every week or every few days)
+  const timelineLabels = [];
+  const daysToShow = Math.min(20, totalDays);
+  const step = Math.max(1, Math.floor(totalDays / daysToShow));
+  for (let i = 0; i <= totalDays; i += step) {
+    const labelDate = new Date(minDate.getTime() + i * 86400000);
+    timelineLabels.push({ date: labelDate, offset: (i / totalDays) * 100 });
   }
 
   return (
@@ -221,15 +281,11 @@ function GanttView({ jobs }) {
             <div style={{ width: 220, flexShrink: 0, padding: "8px 12px", fontWeight: 700, fontSize: 12, borderRight: `1px solid ${COLORS.rule}`, background: COLORS.mist }}>Job</div>
             <div style={{ flex: 1, position: "relative", minHeight: 38 }}>
               <div style={{ position: "relative", height: "100%", width: "100%" }}>
-                {Array.from({ length: Math.min(12, totalDays + 1) }).map((_, i) => {
-                  const dayDate = new Date(minDate.getTime() + i * 86400000);
-                  const dayOffset = (i / totalDays) * 100;
-                  return (
-                    <div key={i} style={{ position: "absolute", left: `${dayOffset}%`, bottom: 0, fontSize: 9, color: COLORS.textSoft, transform: "translateX(-50%)", whiteSpace: "nowrap" }}>
-                      {dayDate.toLocaleDateString("en-IE", { day: "2-digit", month: "short" })}
-                    </div>
-                  );
-                })}
+                {timelineLabels.map(({ date, offset }, idx) => (
+                  <div key={idx} style={{ position: "absolute", left: `${offset}%`, bottom: 0, fontSize: 9, color: COLORS.textSoft, transform: "translateX(-50%)", whiteSpace: "nowrap" }}>
+                    {date.toLocaleDateString("en-IE", { day: "2-digit", month: "short" })}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -241,24 +297,12 @@ function GanttView({ jobs }) {
                 <div style={{ fontSize: 10, color: COLORS.textSoft }}>{job.customer}</div>
               </div>
               <div style={{ flex: 1, position: "relative", height: 48, background: "#fff" }}>
-                <div style={getBarStyle(job.date_issued, job.due_date)} className="gantt-bar" />
+                <div style={getBarStyle(job.date_issued, job.due_date)} title={`${job.asm}: ${fd(job.date_issued)} → ${fd(job.due_date)}`} />
               </div>
             </div>
           ))}
         </div>
       </div>
-      <style>{`
-        .gantt-bar {
-          background: ${COLORS.orange};
-          top: 10px;
-          transition: all 0.2s;
-          cursor: pointer;
-        }
-        .gantt-bar:hover {
-          background: ${COLORS.orangeMid};
-          filter: brightness(1.05);
-        }
-      `}</style>
     </div>
   );
 }
@@ -307,7 +351,6 @@ export default function App(){
       
       if(jobsData?.length>0) setJobs(jobsData);
       else {
-        // Seed if empty
         const { error: insertJobsError } = await supabase.from("jobs").insert(SEED_JOBS);
         if(insertJobsError) console.error("Error seeding jobs:", insertJobsError);
         setJobs(SEED_JOBS);
