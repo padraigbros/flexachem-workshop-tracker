@@ -87,7 +87,6 @@ export default function App() {
     };
   }, [user]);
 
-  // All useMemo and Sensor hooks moved up here before any conditional returns
   const sensors = useSensors(useSensor(PointerSensor));
 
   const filtered = useMemo(() => {
@@ -214,7 +213,6 @@ export default function App() {
     await supabase.from("jobs").update({ notes: JSON.stringify(updated) }).eq("id", jobId);
   };
 
-  // --- EARLY RENDERS ARE NOW SAFE BELOW THE HOOKS ---
   if (authLoading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: COLORS.navy, color: "#fff", fontFamily: "sans-serif" }}>
@@ -276,69 +274,72 @@ export default function App() {
     );
   };
 
+  // Wrapped elements inside a single React Fragment (<> ... </>) to fix esbuild syntax breakdown
   return (
-    <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden", background: "#F7FAFC", color: COLORS.textDark, fontFamily: "sans-serif" }}>
-      {/* Sidebar */}
-      <div style={{ width: 220, background: COLORS.navy, color: "#fff", display: "flex", flexDirection: "column", borderRight: `1px solid ${COLORS.navyMid}` }}>
-        <div style={{ padding: "24px 16px", borderBottom: `1px solid ${COLORS.navyMid}` }}>
-          <div style={{ fontSize: 15, fontWeight: 800, tracking: "0.5px", color: "#fff" }}>FLEXACHEM</div>
-          <div style={{ fontSize: 10, color: COLORS.orange, fontWeight: 700, marginTop: 2, tracking: "1px" }}>WORKSHOP TRACKER</div>
-        </div>
-        
-        <div style={{ flex: 1, padding: "16px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
-          <button onClick={() => setView("board")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "board" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>📋 Board View</button>
-          <button onClick={() => setView("timeline")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "timeline" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>⏱️ Schedule Timeline</button>
-          <button onClick={() => setView("list")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "list" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>⚙️ Detailed Master List</button>
-          
-          <div style={{ height: 1, background: COLORS.navyMid, margin: "12px 0" }} />
-          
-          <button onClick={() => setAllNotesOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>💬 All Recent Notes</button>
-          <button onClick={() => setLogsOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>📜 Complete History Logs</button>
-        </div>
-
-        <div style={{ padding: 12, borderTop: `1px solid ${COLORS.navyMid}`, background: COLORS.navyMid, display: "flex", alignItems: "center", justifyContent: "between", gap: 8 }}>
-          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: "#A0AEC0", flex: 1 }}>{user.email}</div>
-          <button onClick={handleLogout} style={{ background: "transparent", border: "none", color: COLORS.orange, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Exit</button>
-        </div>
-      </div>
-
-      {/* Main Panel */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {/* Topbar */}
-        <div style={{ background: "#fff", height: 56, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: COLORS.navy }}>
-              {view === "board" && "Workshop Floor Columns"}
-              {view === "timeline" && "Master Schedule Timeline"}
-              {view === "list" && "Detailed Assembly Registry"}
-            </h2>
-            <button onClick={() => setEditingJob({})} style={{ background: COLORS.orange, color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>+ Log New Job</button>
+    <>
+      <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden", background: "#F7FAFC", color: COLORS.textDark, fontFamily: "sans-serif" }}>
+        {/* Sidebar */}
+        <div style={{ width: 220, background: COLORS.navy, color: "#fff", display: "flex", flexDirection: "column", borderRight: `1px solid ${COLORS.navyMid}` }}>
+          <div style={{ padding: "24px 16px", borderBottom: `1px solid ${COLORS.navyMid}` }}>
+            <div style={{ fontSize: 15, fontWeight: 800, tracking: "0.5px", color: "#fff" }}>FLEXACHEM</div>
+            <div style={{ fontSize: 10, color: COLORS.orange, fontWeight: 700, marginTop: 2, tracking: "1px" }}>WORKSHOP TRACKER</div>
           </div>
           
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <select value={filterEmp} onChange={e => setFilterEmp(e.target.value)} style={{ border: `1px solid ${COLORS.rule}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, background: "#fff" }}>
-              <option value="">All People</option>
-              {people.map(p => <option key={p}>{p}</option>)}
-            </select>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ border: `1px solid ${COLORS.rule}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, width: 180, background: "#fff" }} />
-            <div style={{ background: COLORS.navy, color: "#fff", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>📦 Jobs Booked: <span style={{ fontFamily: "monospace" }}>{bookedHrs}h</span>{filterEmp && <span style={{ opacity: 0.7, fontSize: 9, marginLeft: 4 }}>({filterEmp})</span>}</div>
-            <div style={{ background: COLORS.steelLt, borderRadius: 6, padding: "6px 10px", fontSize: 10, color: COLORS.textMid }}>{filtered.length}/{jobs.length}</div>
+          <div style={{ flex: 1, padding: "16px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+            <button onClick={() => setView("board")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "board" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>📋 Board View</button>
+            <button onClick={() => setView("timeline")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "timeline" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>⏱️ Schedule Timeline</button>
+            <button onClick={() => setView("list")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "list" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>⚙️ Detailed Master List</button>
+            
+            <div style={{ height: 1, background: COLORS.navyMid, margin: "12px 0" }} />
+            
+            <button onClick={() => setAllNotesOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>💬 All Recent Notes</button>
+            <button onClick={() => setLogsOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>📜 Complete History Logs</button>
+          </div>
+
+          <div style={{ padding: 12, borderTop: `1px solid ${COLORS.navyMid}`, background: COLORS.navyMid, display: "flex", alignItems: "center", justifyContent: "between", gap: 8 }}>
+            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: "#A0AEC0", flex: 1 }}>{user.email}</div>
+            <button onClick={handleLogout} style={{ background: "transparent", border: "none", color: COLORS.orange, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Exit</button>
           </div>
         </div>
-        
-        <div style={{ flex: 1, overflow: "auto" }}>{renderContent()}</div>
+
+        {/* Main Panel */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {/* Topbar */}
+          <div style={{ background: "#fff", height: 56, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: COLORS.navy }}>
+                {view === "board" && "Workshop Floor Columns"}
+                {view === "timeline" && "Master Schedule Timeline"}
+                {view === "list" && "Detailed Assembly Registry"}
+              </h2>
+              <button onClick={() => setEditingJob({})} style={{ background: COLORS.orange, color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>+ Log New Job</button>
+            </div>
+            
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <select value={filterEmp} onChange={e => setFilterEmp(e.target.value)} style={{ border: `1px solid ${COLORS.rule}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, background: "#fff" }}>
+                <option value="">All People</option>
+                {people.map(p => <option key={p}>{p}</option>)}
+              </select>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ border: `1px solid ${COLORS.rule}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, width: 180, background: "#fff" }} />
+              <div style={{ background: COLORS.navy, color: "#fff", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>📦 Jobs Booked: <span style={{ fontFamily: "monospace" }}>{bookedHrs}h</span>{filterEmp && <span style={{ opacity: 0.7, fontSize: 9, marginLeft: 4 }}>({filterEmp})</span>}</div>
+              <div style={{ background: COLORS.steelLt, borderRadius: 6, padding: "6px 10px", fontSize: 10, color: COLORS.textMid }}>{filtered.length}/{jobs.length}</div>
+            </div>
+          </div>
+          
+          <div style={{ flex: 1, overflow: "auto" }}>{renderContent()}</div>
+        </div>
       </div>
-    </div>
-    
-    {(notesJobId || allNotesOpen) && (
-      <NotesPanel job={notesJob} notes={notes} allJobs={jobs} allMode={allNotesOpen} onClose={() => { setNotesJobId(null); setAllNotesOpen(false); }} onAddNote={handleAddNote} />
-    )}
-    
-    {editingJob && (
-      <JobModal job={editingJob} onClose={() => setEditingJob(null)} onSave={handleSaveJob} people={people} />
-    )}
-    
-    <LogsModal isOpen={logsOpen} onClose={() => setLogsOpen(false)} jobs={jobs} />
+      
+      {(notesJobId || allNotesOpen) && (
+        <NotesPanel job={notesJob} notes={notes} allJobs={jobs} allMode={allNotesOpen} onClose={() => { setNotesJobId(null); setAllNotesOpen(false); }} onAddNote={handleAddNote} />
+      )}
+      
+      {editingJob && (
+        <JobModal job={editingJob} onClose={() => setEditingJob(null)} onSave={handleSaveJob} people={people} />
+      )}
+      
+      <LogsModal isOpen={logsOpen} onClose={() => setLogsOpen(false)} jobs={jobs} />
+    </>
   );
 }
 
@@ -501,11 +502,11 @@ function JobModal({ job, onClose, onSave, people }) {
   const [alloc, setAlloc] = useState(job.alloc || "");
   const [due, setDue] = useState(job.due || "");
   const [hrs, setHrs] = useState(job.hrs || "");
-  const [bus, setBus] = useState(job.bus || "Industrial");
+  const [busField, setBusField] = useState(job.bus || "Industrial");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({ asm, so, cust, type, owner, alloc, due, hrs, bus });
+    onSave({ asm, so, cust, type, owner, alloc, due, hrs, bus: busField });
   };
 
   return (
@@ -538,7 +539,7 @@ function JobModal({ job, onClose, onSave, people }) {
           </div>
           <div style={{ flex: 1 }}>
             <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Business Stream</label>
-            <select value={bus} onChange={e => setBus(e.target.value)} style={{ width: "100%", padding: 6 }}>
+            <select value={busField} onChange={e => setBusField(e.target.value)} style={{ width: "100%", padding: 6 }}>
               {BUS.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
           </div>
@@ -590,7 +591,7 @@ function NotesPanel({ job, notes, allJobs, allMode, onClose, onAddNote }) {
 
   return (
     <div style={{ position: "fixed", top: 0, right: 0, width: 360, bottom: 0, background: "#fff", boxShadow: "-4px 0 20px rgba(0,0,0,0.1)", zIndex: 1000, display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
-      <div style={{ padding: 16, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.navy, color: "#fff" }}>
+      <div style={{ padding: 16, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", justifyContent: "space-between", Math: "center", background: COLORS.navy, color: "#fff" }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>{allMode ? "Central Update Thread" : `Job Discussion logs`}</div>
           <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{allMode ? "Viewing comments across all workshop entries" : `${job?.asm} - ${job?.cust}`}</div>
@@ -600,7 +601,7 @@ function NotesPanel({ job, notes, allJobs, allMode, onClose, onAddNote }) {
 
       <div style={{ flex: 1, padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, background: "#F7FAFC" }}>
         {notes.length === 0 ? (
-          <div style={{ textAlignment: "center", color: COLORS.textMid, fontSize: 11, padding: 20 }}>No logs recorded yet.</div>
+          <div style={{ textAlign: "center", color: COLORS.textMid, fontSize: 11, padding: 20 }}>No logs recorded yet.</div>
         ) : (
           notes.map((n, i) => (
             <div key={i} style={{ background: "#fff", padding: 10, borderRadius: 6, border: `1px solid ${COLORS.rule}`, boxShadow: "0 1px 2px rgba(0,0,0,0.02)" }}>
@@ -663,7 +664,7 @@ function LogsModal({ isOpen, onClose, jobs }) {
                   </div>
                   <div style={{ fontSize: 12, color: COLORS.textDark }}>{l.txt}</div>
                 </div>
-                <div style={{ textAlignment: "right", minWidth: 110, fontSize: 10, color: COLORS.textMid }}>
+                <div style={{ textAlign: "right", minWidth: 110, fontSize: 10, color: COLORS.textMid }}>
                   <div style={{ fontWeight: 600 }}>👤 {l.by}</div>
                   <div style={{ fontSize: 9, marginTop: 2 }}>⏱️ {l.at}</div>
                 </div>
