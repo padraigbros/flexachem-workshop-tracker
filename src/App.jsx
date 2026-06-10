@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
 import {
   DndContext,
   closestCenter,
@@ -15,13 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// -------------------- Supabase --------------------
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
-
 // -------------------- Constants --------------------
-const TODAY = new Date("2026-06-03");
 const JOB_TYPES = ["Valve Assembly","Pump Assembly","Valve Overhaul","Pump Overhaul","Mechanical Seal Refurb","Testing","Site Visit"];
 const DEFAULT_PEOPLE = ["Darragh","Shauna","Cathal","Ross","Dave","Colin"];
 const BUS = ["Pharma","Industrial","Engineering","Mining","Other"];
@@ -33,10 +26,49 @@ const COLORS = {
   blue:"#2B6CB0", blueLt:"#EBF8FF", yellow:"#B7791F", yellowLt:"#FEFCBF", purple:"#6B46C1", purpleLt:"#F3E8FF"
 };
 
+// ---------- Seed Demo Data ----------
+const SEED_JOBS = [
+  { id: 1, asm: "A007529", so: "296966", cust: "Busch Ire", type: "Valve Overhaul", owner: "Darragh", alloc: "Darragh", due: "2025-11-28", hrs: 6, status: "Complete", bus: "Industrial", notes: JSON.stringify([{ at: "2025-11-28 09:14", by: "Darragh", txt: "Completed ahead of schedule. Passed all tests." }]) },
+  { id: 2, asm: "A007527", so: "296966", cust: "Busch Ire", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-11-28", hrs: 2, status: "Complete", bus: "Industrial", notes: "[]" },
+  { id: 3, asm: "A007445", so: "296987", cust: "Aughinish", type: "Pump Overhaul", owner: "Darragh", alloc: "Darragh", due: "2025-11-28", hrs: 4, status: "Complete", bus: "Mining", notes: "[]" },
+  { id: 4, asm: "A007582", so: "297516", cust: "BMD", type: "Mechanical Seal Refurb", owner: "Shauna", alloc: "Shauna", due: "2026-01-02", hrs: 6, status: "In Progress", bus: "Pharma", notes: JSON.stringify([{ at: "2025-12-02 10:20", by: "Shauna", txt: "Seal lapping complete. Awaiting test bench slot." }]) },
+  { id: 5, asm: "A007583", so: "297516", cust: "BMD", type: "Mechanical Seal Refurb", owner: "Shauna", alloc: "Shauna", due: "2026-01-02", hrs: 3, status: "In Progress", bus: "Pharma", notes: "[]" },
+  { id: 6, asm: "A007584", so: "297516", cust: "BMD", type: "Testing", owner: "Shauna", alloc: "Shauna", due: "2026-01-02", hrs: 1, status: "Input Needed", bus: "Pharma", notes: JSON.stringify([{ at: "2025-12-03 16:00", by: "Shauna", txt: "Test specification not yet received from BMD." }]) },
+  { id: 7, asm: "A007585", so: "297516", cust: "BMD", type: "Testing", owner: "Shauna", alloc: "Shauna", due: "2026-01-02", hrs: 1, status: "Input Needed", bus: "Pharma", notes: "[]" },
+  { id: 8, asm: "A007563", so: "296767", cust: "MSD", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2026-01-07", hrs: 18, status: "In Progress", bus: "Pharma", notes: JSON.stringify([{ at: "2025-12-01 13:00", by: "Darragh", txt: "Valve bodies machined. Actuator installation next." }]) },
+  { id: 9, asm: "A007564", so: "296767", cust: "MSD", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2026-01-07", hrs: 7, status: "In Progress", bus: "Pharma", notes: "[]" },
+  { id: 10, asm: "A007528", so: "296966", cust: "Busch Ire", type: "Pump Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-11-28", hrs: 10, status: "Complete", bus: "Industrial", notes: "[]" },
+  { id: 11, asm: "A007471", so: "296754", cust: "BCD Engineering", type: "Valve Overhaul", owner: "Shauna", alloc: "Shauna", due: "2025-11-28", hrs: 4, status: "Complete", bus: "Engineering", notes: "[]" },
+  { id: 12, asm: "A07427", so: "297068", cust: "European Refresh", type: "Valve Assembly", owner: "Shauna", alloc: "Shauna", due: "2025-12-05", hrs: 2, status: "In Progress", bus: "Industrial", notes: "[]" },
+  { id: 13, asm: "A007587", so: "297522", cust: "Eli Lilly", type: "Site Visit", owner: "Cathal", alloc: "Cathal", due: "2025-11-28", hrs: 1, status: "Complete", bus: "Pharma", notes: "[]" },
+  { id: 14, asm: "A007595", so: "297527", cust: "Jacobs", type: "Pump Overhaul", owner: "Cathal", alloc: "Cathal", due: "2025-11-28", hrs: 1, status: "Complete", bus: "Engineering", notes: "[]" },
+  { id: 15, asm: "A007613", so: "296819", cust: "MSD Ballydine", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-12-05", hrs: 2, status: "In Progress", bus: "Pharma", notes: "[]" },
+  { id: 16, asm: "A007615", so: "296819", cust: "MSD Ballydine", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-12-05", hrs: 2, status: "In Progress", bus: "Pharma", notes: "[]" },
+  { id: 17, asm: "A007616", so: "297155", cust: "MSD Ballydine", type: "Valve Overhaul", owner: "Darragh", alloc: "Darragh", due: "2026-01-15", hrs: 1, status: "In Progress", bus: "Pharma", notes: "[]" },
+  { id: 18, asm: "A007618", so: "297155", cust: "MSD Ballydine", type: "Pump Overhaul", owner: "Darragh", alloc: "Dave", due: "2026-01-15", hrs: 4, status: "Input Needed", bus: "Pharma", notes: JSON.stringify([{ at: "2025-12-01 14:00", by: "Dave", txt: "Customer has not confirmed scope." }]) },
+  { id: 19, asm: "A007623", so: "297080", cust: "EES", type: "Mechanical Seal Refurb", owner: "Ross", alloc: "Ross", due: "2025-12-05", hrs: 0.5, status: "Complete", bus: "Industrial", notes: "[]" },
+  { id: 20, asm: "A007405", so: "296889", cust: "Eli Lilly", type: "Valve Overhaul", owner: "Darragh", alloc: "Colin", due: "2025-12-12", hrs: 6, status: "In Progress", bus: "Pharma", notes: "[]" },
+  { id: 21, asm: "SITE-001", so: "TBA", cust: "Aughinish", type: "Site Visit", owner: "Darragh", alloc: "Colin", due: "2026-04-01", hrs: 8, status: "In Progress", bus: "Mining", notes: "[]" },
+  { id: 22, asm: "SITE-002", so: "TBA", cust: "Astrazeneca", type: "Site Visit", owner: "Darragh", alloc: "Dave", due: "2026-01-01", hrs: 16, status: "In Progress", bus: "Pharma", notes: "[]" },
+  { id: 23, asm: "SITE-003", so: "TBA", cust: "MSD Balline", type: "Site Visit", owner: "Darragh", alloc: "Dave", due: "2025-12-31", hrs: 4, status: "Input Needed", bus: "Pharma", notes: "[]" },
+  { id: 24, asm: "SITE-004", so: "TBA", cust: "Eli Lilly Limerick", type: "Site Visit", owner: "Cathal", alloc: "Colin", due: "2026-01-15", hrs: 4, status: "In Progress", bus: "Pharma", notes: "[]" },
+  { id: 25, asm: "A007509", so: "295768", cust: "Astrazeneca", type: "Pump Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-11-14", hrs: 2, status: "Complete", bus: "Pharma", notes: "[]" }
+];
+
+// -------------------- Demo Local Storage Helpers --------------------
+const loadJobs = () => {
+  const stored = localStorage.getItem("demo_jobs");
+  if (stored) return JSON.parse(stored);
+  return SEED_JOBS;
+};
+const saveJobs = (jobs) => {
+  localStorage.setItem("demo_jobs", JSON.stringify(jobs));
+};
+
+// -------------------- Main App --------------------
 export default function App() {
-  // --- ALL HOOKS MUST SIT AT THE TOP UNCONDITIONALLY ---
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState(loadJobs);
+  const [loading, setLoading] = useState(false);
   const [view, setView] = useState("board"); // board, timeline, list
   const [search, setSearch] = useState("");
   const [filterEmp, setFilterEmp] = useState("");
@@ -45,9 +77,9 @@ export default function App() {
   const [allNotesOpen, setAllNotesOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
 
-  // Auth States
+  // Auth States (demo: any email/password works)
   const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPass, setLoginPass] = useState("");
   const [authError, setAuthError] = useState("");
@@ -55,45 +87,18 @@ export default function App() {
   // Drag State
   const [activeId, setActiveId] = useState(null);
 
-  useEffect(() => {
-    if (!supabase) {
-      setAuthLoading(false);
-      setLoading(false);
-      return;
-    }
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!user || !supabase) return;
-    fetchJobs();
-    
-    const channel = supabase
-      .channel("schema-db-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, () => {
-        fetchJobs();
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
-
   const sensors = useSensors(useSensor(PointerSensor));
+
+  // Persist jobs to localStorage whenever they change
+  useEffect(() => {
+    saveJobs(jobs);
+  }, [jobs]);
 
   const filtered = useMemo(() => {
     return jobs.filter(j => {
-      const mText = ((j.asm || "") + (j.so || "") + (j.cust || "") + (j.type || "") + (j.alloc || "") + (j.notes || "")).toLowerCase();
-      const matchSearch = mText.includes(search.toLowerCase());
-      const matchEmp = !filterEmp || j.alloc === filterEmp || (j.notes && j.notes.toLowerCase().includes(filterEmp.toLowerCase()));
+      const searchText = (j.asm + j.so + j.cust + j.type + j.alloc).toLowerCase();
+      const matchSearch = searchText.includes(search.toLowerCase());
+      const matchEmp = !filterEmp || j.alloc === filterEmp;
       return matchSearch && matchEmp;
     });
   }, [jobs, search, filterEmp]);
@@ -135,115 +140,95 @@ export default function App() {
     }
   }, [notesJob, jobs, allNotesOpen]);
 
-  // --- HANDLERS ---
-  const fetchJobs = async () => {
-    if (!supabase) return;
-    setLoading(true);
-    const { data, error } = await supabase.from("jobs").select("*").order("id", { ascending: true });
-    if (!error && data) setJobs(data);
-    setLoading(false);
-  };
-
-  const handleLogin = async (e) => {
+  // --- Handlers ---
+  const handleLogin = (e) => {
     e.preventDefault();
-    if (!supabase) return;
     setAuthError("");
-    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPass });
-    if (error) setAuthError(error.message);
+    // Demo: any email/password works
+    if (loginEmail.trim() && loginPass.trim()) {
+      setUser({ email: loginEmail, name: loginEmail.split("@")[0] });
+    } else {
+      setAuthError("Please enter any email and password (demo mode)");
+    }
   };
 
-  const handleLogout = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    setUser(null);
   };
 
   const handleDragStart = (e) => {
     setActiveId(e.active.id);
   };
 
-  const handleDragEnd = async (e) => {
+  const handleDragEnd = (e) => {
     const { active, over } = e;
     setActiveId(null);
-    if (!over || !supabase) return;
+    if (!over) return;
     const jobId = active.id;
     const newStatus = over.id;
-    
-    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
-    
-    const { error } = await supabase.from("jobs").update({ status: newStatus }).eq("id", jobId);
-    if (error) fetchJobs();
-  };
-
-  const handleSaveJob = async (fields) => {
-    if (!supabase) return;
-    if (editingJob && editingJob.id) {
-      const { error } = await supabase.from("jobs").update(fields).eq("id", editingJob.id);
-      if (!error) setEditingJob(null);
-    } else {
-      const { error } = await supabase.from("jobs").insert([{ ...fields, status: "Not Started", notes: "[]" }]);
-      if (!error) setEditingJob(null);
+    const job = jobs.find(j => j.id === jobId);
+    if (job && job.status !== newStatus) {
+      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
     }
-    fetchJobs();
   };
 
-  const handleDeleteJob = async (id) => {
-    if (!supabase || !window.confirm("Delete this job?")) return;
-    const { error } = await supabase.from("jobs").delete().eq("id", id);
-    if (!error) fetchJobs();
+  const handleSaveJob = (fields) => {
+    if (editingJob && editingJob.id) {
+      // update existing
+      setJobs(prev => prev.map(j => j.id === editingJob.id ? { ...j, ...fields, notes: j.notes } : j));
+    } else {
+      // create new
+      const newId = Math.max(...jobs.map(j => j.id), 0) + 1;
+      setJobs(prev => [...prev, { ...fields, id: newId, status: "Not Started", notes: "[]" }]);
+    }
+    setEditingJob(null);
   };
 
-  const handleAddNote = async (jobId, txt) => {
-    if (!supabase) return;
-    const tgt = jobs.find(j => j.id === jobId);
-    if (!tgt) return;
+  const handleDeleteJob = (id) => {
+    if (!window.confirm("Delete this job?")) return;
+    setJobs(prev => prev.filter(j => j.id !== id));
+  };
+
+  const handleAddNote = (jobId, txt) => {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
     let current = [];
     try {
-      current = typeof tgt.notes === "string" ? JSON.parse(tgt.notes) : tgt.notes;
+      current = typeof job.notes === "string" ? JSON.parse(job.notes) : job.notes;
       if (!Array.isArray(current)) current = [];
     } catch(e){}
-    
     const newNote = {
       at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       by: user?.email?.split("@")[0] || "User",
       txt
     };
     const updated = [newNote, ...current];
-    
     setJobs(prev => prev.map(j => j.id === jobId ? { ...j, notes: JSON.stringify(updated) } : j));
-    await supabase.from("jobs").update({ notes: JSON.stringify(updated) }).eq("id", jobId);
   };
 
-  if (authLoading) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: COLORS.navy, color: "#fff", fontFamily: "sans-serif" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Flexachem Workshop Tracker</div>
-          <div style={{ fontSize: 12, opacity: 0.6 }}>Loading session...</div>
-        </div>
-      </div>
-    );
-  }
-
+  // Render login screen if not authenticated
   if (!user) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: COLORS.navy, fontFamily: "sans-serif" }}>
         <form onSubmit={handleLogin} style={{ background: "#fff", padding: 30, borderRadius: 8, width: 320, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-          <h3 style={{ margin: "0 0 20px 0", color: COLORS.navy, fontSize: 18, fontWeight: 700, textAlign: "center" }}>Workshop Tracker Login</h3>
+          <h3 style={{ margin: "0 0 20px 0", color: COLORS.navy, fontSize: 18, fontWeight: 700, textAlign: "center" }}>Workshop Tracker (Demo)</h3>
           {authError && <div style={{ background: COLORS.redLt, color: COLORS.red, padding: "8px 12px", borderRadius: 4, fontSize: 12, marginBottom: 15, border: `1px solid ${COLORS.red}` }}>{authError}</div>}
           <div style={{ marginBottom: 15 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: COLORS.textMid, marginBottom: 4 }}>Email Address</label>
-            <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required style={{ width: "100%", padding: "8px 10px", borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 13, boxSizing: "border-box" }} />
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: COLORS.textMid, marginBottom: 4 }}>Email (any)</label>
+            <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required style={{ width: "100%", padding: "8px 10px", borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 13 }} />
           </div>
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: COLORS.textMid, marginBottom: 4 }}>Password</label>
-            <input type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} required style={{ width: "100%", padding: "8px 10px", borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 13, boxSizing: "border-box" }} />
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: COLORS.textMid, marginBottom: 4 }}>Password (any)</label>
+            <input type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} required style={{ width: "100%", padding: "8px 10px", borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 13 }} />
           </div>
-          <button type="submit" style={{ width: "100%", background: COLORS.orange, color: "#fff", padding: "10px", borderRadius: 4, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Sign In</button>
+          <button type="submit" style={{ width: "100%", background: COLORS.orange, color: "#fff", padding: "10px", borderRadius: 4, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Sign In (Demo)</button>
+          <div style={{ marginTop: 12, fontSize: 10, color: COLORS.textMid, textAlign: "center" }}>Use any email/password – no database required</div>
         </form>
       </div>
     );
   }
 
+  // --- Render Content based on view ---
   const renderContent = () => {
     if (loading) return <div style={{ padding: 40, textAlign: "center", color: COLORS.textMid, fontSize: 13 }}>Loading jobs...</div>;
     if (view === "timeline") return <TimelineView jobs={filtered} onEdit={setEditingJob} onNotes={setNotesJobId} />;
@@ -274,15 +259,14 @@ export default function App() {
     );
   };
 
-  // Wrapped elements inside a single React Fragment (<> ... </>) to fix esbuild syntax breakdown
   return (
     <>
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden", background: "#F7FAFC", color: COLORS.textDark, fontFamily: "sans-serif" }}>
         {/* Sidebar */}
         <div style={{ width: 220, background: COLORS.navy, color: "#fff", display: "flex", flexDirection: "column", borderRight: `1px solid ${COLORS.navyMid}` }}>
           <div style={{ padding: "24px 16px", borderBottom: `1px solid ${COLORS.navyMid}` }}>
-            <div style={{ fontSize: 15, fontWeight: 800, tracking: "0.5px", color: "#fff" }}>FLEXACHEM</div>
-            <div style={{ fontSize: 10, color: COLORS.orange, fontWeight: 700, marginTop: 2, tracking: "1px" }}>WORKSHOP TRACKER</div>
+            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.5px", color: "#fff" }}>FLEXACHEM</div>
+            <div style={{ fontSize: 10, color: COLORS.orange, fontWeight: 700, marginTop: 2, letterSpacing: "1px" }}>WORKSHOP TRACKER</div>
           </div>
           
           <div style={{ flex: 1, padding: "16px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -296,7 +280,7 @@ export default function App() {
             <button onClick={() => setLogsOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>📜 Complete History Logs</button>
           </div>
 
-          <div style={{ padding: 12, borderTop: `1px solid ${COLORS.navyMid}`, background: COLORS.navyMid, display: "flex", alignItems: "center", justifyContent: "between", gap: 8 }}>
+          <div style={{ padding: 12, borderTop: `1px solid ${COLORS.navyMid}`, background: COLORS.navyMid, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: "#A0AEC0", flex: 1 }}>{user.email}</div>
             <button onClick={handleLogout} style={{ background: "transparent", border: "none", color: COLORS.orange, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Exit</button>
           </div>
@@ -347,14 +331,17 @@ export default function App() {
 function Column({ id, title, count, children }) {
   const { setNodeRef } = useSortable({ id });
   
-  const bg = id === "Not Started" ? "#EDF2F7" : id === "In Progress" ? COLORS.blueLt : id === "Input Needed" ? COLORS.yellowLt : COLORS.greenLt;
-  const tc = id === "Not Started" ? COLORS.textDark : id === "In Progress" ? COLORS.blue : id === "Input Needed" ? COLORS.yellow : COLORS.green;
+  let bg, tc;
+  if (id === "Not Started") { bg = "#EDF2F7"; tc = COLORS.textDark; }
+  else if (id === "In Progress") { bg = COLORS.blueLt; tc = COLORS.blue; }
+  else if (id === "Input Needed") { bg = COLORS.yellowLt; tc = COLORS.yellow; }
+  else { bg = COLORS.greenLt; tc = COLORS.green; }
 
   return (
     <div style={{ background: "#F1F5F9", width: 280, borderRadius: 8, display: "flex", flexDirection: "column", maxHeight: "100%", flexShrink: 0, border: "1px solid #E2E8F0" }}>
       <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", tracking: "0.5px", color: COLORS.navy }}>{title}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: COLORS.navy }}>{title}</span>
           <span style={{ background: bg, color: tc, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{count}</span>
         </div>
       </div>
@@ -421,7 +408,7 @@ function JobCard({ job, onEdit, onNotes, isOverlay }) {
   );
 }
 
-function TimelineView({ jobs }) {
+function TimelineView({ jobs, onEdit, onNotes }) {
   return (
     <div style={{ padding: 20, background: "#fff", margin: 16, borderRadius: 8, border: `1px solid ${COLORS.rule}` }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy, marginBottom: 12 }}>Active Schedule Layout</div>
@@ -591,7 +578,7 @@ function NotesPanel({ job, notes, allJobs, allMode, onClose, onAddNote }) {
 
   return (
     <div style={{ position: "fixed", top: 0, right: 0, width: 360, bottom: 0, background: "#fff", boxShadow: "-4px 0 20px rgba(0,0,0,0.1)", zIndex: 1000, display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
-      <div style={{ padding: 16, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", justifyContent: "space-between", Math: "center", background: COLORS.navy, color: "#fff" }}>
+      <div style={{ padding: 16, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.navy, color: "#fff" }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>{allMode ? "Central Update Thread" : `Job Discussion logs`}</div>
           <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{allMode ? "Viewing comments across all workshop entries" : `${job?.asm} - ${job?.cust}`}</div>
