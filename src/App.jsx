@@ -28,427 +28,650 @@ const BUS = ["Pharma","Industrial","Engineering","Mining","Other"];
 
 const COLORS = {
   navy:"#0B1F3A", navyMid:"#122847", orange:"#E8601A", orangeMid:"#F9845A", orangeLt:"#FFF0E8",
-  steel:"#4A6380", steelLt:"#EDF2F7", slate:"#2D4A6A", mist:"#F5F7FA", rule:"#DDE3EC",
-  text:"#1A2E44", textMid:"#4A6380", textSoft:"#8099B5",
-  green:"#0E7C4A", greenLt:"#E8F7EF", red:"#C0392B", redLt:"#FEF2F2",
+  steel:"#4A6380", steelLt:"#EDF2F7", slate:"#2D4A6E", textDark:"#1A202C", textMid:"#4A5568",
+  rule:"#E2E8F0", green:"#2F855A", greenLt:"#E6FFFA", red:"#C53030", redLt:"#FFF5F5",
+  blue:"#2B6CB0", blueLt:"#EBF8FF", yellow:"#B7791F", yellowLt:"#FEFCBF", purple:"#6B46C1", purpleLt:"#F3E8FF"
 };
 
-const SEED_JOBS = [
-  {id:1,asm:"A007529",so:"296966",customer:"Busch Ire",job_type:"Valve Overhaul",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-20",due_date:"2025-11-28",est_hours:6,act_hours:6,status:"Complete",work_doc:"Work orders/A007529.pdf"},
-  {id:2,asm:"A007527",so:"296966",customer:"Busch Ire",job_type:"Valve Assembly",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-20",due_date:"2025-11-28",est_hours:2,act_hours:2,status:"Complete",work_doc:"Work orders/A007527.pdf"},
-  {id:3,asm:"A007445",so:"296987",customer:"Aughinish",job_type:"Pump Overhaul",business_unit:"Mining",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-18",due_date:"2025-11-28",est_hours:4,act_hours:6,status:"Complete",work_doc:"Work orders/A007445.pdf"},
-  {id:4,asm:"A007582",so:"297516",customer:"BMD",job_type:"Mechanical Seal Refurb",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:6,act_hours:3,status:"In Progress",work_doc:"Work orders/A007582.pdf"},
-  {id:5,asm:"A007583",so:"297516",customer:"BMD",job_type:"Mechanical Seal Refurb",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:3,act_hours:null,status:"In Progress",work_doc:"Work orders/A007583.pdf"},
-  {id:6,asm:"A007584",so:"297516",customer:"BMD",job_type:"Testing",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:1,act_hours:null,status:"Input Needed",work_doc:"Work orders/A007584.pdf"},
-  {id:7,asm:"A007585",so:"297516",customer:"BMD",job_type:"Testing",business_unit:"Pharma",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-22",due_date:"2026-01-02",est_hours:1,act_hours:null,status:"Input Needed",work_doc:"Work orders/A007585.pdf"},
-  {id:8,asm:"A007563",so:"296767",customer:"MSD",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-25",due_date:"2026-01-07",est_hours:18,act_hours:8,status:"In Progress",work_doc:"Work orders/A007563.pdf"},
-  {id:9,asm:"A007564",so:"296767",customer:"MSD",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-25",due_date:"2026-01-07",est_hours:7,act_hours:4,status:"In Progress",work_doc:"Work orders/A007564.pdf"},
-  {id:10,asm:"A007528",so:"296966",customer:"Busch Ire",job_type:"Pump Assembly",business_unit:"Industrial",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-25",due_date:"2025-11-28",est_hours:10,act_hours:10,status:"Complete",work_doc:"Work orders/A007528.pdf"},
-  {id:11,asm:"A007471",so:"296754",customer:"BCD Engineering",job_type:"Valve Overhaul",business_unit:"Engineering",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-10",due_date:"2025-11-28",est_hours:4,act_hours:5,status:"Complete",work_doc:"Work orders/A007471.pdf"},
-  {id:12,asm:"A07427",so:"297068",customer:"European Refresh",job_type:"Valve Assembly",business_unit:"Industrial",owner:"Shauna",allocated_to:"Shauna",date_issued:"2025-11-24",due_date:"2025-12-05",est_hours:2,act_hours:null,status:"In Progress",work_doc:"Work orders/A007427.pdf"},
-  {id:13,asm:"A007587",so:"297522",customer:"Eli Lilly",job_type:"Site Visit",business_unit:"Pharma",owner:"Cathal",allocated_to:"Cathal",date_issued:"2025-11-22",due_date:"2025-11-28",est_hours:1,act_hours:1,status:"Complete",work_doc:"Work orders/A007587.pdf"},
-  {id:14,asm:"A007595",so:"297527",customer:"Jacobs",job_type:"Pump Overhaul",business_unit:"Engineering",owner:"Cathal",allocated_to:"Cathal",date_issued:"2025-11-24",due_date:"2025-11-28",est_hours:1,act_hours:1,status:"Complete",work_doc:"Work orders/A007595.pdf"},
-  {id:15,asm:"A007613",so:"296819",customer:"MSD Ballydine",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-28",due_date:"2025-12-05",est_hours:2,act_hours:null,status:"In Progress",work_doc:"Work orders/A007613.pdf"},
-  {id:16,asm:"A007615",so:"296819",customer:"MSD Ballydine",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-28",due_date:"2025-12-05",est_hours:2,act_hours:null,status:"In Progress",work_doc:"Work orders/A007615.pdf"},
-  {id:17,asm:"A007616",so:"297155",customer:"MSD Ballydine",job_type:"Valve Overhaul",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-11-28",due_date:"2026-01-15",est_hours:1,act_hours:null,status:"In Progress",work_doc:"Work orders/A007616.pdf"},
-  {id:18,asm:"A007618",so:"297155",customer:"MSD Ballydine",job_type:"Pump Overhaul",business_unit:"Pharma",owner:"Darragh",allocated_to:"Dave",date_issued:"2025-11-28",due_date:"2026-01-15",est_hours:4,act_hours:null,status:"Input Needed",work_doc:"Work orders/A007618.pdf"},
-  {id:19,asm:"A007623",so:"297080",customer:"EES",job_type:"Mechanical Seal Refurb",business_unit:"Industrial",owner:"Ross",allocated_to:"Ross",date_issued:"2025-12-01",due_date:"2025-12-05",est_hours:0.5,act_hours:0.5,status:"Complete",work_doc:"Work orders/A007623.pdf"},
-  {id:20,asm:"A007405",so:"296889",customer:"Eli Lilly",job_type:"Valve Overhaul",business_unit:"Pharma",owner:"Darragh",allocated_to:"Colin",date_issued:"2025-11-20",due_date:"2025-12-12",est_hours:6,act_hours:2,status:"In Progress",work_doc:"Work orders/A007405.pdf"},
-  {id:21,asm:"SITE-001",so:"TBA",customer:"Aughinish",job_type:"Site Visit",business_unit:"Mining",owner:"Darragh",allocated_to:"Colin",date_issued:"2025-12-01",due_date:"2026-04-01",est_hours:8,act_hours:null,status:"In Progress",work_doc:""},
-  {id:22,asm:"SITE-002",so:"TBA",customer:"Astrazeneca",job_type:"Site Visit",business_unit:"Pharma",owner:"Darragh",allocated_to:"Dave",date_issued:"2025-12-01",due_date:"2026-01-01",est_hours:16,act_hours:null,status:"In Progress",work_doc:""},
-  {id:23,asm:"SITE-003",so:"TBA",customer:"MSD Balline",job_type:"Site Visit",business_unit:"Pharma",owner:"Darragh",allocated_to:"Dave",date_issued:"2025-11-28",due_date:"2025-12-31",est_hours:4,act_hours:null,status:"Input Needed",work_doc:""},
-  {id:24,asm:"SITE-004",so:"TBA",customer:"Eli Lilly Limerick",job_type:"Site Visit",business_unit:"Pharma",owner:"Cathal",allocated_to:"Colin",date_issued:"2025-12-08",due_date:"2026-01-15",est_hours:4,act_hours:null,status:"In Progress",work_doc:""},
-  {id:25,asm:"A007509",so:"295768",customer:"Astrazeneca",job_type:"Pump Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"2025-10-15",due_date:"2025-11-14",est_hours:2,act_hours:2,status:"Complete",work_doc:"Work orders/A007509.pdf"},
-];
+export default function App() {
+  // --- ALL HOOKS MUST SIT AT THE TOP UNCONDITIONALLY ---
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("board"); // board, timeline, list
+  const [search, setSearch] = useState("");
+  const [filterEmp, setFilterEmp] = useState("");
+  const [editingJob, setEditingJob] = useState(null);
+  const [notesJobId, setNotesJobId] = useState(null);
+  const [allNotesOpen, setAllNotesOpen] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
 
-const SEED_NOTES = [
-  {id:1,job_id:1,author:"Darragh",body:"Completed ahead of schedule. Passed all pressure and leak tests.",created_at:"2025-11-28T09:14:00Z"},
-  {id:2,job_id:2,author:"Darragh",body:"All pressure tests passed. Shipped to site.",created_at:"2025-11-28T11:00:00Z"},
-  {id:3,job_id:3,author:"Darragh",body:"Extra time on bearing replacement — seating was heavily corroded.",created_at:"2025-11-27T14:30:00Z"},
-  {id:4,job_id:3,author:"Darragh",body:"Complete. Actual 6h vs 4h estimated. Noted on work order.",created_at:"2025-11-28T15:00:00Z"},
-  {id:5,job_id:4,author:"Shauna",body:"Seal lapping complete. Awaiting test bench slot — bench is booked Fri.",created_at:"2025-12-02T10:20:00Z"},
-  {id:6,job_id:5,author:"Shauna",body:"Parts cleaned and inspected, ready for assembly.",created_at:"2025-12-01T08:55:00Z"},
-  {id:7,job_id:6,author:"Shauna",body:"Test specification not yet received from BMD. Chasing their engineering contact.",created_at:"2025-12-03T16:00:00Z"},
-  {id:8,job_id:7,author:"Shauna",body:"Waiting on customer drawing revision B before proceeding.",created_at:"2025-12-03T16:05:00Z"},
-  {id:9,job_id:8,author:"Darragh",body:"Valve bodies machined. Actuator installation is next step.",created_at:"2025-12-01T13:00:00Z"},
-  {id:10,job_id:8,author:"Darragh",body:"Actuator fitted and calibrated. Moving to final inspection 08/12.",created_at:"2025-12-04T09:30:00Z"},
-  {id:11,job_id:9,author:"Darragh",body:"Running parallel with A007563. On track.",created_at:"2025-12-02T11:15:00Z"},
-  {id:12,job_id:10,author:"Darragh",body:"Shipped 28/11. Delivery confirmed by Busch Ire.",created_at:"2025-11-28T17:00:00Z"},
-  {id:13,job_id:11,author:"Shauna",body:"Minor additional seat lapping required — added 1 hour.",created_at:"2025-11-26T14:00:00Z"},
-  {id:14,job_id:15,author:"Darragh",body:"Parts kitted and staged. Starting Monday 01/12.",created_at:"2025-11-28T16:00:00Z"},
-  {id:15,job_id:17,author:"Darragh",body:"Assessment done. O-ring kit on order, delivery expected 05/12.",created_at:"2025-12-01T10:00:00Z"},
-  {id:16,job_id:18,author:"Dave",body:"Customer has not confirmed scope. Cannot proceed without written sign-off.",created_at:"2025-12-01T14:00:00Z"},
-  {id:17,job_id:19,author:"Ross",body:"Quick turnaround repair. Customer collected same day.",created_at:"2025-12-02T11:00:00Z"},
-  {id:18,job_id:20,author:"Colin",body:"Seat grinding done. Moving to pressure testing phase tomorrow.",created_at:"2025-12-05T15:30:00Z"},
-  {id:19,job_id:21,author:"Colin",body:"Rotating control valves confirmed for April 2026 window. Site access arranged.",created_at:"2025-12-01T09:00:00Z"},
-  {id:20,job_id:22,author:"Dave",body:"8 vertical pump alignments. Exact dates still TBC with Astrazeneca facilities team.",created_at:"2025-12-01T09:00:00Z"},
-  {id:21,job_id:23,author:"Dave",body:"Mag-drive investigation. Awaiting site access clearance from MSD HSE team.",created_at:"2025-11-28T13:00:00Z"},
-  {id:22,job_id:24,author:"Colin",body:"Valve issue investigation. Site access booked for January window.",created_at:"2025-12-08T10:00:00Z"},
-];
+  // Auth States
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPass, setLoginPass] = useState("");
+  const [authError, setAuthError] = useState("");
 
-const TYPE_ICON={Valve:"🚪","Valve Assembly":"🚪","Valve Overhaul":"⚙","Pump Assembly":"⚙","Pump Overhaul":"⚙","Mechanical Seal Refurb":"🔩",Testing:"✓",Site:"📍"};
-const AVATAR_COLORS={Darragh:"#E8601A",Shauna:"#0E7C4A",Cathal:"#2D4A6A",Ross:"#B45309",Dave:"#7C3AED",Colin:"#0D92C4"};
-
-const fd = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", {day:"2-digit",month:"short",year:"numeric"});
-const fdShort = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IE", {day:"2-digit",month:"short"});
-const isOD = (due,status) => status!=="Complete"&&due&&new Date(due)<TODAY;
-const nowISO = () => new Date().toISOString();
-const isMobile = () => typeof window!=="undefined"&&window.innerWidth<1024;
-
-const STATUS = {
-  "In Progress":{bg:"#FFF8E1", border:"#F59E0B", text:"#78350F", dot:"#F59E0B"},
-  "Input Needed":{bg:COLORS.redLt, border:COLORS.red, text:"#7F1D1D", dot:COLORS.red},
-  "Complete":{bg:COLORS.greenLt, border:COLORS.green, text:"#064E3B", dot:COLORS.green},
-};
-
-// -------------------- Helper Components --------------------
-function Avatar({name,size=30}){return<div style={{width:size,height:size,borderRadius:"50%",background:AVATAR_COLORS[name]||COLORS.steel,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.38,fontWeight:800,flexShrink:0,fontFamily:"'DM Mono',monospace",letterSpacing:-0.5,border:`2px solid rgba(255,255,255,0.15)`}}>{name?.[0]}</div>;}
-
-function StatusPill({status,small}){const c=STATUS[status]||STATUS["In Progress"];return<span style={{display:"inline-flex",alignItems:"center",gap:5,background:c.bg,border:`1px solid ${c.border}`,color:c.text,borderRadius:4,padding:small?"1px 7px":"3px 10px",fontSize:small?10:11,fontWeight:700,letterSpacing:0.03,whiteSpace:"nowrap"}}><span style={{width:6,height:6,borderRadius:"50%",background:c.dot,flexShrink:0}}/>{status}</span>;}
-
-function TypeBadge({type}){return<span style={{display:"inline-flex",alignItems:"center",gap:4,background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,padding:"2px 8px",fontSize:11,fontWeight:600,border:`1px solid ${COLORS.rule}`}}><span>{TYPE_ICON[type]||"🔧"}</span>{type}</span>;}
-
-function ProgressBar({val,max,color}){const pct=max>0?Math.min(100,Math.round((val/max)*100)):0;return<div style={{background:COLORS.steelLt,borderRadius:3,height:6,width:"100%",overflow:"hidden"}}><div style={{width:`${pct}%`,height:6,borderRadius:3,background:color||COLORS.orange,transition:"width 0.4s ease"}}/></div>;}
-
-function Toast({msg,type="success",onDone}){useEffect(()=>{const t=setTimeout(onDone,2800);return()=>clearTimeout(t);},[]);const bg=type==="error"?COLORS.red:type==="warn"?"#B45309":COLORS.orange;return<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:bg,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:12,fontWeight:700,zIndex:1000,boxShadow:"0 6px 24px rgba(0,0,0,0.25)",animation:"slideUp 0.2s ease",whiteSpace:"nowrap"}}>{msg}</div>;}
-
-function LoginPage({onLogin}){const[email,setEmail]=useState("");return<div style={{height:"100vh",background:COLORS.navy,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{background:"#fff",borderRadius:12,padding:40,maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:24,color:COLORS.navy,marginBottom:6}}>Flexachem</div><div style={{fontSize:12,color:COLORS.textSoft,marginBottom:24}}>Workshop Tracker</div><input value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&onLogin({email})} placeholder="Email (any value)" style={{width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:12,fontSize:12,marginBottom:12,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><button onClick={()=>onLogin({email:email||"user@flexachem.com"})} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:10,fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Login</button></div></div>;}
-
-function NotesPanel({job,notes,allJobs,allMode,onClose,onAddNote,user}){
-  const[text,setText]=useState("");
-  const[newStatus,setNewStatus]=useState("");
-  const displayNotes=allMode?[...notes].sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,40):notes.filter(n=>n.job_id===job?.id).sort((a,b)=>b.created_at.localeCompare(a.created_at));
-  function submit(){
-    if(!text.trim()&&!newStatus)return;
-    onAddNote(text.trim(),newStatus||null);
-    setText("");setNewStatus("");
-  }
-  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.55)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:700,maxHeight:"88vh",display:"flex",flexDirection:"column",boxShadow:"0 -12px 48px rgba(11,31,58,0.25)",animation:"slideUp 0.22s ease"}}><div style={{padding:"12px 14px 10px",borderBottom:`1px solid ${COLORS.rule}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}><div><div style={{fontWeight:800,fontSize:13,color:COLORS.navy}}>{allMode?"📋 All Notes":`💬 ${job?.asm}`}</div><div style={{fontSize:9,color:COLORS.textSoft,marginTop:2}}>{displayNotes.length}</div></div><button onClick={onClose} style={{background:COLORS.steelLt,border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",color:COLORS.steel}}>✕</button></div><div style={{flex:1,overflowY:"auto",padding:"12px",minHeight:0}}>{displayNotes.length===0&&<div style={{textAlign:"center",padding:"24px 0",color:COLORS.textSoft,fontSize:12}}>No notes yet.</div>}{displayNotes.map((n,i)=><div key={n.id||i} style={{borderLeft:`3px solid ${COLORS.orange}`,paddingLeft:8,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:4,marginBottom:2}}><Avatar name={n.author} size={18}/><span style={{fontSize:9,fontWeight:700,color:COLORS.text}}>{n.author}</span><span style={{fontSize:8,color:COLORS.textSoft,fontFamily:"'DM Mono',monospace"}}>{new Date(n.created_at).toLocaleString("en-IE",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</span>{allMode&&<span style={{fontSize:8,color:COLORS.orange,fontWeight:700,marginLeft:"auto"}}>{allJobs.find(x=>x.id===n.job_id)?.asm}</span>}</div><div style={{fontSize:11,color:COLORS.text,lineHeight:1.4}}>{n.body}</div></div>)}</div>{!allMode&&job&&<div style={{padding:"12px",borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist,flexShrink:0,display:"flex",flexDirection:"column",gap:8,alignItems:"center"}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Update…" style={{width:"100%",maxWidth:500,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"8px",fontSize:11,resize:"none",minHeight:50,fontFamily:"inherit",background:"#fff",color:COLORS.text}}/><div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}><select value={newStatus} onChange={e=>setNewStatus(e.target.value)} style={{flex:1,minWidth:100,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px",fontSize:10,background:"#fff",color:COLORS.text,fontFamily:"inherit"}}><option value="">Status</option><option>In Progress</option><option>Input Needed</option><option>Complete</option></select><button onClick={submit} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Post</button></div></div>}</div></div>;}
-
-function JobModal({job,onSave,onClose,people}){
-  const[form,setForm]=useState(job?{...job,note:""}:{asm:"",so:"",customer:"",job_type:"Valve Assembly",business_unit:"Pharma",owner:"Darragh",allocated_to:"Darragh",date_issued:"",due_date:"",est_hours:"",act_hours:"",status:"In Progress",work_doc:"",note:""});
-  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
-  const inputStyle={width:"100%",border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"7px 8px",fontSize:11,fontFamily:"inherit",background:"#fff",color:COLORS.text,outline:"none"};
-  const inp=(k,p="",t="text")=><input type={t} value={form[k]||""} placeholder={p} onChange={e=>set(k,e.target.value)} style={inputStyle}/>;
-  const sel=(k,opts)=><select value={form[k]||""} onChange={e=>set(k,e.target.value)} style={{...inputStyle,cursor:"pointer"}}>{opts.map(o=><option key={o}>{o}</option>)}</select>;
-  return<div style={{position:"fixed",inset:0,background:"rgba(11,31,58,0.6)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:10}} onClick={e=>e.target===e.currentTarget&&onClose()}><div style={{background:"#fff",borderRadius:10,width:"100%",maxWidth:580,maxHeight:"90vh",overflow:"auto",boxShadow:"0 20px 60px rgba(11,31,58,0.3)"}}><div style={{background:COLORS.navy,padding:"10px 14px",borderRadius:"10px 10px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{color:"#fff",fontWeight:800,fontSize:13}}>{job?"Edit":"Add Job"}</div><button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:"50%",width:26,height:26,cursor:"pointer",fontSize:13}}>✕</button></div><div style={{padding:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Asm</label>{inp("asm")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>SO</label>{inp("so")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Customer</label>{inp("customer")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>BU</label>{sel("business_unit",BUS)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Type</label>{sel("job_type",JOB_TYPES)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Status</label>{sel("status",["In Progress","Input Needed","Complete"])}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Owner</label>{sel("owner",people)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Alloc</label>{sel("allocated_to",people)}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Issued</label>{inp("date_issued","","date")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Due</label>{inp("due_date","","date")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Est h</label>{inp("est_hours","","number")}</div><div><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Act h</label>{inp("act_hours","","number")}</div><div style={{gridColumn:"span 2"}}><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Doc</label>{inp("work_doc")}</div><div style={{gridColumn:"span 2"}}><label style={{fontSize:8,fontWeight:700,color:COLORS.textMid,textTransform:"uppercase",display:"block",marginBottom:3}}>Note</label><textarea value={form.note||""} onChange={e=>set("note",e.target.value)} placeholder="…" style={{...inputStyle,resize:"none",minHeight:50}}/></div></div><div style={{borderTop:`1px solid ${COLORS.rule}`,padding:"8px 14px",display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={onClose} style={{background:COLORS.steelLt,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit",color:COLORS.text}}>Cancel</button><button onClick={()=>onSave(form)} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"6px 16px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{job?"Save":"Add"}</button></div></div></div>;}
-
-function KpiCard({value,label,accent}){return<div style={{background:"#fff",borderRadius:10,borderTop:`4px solid ${accent}`,padding:"16px 18px",flex:1,minWidth:100,boxShadow:"0 1px 6px rgba(11,31,58,0.07)",border:`1px solid ${COLORS.rule}`}}><div style={{fontSize:28,fontWeight:800,color:accent,fontFamily:"'DM Mono',monospace",lineHeight:1}}>{value}</div><div style={{fontSize:10,textTransform:"uppercase",letterSpacing:0.1,color:COLORS.textSoft,marginTop:6,fontWeight:600}}>{label}</div></div>;}
-
-// -------------------- Dashboard (with Due Date widget) --------------------
-function DashboardView({jobs,notes,onFilterEmp}){
-  const ip=jobs.filter(j=>j.status==="In Progress").length;
-  const inp=jobs.filter(j=>j.status==="Input Needed").length;
-  const done=jobs.filter(j=>j.status==="Complete").length;
-  const od=jobs.filter(j=>isOD(j.due_date,j.status)).length;
-  const openHrs=jobs.filter(j=>j.status!=="Complete").reduce((a,j)=>a+(j.est_hours||0),0);
-  const EMP_GREEN="#2D6A4F";
-  const byEmp=useMemo(()=>{const m={};jobs.forEach(j=>{const k=j.allocated_to||"Unassigned";if(!m[k])m[k]={jobs:0,openJobs:0,estH:0};m[k].jobs++;if(j.status!=="Complete"){m[k].openJobs++;m[k].estH+=j.est_hours||0;}});return Object.entries(m).sort((a,b)=>b[1].estH-a[1].estH);},[jobs]);
-  const byBU=useMemo(()=>{const m={};jobs.forEach(j=>{if(!m[j.business_unit])m[j.business_unit]={jobs:0,open:0,inp:0};m[j.business_unit].jobs++;if(j.status!=="Complete")m[j.business_unit].open++;if(j.status==="Input Needed")m[j.business_unit].inp++;});return Object.entries(m).sort((a,b)=>b[1].jobs-a[1].jobs);},[jobs]);
-  const byCustomer=useMemo(()=>{const m={};jobs.forEach(j=>{if(!m[j.customer])m[j.customer]={jobs:0,open:0,complete:0};m[j.customer].jobs++;if(j.status!=="Complete")m[j.customer].open++;if(j.status==="Complete")m[j.customer].complete++;});return Object.entries(m).sort((a,b)=>b[1].jobs-a[1].jobs);},[jobs]);
-  const maxH=Math.max(...byEmp.map(([,v])=>v.estH),1);
-  return<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,padding:20,overflowY:"auto",height:"100%"}}>
-    <div style={{gridColumn:"span 3"}}><div style={{display:"flex",gap:12,flexWrap:"wrap"}}><KpiCard value={jobs.length} label="Total Jobs" accent={COLORS.navy}/><KpiCard value={ip} label="In Progress" accent="#F59E0B"/><KpiCard value={inp} label="Input Needed" accent={COLORS.red}/><KpiCard value={done} label="Complete" accent={COLORS.green}/><KpiCard value={od} label="Overdue" accent={od>0?COLORS.red:COLORS.textSoft}/><KpiCard value={`${openHrs}h`} label="Open Hours" accent={COLORS.orange}/></div></div>
-    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}>
-      <div style={{background:EMP_GREEN,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12,letterSpacing:0.5}}>BY EMPLOYEE</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 48px 64px 1fr"}}>
-        {["NAME","JOBS","EST H","LOAD"].map(h=><div key={h} style={{padding:"6px 12px",fontSize:9,fontWeight:800,color:COLORS.textSoft,textTransform:"uppercase",borderBottom:`1px solid ${COLORS.rule}`,background:COLORS.mist}}>{h}</div>)}
-        {byEmp.map(([name,v])=>[
-          <div key={name+"n"} onClick={()=>onFilterEmp(name==="Unassigned"?"":name)} style={{padding:"8px 12px",fontSize:12,fontWeight:600,color:COLORS.text,borderBottom:`1px solid ${COLORS.steelLt}`,cursor:"pointer",display:"flex",alignItems:"center",gap:6}} onMouseEnter={e=>e.currentTarget.style.background=COLORS.mist} onMouseLeave={e=>e.currentTarget.style.background=""}><Avatar name={name} size={20}/>{name}</div>,
-          <div key={name+"j"} style={{padding:"8px 12px",fontSize:12,color:COLORS.textMid,borderBottom:`1px solid ${COLORS.steelLt}`,display:"flex",alignItems:"center"}}>{v.openJobs}</div>,
-          <div key={name+"h"} style={{padding:"8px 12px",fontSize:12,fontFamily:"'DM Mono',monospace",color:v.estH>0?COLORS.text:COLORS.textSoft,borderBottom:`1px solid ${COLORS.steelLt}`,display:"flex",alignItems:"center"}}>{v.estH}h</div>,
-          <div key={name+"l"} style={{padding:"8px 12px",borderBottom:`1px solid ${COLORS.steelLt}`,display:"flex",alignItems:"center"}}><div style={{flex:1,background:COLORS.steelLt,borderRadius:3,height:8,overflow:"hidden"}}><div style={{width:`${Math.round((v.estH/maxH)*100)}%`,height:8,background:EMP_GREEN,borderRadius:3,transition:"width 0.4s"}}/></div></div>
-        ])}
-      </div>
-    </div>
-    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.slate,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏭 By Business Unit</div>{byBU.map(([bu,v])=><div key={bu} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text}}>{bu}</div><div style={{fontSize:10,color:COLORS.textSoft}}>{v.jobs} total</div></div><div style={{display:"flex",gap:6}}>{v.inp>0&&<span style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>⚠{v.inp}</span>}<span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open} open</span></div></div>)}</div>
-    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden"}}><div style={{background:COLORS.orange,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:12}}>🏢 By Customer</div>{byCustomer.map(([cust,v])=><div key={cust} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}><div><div style={{fontWeight:700,fontSize:12,color:COLORS.text,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cust}</div><div style={{fontSize:9,color:COLORS.textSoft}}>{v.jobs} jobs</div></div><div style={{display:"flex",gap:6}}><span style={{background:COLORS.greenLt,color:COLORS.green,border:`1px solid ${COLORS.green}`,borderRadius:4,fontSize:9,fontWeight:700,padding:"2px 6px"}}>✓{v.complete}</span><span style={{background:COLORS.steelLt,color:COLORS.steel,borderRadius:4,fontSize:9,fontWeight:600,padding:"2px 6px"}}>{v.open} open</span></div></div>)}</div>
-  </div>;
-}
-
-
-// -------------------- JobCard (used in List and Kanban) --------------------
-function JobCard({job,notes,onStatusChange,onOpenNotes,onEdit}){
-  const od=isOD(job.due_date,job.status);
-  const jobNotes=notes.filter(n=>n.job_id===job.id);
-  const lastNote=jobNotes.sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];
-  const hasActuals=job.act_hours!=null;
-  const over=hasActuals&&job.act_hours>job.est_hours;
-  return<div style={{background:"#fff",borderRadius:12,marginBottom:12,border:`1px solid ${od?"#FECACA":COLORS.rule}`,overflow:"hidden",boxShadow:"0 2px 6px rgba(11,31,58,0.08)"}}>{od&&<div style={{background:COLORS.red,color:"#fff",padding:"4px 12px",fontSize:10,fontWeight:700}}>⚠ OVERDUE — Due {fd(job.due_date)}</div>}<div style={{padding:"12px 14px"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}><div style={{flex:1}}><div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",marginBottom:6}}><span style={{fontFamily:"'DM Mono',monospace",fontWeight:800,fontSize:13,color:COLORS.navy}}>{job.asm}</span><TypeBadge type={job.job_type}/><StatusPill status={job.status} small/></div><div style={{fontWeight:700,fontSize:14,color:COLORS.text,marginBottom:4}}>{job.customer}</div><div style={{fontSize:10,color:COLORS.textSoft}}>SO: {job.so||"TBA"} · Issued {fdShort(job.date_issued)} · Due <strong style={{color:od?COLORS.red:COLORS.text}}>{fd(job.due_date)}</strong></div></div><select value={job.status} onChange={e=>onStatusChange(job.id,e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"4px 8px",fontSize:11,fontWeight:600,background:"#fff",cursor:"pointer"}}><option>In Progress</option><option>Input Needed</option><option>Complete</option></select></div><div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 0"}}><Avatar name={job.allocated_to} size={24}/><span style={{fontSize:12,fontWeight:600}}>{job.allocated_to}</span>{job.allocated_to!==job.owner&&<span style={{fontSize:10,color:COLORS.textSoft}}>Owner: {job.owner}</span>}<span style={{marginLeft:"auto",fontSize:11,fontFamily:"'DM Mono',monospace",color:over?COLORS.red:COLORS.textMid}}>{hasActuals?`${job.act_hours}h / ${job.est_hours}h${over?" ↑":""}`:`${job.est_hours}h est.`}</span></div>{hasActuals&&<div style={{marginBottom:8}}><ProgressBar val={job.act_hours} max={job.est_hours} color={over?COLORS.red:COLORS.orange}/></div>}{lastNote&&<div style={{background:COLORS.mist,borderLeft:`3px solid ${COLORS.orange}`,padding:"6px 10px",borderRadius:"0 6px 6px 0",marginBottom:8}}><div style={{fontSize:9,color:COLORS.textSoft,marginBottom:2}}>{lastNote.author} · {new Date(lastNote.created_at).toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div><div style={{fontSize:11,lineHeight:1.4}}>{lastNote.body}</div></div>}<div style={{display:"flex",gap:6}}><button onClick={()=>onOpenNotes(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"4px 10px",fontSize:10,background:"#fff",cursor:"pointer"}}>💬 Notes ({jobNotes.length})</button><button onClick={()=>onEdit(job.id)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"4px 10px",fontSize:10,background:"#fff",cursor:"pointer"}}>✏ Edit</button>{job.work_doc&&<button style={{border:`1px solid ${COLORS.navy}20`,borderRadius:6,padding:"4px 10px",fontSize:10,background:COLORS.steelLt,cursor:"pointer"}}>📎 Work</button>}</div></div></div>;}
-
-// -------------------- Kanban specific card (draggable) --------------------
-function KanbanDraggableCard({ job, notes, onStatusChange, onOpenNotes, onEdit, isDragging }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } = useSortable({ id: job.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging || isSortableDragging ? 0.5 : 1, cursor: "grab" };
-  const od = isOD(job.due_date, job.status);
-  const jobNotes = notes.filter(n => n.job_id === job.id);
-  const lastNote = [...jobNotes].sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];
-  const hasActuals = job.act_hours != null;
-  const over = hasActuals && job.act_hours > job.est_hours;
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <div style={{ background:"#fff", borderRadius:12, marginBottom:12, border:`1px solid ${od?"#FECACA":COLORS.rule}`, boxShadow:"0 2px 6px rgba(11,31,58,0.08)", overflow:"hidden" }}>
-        {od && <div style={{ background:COLORS.red, color:"#fff", padding:"4px 12px", fontSize:10, fontWeight:700 }}>⚠ OVERDUE — Due {fd(job.due_date)}</div>}
-        <div style={{ padding:"12px 14px" }}>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, alignItems:"center", marginBottom:6 }}>
-            <span style={{ fontFamily:"'DM Mono',monospace", fontWeight:800, fontSize:13, color:COLORS.navy }}>{job.asm}</span>
-            <TypeBadge type={job.job_type} /><StatusPill status={job.status} small />
-          </div>
-          <div style={{ fontWeight:700, fontSize:14, marginBottom:4 }}>{job.customer}</div>
-          <div style={{ fontSize:10, color:COLORS.textSoft, marginBottom:8 }}>SO: {job.so||"TBA"} · Issued {fdShort(job.date_issued)} · Due <strong style={{color:od?COLORS.red:COLORS.text}}>{fd(job.due_date)}</strong></div>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-            <Avatar name={job.allocated_to} size={24} /><span style={{ fontSize:12, fontWeight:600 }}>{job.allocated_to}</span>
-            {job.allocated_to !== job.owner && <span style={{ fontSize:10, color:COLORS.textSoft }}>Owner: {job.owner}</span>}
-            <span style={{ marginLeft:"auto", fontSize:11, fontFamily:"'DM Mono',monospace", color:over?COLORS.red:COLORS.textMid }}>{hasActuals?`${job.act_hours}h / ${job.est_hours}h${over?" ↑":""}`:`${job.est_hours}h est.`}</span>
-          </div>
-          {hasActuals && <ProgressBar val={job.act_hours} max={job.est_hours} color={over?COLORS.red:COLORS.orange} />}
-          {lastNote && <div style={{ background:COLORS.mist, borderLeft:`3px solid ${COLORS.orange}`, padding:"6px 10px", borderRadius:"0 6px 6px 0", margin:"8px 0" }}><div style={{ fontSize:9, color:COLORS.textSoft }}>{lastNote.author} · {new Date(lastNote.created_at).toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div><div style={{ fontSize:11 }}>{lastNote.body}</div></div>}
-          <div style={{ display:"flex", gap:6, marginTop:4 }}>
-            <button onClick={() => onOpenNotes(job.id)} style={{ border:`1px solid ${COLORS.rule}`, borderRadius:6, padding:"4px 10px", fontSize:10, background:"#fff", cursor:"pointer" }}>💬 Notes ({jobNotes.length})</button>
-            <button onClick={() => onEdit(job.id)} style={{ border:`1px solid ${COLORS.rule}`, borderRadius:6, padding:"4px 10px", fontSize:10, background:"#fff", cursor:"pointer" }}>✏ Edit</button>
-            {job.work_doc && <button style={{ border:`1px solid ${COLORS.navy}20`, borderRadius:6, padding:"4px 10px", fontSize:10, background:COLORS.steelLt, cursor:"pointer" }}>📎 Work</button>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function KanbanColumn({ status, jobs, notes, onStatusChange, onOpenNotes, onEdit, activeId }) {
-  const columnJobs = jobs.filter(j => j.status === status);
-  const sensors = useSensors(useSensor(PointerSensor));
-  return (
-    <div style={{ flex:"1 1 320px", minWidth:280, maxWidth:380, background:COLORS.mist, borderRadius:16, display:"flex", flexDirection:"column", height:"100%", maxHeight:"calc(100vh - 140px)", boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
-      <div style={{ padding:"12px 16px", background:"#fff", borderBottom:`1px solid ${COLORS.rule}`, borderRadius:"16px 16px 0 0", fontWeight:800, fontSize:13, display:"flex", justifyContent:"space-between" }}>
-        <span>{status}</span><span style={{ fontSize:11, color:COLORS.textSoft }}>({columnJobs.length})</span>
-      </div>
-      <div style={{ flex:1, overflowY:"auto", padding:12 }}>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => {
-          const { active, over } = event;
-          if (!over) return;
-          const draggedJob = jobs.find(j => j.id === active.id);
-          if (!draggedJob) return;
-          let newStatus = null;
-          if (status === over.id) newStatus = status;
-          else {
-            const targetJob = jobs.find(j => j.id === over.id);
-            if (targetJob) newStatus = targetJob.status;
-          }
-          if (newStatus && draggedJob.status !== newStatus) onStatusChange(draggedJob.id, newStatus);
-        }}>
-          <SortableContext items={columnJobs.map(j=>j.id)} strategy={verticalListSortingStrategy}>
-            {columnJobs.map(job => <KanbanDraggableCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} isDragging={activeId === job.id} />)}
-          </SortableContext>
-        </DndContext>
-        {columnJobs.length === 0 && <div style={{ textAlign:"center", padding:32, color:COLORS.textSoft, fontSize:12 }}>No jobs</div>}
-      </div>
-    </div>
-  );
-}
-
-function KanbanView({ jobs, notes, onStatusChange, onOpenNotes, onEdit, filterStatus }) {
+  // Drag State
   const [activeId, setActiveId] = useState(null);
-  const statuses = ["In Progress", "Input Needed", "Complete"];
-  const columnsToShow = filterStatus ? [filterStatus] : statuses;
-  const sensors = useSensors(useSensor(PointerSensor));
-  const handleDragStart = (event) => setActiveId(event.active.id);
-  const handleDragEnd = (event) => {
-    setActiveId(null);
-    const { active, over } = event;
-    if (!over) return;
-    const draggedJob = jobs.find(j => j.id === active.id);
-    if (!draggedJob) return;
-    let newStatus = null;
-    if (columnsToShow.includes(over.id)) newStatus = over.id;
-    else {
-      const targetJob = jobs.find(j => j.id === over.id);
-      if (targetJob) newStatus = targetJob.status;
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      setLoading(false);
+      return;
     }
-    if (newStatus && draggedJob.status !== newStatus) onStatusChange(draggedJob.id, newStatus);
-  };
-  return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div style={{ display:"flex", gap:16, padding:16, overflowX:"auto", height:"100%", alignItems:"flex-start" }}>
-        {columnsToShow.map(status => <KanbanColumn key={status} status={status} jobs={jobs} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} activeId={activeId} />)}
-      </div>
-      <DragOverlay>{activeId ? <KanbanDraggableCard job={jobs.find(j=>j.id===activeId)} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} isDragging /> : null}</DragOverlay>
-    </DndContext>
-  );
-}
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
-// -------------------- Gantt View --------------------
-function GanttView({ jobs }) {
-  const validJobs = jobs.filter(j => j.date_issued && j.due_date);
-  const minDate = useMemo(() => validJobs.length ? new Date(Math.min(...validJobs.flatMap(j=>[new Date(j.date_issued), new Date(j.due_date)]).map(d=>d.getTime()))) : new Date(), [validJobs]);
-  const maxDate = useMemo(() => validJobs.length ? new Date(Math.max(...validJobs.flatMap(j=>[new Date(j.date_issued), new Date(j.due_date)]).map(d=>d.getTime()))) : new Date(), [validJobs]);
-  const totalDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000*60*60*24)) + 1);
-  const getBarStyle = (startStr, endStr) => {
-    if (!startStr || !endStr) return { display:"none" };
-    const start = new Date(startStr), end = new Date(endStr);
-    const startOffset = Math.max(0, (start - minDate) / (1000*60*60*24));
-    const width = Math.max(2, (end - start) / (1000*60*60*24));
-    return { left: `${(startOffset/totalDays)*100}%`, width: `${(width/totalDays)*100}%`, position:"absolute", height:28, borderRadius:4, backgroundColor:COLORS.orange, transition:"all 0.2s", cursor:"pointer" };
-  };
-  if (!validJobs.length) return <div style={{ padding:40, textAlign:"center", color:COLORS.textSoft }}>No jobs with valid start/end dates for Gantt view.</div>;
-  const timelineLabels = [];
-  const steps = Math.min(12, totalDays);
-  for (let i=0; i<=totalDays; i+=Math.max(1, Math.floor(totalDays/steps))) {
-    timelineLabels.push({ date: new Date(minDate.getTime()+i*86400000), offset: (i/totalDays)*100 });
-  }
-  return (
-    <div style={{ height:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:16 }}>
-      <div style={{ flex:1, overflow:"auto", border:`1px solid ${COLORS.rule}`, borderRadius:8, background:"#fff" }}>
-        <div style={{ minWidth:800 }}>
-          <div style={{ display:"flex", borderBottom:`1px solid ${COLORS.rule}`, background:COLORS.mist, position:"sticky", top:0, zIndex:2 }}>
-            <div style={{ width:220, flexShrink:0, padding:"8px 12px", fontWeight:700, fontSize:12, borderRight:`1px solid ${COLORS.rule}`, background:COLORS.mist }}>Job</div>
-            <div style={{ flex:1, position:"relative", minHeight:38 }}><div style={{ position:"relative", height:"100%", width:"100%" }}>{timelineLabels.map(({date,offset},idx)=><div key={idx} style={{ position:"absolute", left:`${offset}%`, bottom:0, fontSize:9, color:COLORS.textSoft, transform:"translateX(-50%)", whiteSpace:"nowrap" }}>{date.toLocaleDateString("en-IE",{day:"2-digit",month:"short"})}</div>)}</div></div>
-          </div>
-          {validJobs.map(job=>(
-            <div key={job.id} style={{ display:"flex", borderBottom:`1px solid ${COLORS.rule}`, alignItems:"center", minHeight:48 }}>
-              <div style={{ width:220, flexShrink:0, padding:"8px 12px", borderRight:`1px solid ${COLORS.rule}`, fontSize:12, fontWeight:600, background:"#fff" }}><div>{job.asm}</div><div style={{ fontSize:10, color:COLORS.textSoft }}>{job.customer}</div></div>
-              <div style={{ flex:1, position:"relative", height:48, background:"#fff" }}><div style={getBarStyle(job.date_issued, job.due_date)} title={`${job.asm}: ${fd(job.date_issued)} → ${fd(job.due_date)}`} /></div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+  useEffect(() => {
+    if (!user || !supabase) return;
+    fetchJobs();
+    
+    const channel = supabase
+      .channel("schema-db-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, () => {
+        fetchJobs();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
-// -------------------- List View --------------------
-function ListView({ jobs, notes, onStatusChange, onOpenNotes, onEdit }) {
-  return <div style={{ padding:16, overflowY:"auto", height:"100%" }}>{jobs.map(job=><JobCard key={job.id} job={job} notes={notes} onStatusChange={onStatusChange} onOpenNotes={onOpenNotes} onEdit={onEdit} />)}{!jobs.length && <div style={{ textAlign:"center", padding:48, color:COLORS.textSoft }}>No jobs match filters</div>}</div>;
-}
+  // All useMemo and Sensor hooks moved up here before any conditional returns
+  const sensors = useSensors(useSensor(PointerSensor));
 
-// -------------------- Employees View --------------------
-function EmployeesView({people,setPeople,jobs}){
-  const[newName,setNewName]=useState("");
-  function add(){const n=newName.trim();if(!n||people.includes(n))return;setPeople([...people,n]);setNewName("");}
-  const empStats=useMemo(()=>{const m={};jobs.forEach(j=>{const k=j.allocated_to;if(k){if(!m[k])m[k]={open:0,total:0};m[k].total++;if(j.status!=="Complete")m[k].open++;}});return m;},[jobs]);
-  return<div style={{padding:20,overflowY:"auto",flex:1}}><div style={{maxWidth:560,margin:"0 auto"}}>
-    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${COLORS.rule}`,overflow:"hidden",marginBottom:16}}>
-      <div style={{background:COLORS.navy,color:"#fff",padding:"12px 16px",fontWeight:800,fontSize:13}}>👥 Workshop Team</div>
-      {people.map(name=><div key={name} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:`1px solid ${COLORS.steelLt}`}}>
-        <Avatar name={name} size={32}/>
-        <div style={{flex:1}}>
-          <div style={{fontWeight:700,fontSize:13,color:COLORS.text}}>{name}</div>
-          <div style={{fontSize:10,color:COLORS.textSoft}}>{empStats[name]?.total||0} jobs total · {empStats[name]?.open||0} open</div>
-        </div>
-        <button onClick={()=>setPeople(people.filter(p=>p!==name))} style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Remove</button>
-      </div>)}
-      <div style={{padding:"12px 16px",display:"flex",gap:8,borderTop:`1px solid ${COLORS.rule}`,background:COLORS.mist}}>
-        <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="New employee name…" style={{flex:1,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"8px 10px",fontSize:12,fontFamily:"inherit",background:"#fff"}}/>
-        <button onClick={add} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:"pointer"}}>Add</button>
-      </div>
-    </div>
-  </div></div>;
-}
+  const filtered = useMemo(() => {
+    return jobs.filter(j => {
+      const mText = ((j.asm || "") + (j.so || "") + (j.cust || "") + (j.type || "") + (j.alloc || "") + (j.notes || "")).toLowerCase();
+      const matchSearch = mText.includes(search.toLowerCase());
+      const matchEmp = !filterEmp || j.alloc === filterEmp || (j.notes && j.notes.toLowerCase().includes(filterEmp.toLowerCase()));
+      return matchSearch && matchEmp;
+    });
+  }, [jobs, search, filterEmp]);
 
-// -------------------- Main App --------------------
-export default function App(){
-  const[user,setUser]=useState(null);
-  const[people,setPeople]=useState(DEFAULT_PEOPLE);
-  const[jobs,setJobs]=useState(SEED_JOBS);
-  const[notes,setNotes]=useState(SEED_NOTES);
-  const[activeView, setActiveView] = useState("list");
-  const[filterStatus,setFilterStatus]=useState("");
-  const[filterEmp,setFilterEmp]=useState("");
-  const[search,setSearch]=useState("");
-  const[notesJobId,setNotesJobId]=useState(null);
-  const[allNotesOpen,setAllNotesOpen]=useState(false);
-  const[editJobId,setEditJobId]=useState(null);
-  const[addOpen,setAddOpen]=useState(false);
-  const[toast,setToast]=useState(null);
-  const[nextId,setNextId]=useState(26);
-  const[nextNoteId,setNextNoteId]=useState(SEED_NOTES.length+1);
-  const[loading,setLoading]=useState(true);
+  const bookedHrs = useMemo(() => {
+    return filtered.reduce((sum, j) => sum + (parseFloat(j.hrs) || 0), 0);
+  }, [filtered]);
 
-  useEffect(()=>{const stored=localStorage.getItem("flexachem_user");if(stored)setUser(JSON.parse(stored));else{const newUser={email:"user@flexachem.com"};localStorage.setItem("flexachem_user",JSON.stringify(newUser));setUser(newUser);}setLoading(false);},[]);
-  useEffect(()=>{if(!user||!supabase)return;loadData();},[user]);
+  const people = useMemo(() => {
+    const s = new Set(DEFAULT_PEOPLE);
+    jobs.forEach(j => { if (j.alloc) s.add(j.alloc); });
+    return Array.from(s);
+  }, [jobs]);
 
-  async function loadData(){
-    try{
-      const{data:jobsData, error: jobsError}=await supabase.from("jobs").select("*");
-      if(jobsError) throw jobsError;
-      const{data:notesData, error: notesError}=await supabase.from("notes").select("*");
-      if(notesError) throw notesError;
-      if(jobsData?.length>0) setJobs(jobsData);
-      else { await supabase.from("jobs").insert(SEED_JOBS); setJobs(SEED_JOBS); }
-      if(notesData?.length>0) setNotes(notesData);
-      else { await supabase.from("notes").insert(SEED_NOTES); setNotes(SEED_NOTES); }
-    }catch(err){ console.error("Supabase load error:", err); }
-  }
+  const activeJob = useMemo(() => jobs.find(j => j.id === activeId), [activeId, jobs]);
+  const notesJob = useMemo(() => jobs.find(j => j.id === notesJobId), [notesJobId, jobs]);
 
-  async function syncToSupabase(jobsData, notesData){
-    if(!supabase) return;
+  const notes = useMemo(() => {
+    if (allNotesOpen) {
+      let arr = [];
+      jobs.forEach(j => {
+        if (j.notes) {
+          try {
+            const parsed = typeof j.notes === "string" ? JSON.parse(j.notes) : j.notes;
+            if (Array.isArray(parsed)) {
+              parsed.forEach(n => arr.push({ ...n, jobId: j.id, jobAsm: j.asm, jobCust: j.cust }));
+            }
+          } catch(e){}
+        }
+      });
+      return arr.sort((a,b) => new Date(b.at) - new Date(a.at));
+    }
+    if (!notesJob || !notesJob.notes) return [];
     try {
-      await supabase.from("jobs").upsert(jobsData);
-      await supabase.from("notes").upsert(notesData);
-    } catch(err) { console.error("Supabase sync error:", err); showToast("Sync failed: "+err.message, "error"); }
+      const parsed = typeof notesJob.notes === "string" ? JSON.parse(notesJob.notes) : notesJob.notes;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch(e) {
+      return [];
+    }
+  }, [notesJob, jobs, allNotesOpen]);
+
+  // --- HANDLERS ---
+  const fetchJobs = async () => {
+    if (!supabase) return;
+    setLoading(true);
+    const { data, error } = await supabase.from("jobs").select("*").order("id", { ascending: true });
+    if (!error && data) setJobs(data);
+    setLoading(false);
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    if (!supabase) return;
+    setAuthError("");
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPass });
+    if (error) setAuthError(error.message);
+  };
+
+  const handleLogout = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+  };
+
+  const handleDragStart = (e) => {
+    setActiveId(e.active.id);
+  };
+
+  const handleDragEnd = async (e) => {
+    const { active, over } = e;
+    setActiveId(null);
+    if (!over || !supabase) return;
+    const jobId = active.id;
+    const newStatus = over.id;
+    
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
+    
+    const { error } = await supabase.from("jobs").update({ status: newStatus }).eq("id", jobId);
+    if (error) fetchJobs();
+  };
+
+  const handleSaveJob = async (fields) => {
+    if (!supabase) return;
+    if (editingJob && editingJob.id) {
+      const { error } = await supabase.from("jobs").update(fields).eq("id", editingJob.id);
+      if (!error) setEditingJob(null);
+    } else {
+      const { error } = await supabase.from("jobs").insert([{ ...fields, status: "Not Started", notes: "[]" }]);
+      if (!error) setEditingJob(null);
+    }
+    fetchJobs();
+  };
+
+  const handleDeleteJob = async (id) => {
+    if (!supabase || !window.confirm("Delete this job?")) return;
+    const { error } = await supabase.from("jobs").delete().eq("id", id);
+    if (!error) fetchJobs();
+  };
+
+  const handleAddNote = async (jobId, txt) => {
+    if (!supabase) return;
+    const tgt = jobs.find(j => j.id === jobId);
+    if (!tgt) return;
+    let current = [];
+    try {
+      current = typeof tgt.notes === "string" ? JSON.parse(tgt.notes) : tgt.notes;
+      if (!Array.isArray(current)) current = [];
+    } catch(e){}
+    
+    const newNote = {
+      at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+      by: user?.email?.split("@")[0] || "User",
+      txt
+    };
+    const updated = [newNote, ...current];
+    
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, notes: JSON.stringify(updated) } : j));
+    await supabase.from("jobs").update({ notes: JSON.stringify(updated) }).eq("id", jobId);
+  };
+
+  // --- EARLY RENDERS ARE NOW SAFE BELOW THE HOOKS ---
+  if (authLoading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: COLORS.navy, color: "#fff", fontFamily: "sans-serif" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Flexachem Workshop Tracker</div>
+          <div style={{ fontSize: 12, opacity: 0.6 }}>Loading session...</div>
+        </div>
+      </div>
+    );
   }
 
-  const filtered=useMemo(()=>jobs.filter(j=>{if(filterStatus&&j.status!==filterStatus)return false;if(filterEmp&&j.allocated_to!==filterEmp&&j.owner!==filterEmp)return false;const q=search.toLowerCase();if(q&&!j.customer.toLowerCase().includes(q)&&!j.asm.toLowerCase().includes(q)&&!j.so.toLowerCase().includes(q))return false;return true;}),[jobs,filterStatus,filterEmp,search]);
-  const inp_count=useMemo(()=>jobs.filter(j=>j.status==="Input Needed").length,[jobs]);
-  const od_count=useMemo(()=>jobs.filter(j=>isOD(j.due_date,j.status)).length,[jobs]);
-
-  function showToast(msg,type="success"){setToast({msg,type});}
-  function updateStatus(id,status){const updated=jobs.map(j=>j.id===id?{...j,status}:j);setJobs(updated);syncToSupabase(updated,notes);showToast(`Status → ${status}`);}
-  function openNotes(jobId){setNotesJobId(jobId);setAllNotesOpen(false);}
-  function addNote(body,newStatus){if(!notesJobId)return;const updated=[...notes];if(body){const job=jobs.find(j=>j.id===notesJobId);const authorName=user?.email?.split("@")[0]||"Team";updated.push({id:nextNoteId,job_id:notesJobId,author:authorName,body,created_at:nowISO()});setNextNoteId(n=>n+1);}setNotes(updated);if(newStatus){const jobsUpdated=jobs.map(j=>j.id===notesJobId?{...j,status:newStatus}:j);setJobs(jobsUpdated);syncToSupabase(jobsUpdated,updated);}else{syncToSupabase(jobs,updated);}showToast("Note posted ✓");setNotesJobId(null);}
-  function saveJob(form){const noteText=form.note?.trim();const updated=[...jobs];const notesUpdated=[...notes];if(editJobId){const idx=updated.findIndex(j=>j.id===editJobId);if(idx>=0)updated[idx]={...updated[idx],...form,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};if(noteText){const job=jobs.find(j=>j.id===editJobId);const authorName=user?.email?.split("@")[0]||"Team";notesUpdated.push({id:nextNoteId,job_id:editJobId,author:authorName,body:noteText,created_at:nowISO()});setNextNoteId(n=>n+1);}showToast("Job updated ✓");}else{const id=nextId;setNextId(n=>n+1);const newJob={...form,id,est_hours:parseFloat(form.est_hours)||0,act_hours:form.act_hours?parseFloat(form.act_hours):null};updated.push(newJob);if(noteText){const authorName=user?.email?.split("@")[0]||"Team";notesUpdated.push({id:nextNoteId,job_id:id,author:authorName,body:noteText,created_at:nowISO()});setNextNoteId(n=>n+1);}showToast("Job added ✓");}setJobs(updated);setNotes(notesUpdated);syncToSupabase(updated,notesUpdated);setAddOpen(false);setEditJobId(null);}
-  function logout(){localStorage.removeItem("flexachem_user");setUser(null);}
-
-  if(loading||!user) return <LoginPage onLogin={setUser}/>;
-  const editJob=editJobId?jobs.find(j=>j.id===editJobId):null;
-  const notesJob=notesJobId?jobs.find(j=>j.id===notesJobId):null;
-  const isMob=isMobile();
+  if (!user) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: COLORS.navy, fontFamily: "sans-serif" }}>
+        <form onSubmit={handleLogin} style={{ background: "#fff", padding: 30, borderRadius: 8, width: 320, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+          <h3 style={{ margin: "0 0 20px 0", color: COLORS.navy, fontSize: 18, fontWeight: 700, textAlign: "center" }}>Workshop Tracker Login</h3>
+          {authError && <div style={{ background: COLORS.redLt, color: COLORS.red, padding: "8px 12px", borderRadius: 4, fontSize: 12, marginBottom: 15, border: `1px solid ${COLORS.red}` }}>{authError}</div>}
+          <div style={{ marginBottom: 15 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: COLORS.textMid, marginBottom: 4 }}>Email Address</label>
+            <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required style={{ width: "100%", padding: "8px 10px", borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 13, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: COLORS.textMid, marginBottom: 4 }}>Password</label>
+            <input type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} required style={{ width: "100%", padding: "8px 10px", borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 13, boxSizing: "border-box" }} />
+          </div>
+          <button type="submit" style={{ width: "100%", background: COLORS.orange, color: "#fff", padding: "10px", borderRadius: 4, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Sign In</button>
+        </form>
+      </div>
+    );
+  }
 
   const renderContent = () => {
-    if (activeView === "dashboard") return <DashboardView jobs={jobs} notes={notes} onFilterEmp={name=>{setFilterEmp(name);setActiveView("list");}} />;
-    if (activeView === "kanban") return <KanbanView jobs={filtered} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} filterStatus={filterStatus} />;
-    if (activeView === "gantt") return <GanttView jobs={filtered} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} />;
-    if (activeView === "employees") return <EmployeesView people={people} setPeople={setPeople} jobs={jobs} />;
-    return <ListView jobs={filtered} notes={notes} onStatusChange={updateStatus} onOpenNotes={openNotes} onEdit={id=>{setEditJobId(id);setAddOpen(true);}} />;
+    if (loading) return <div style={{ padding: 40, textAlign: "center", color: COLORS.textMid, fontSize: 13 }}>Loading jobs...</div>;
+    if (view === "timeline") return <TimelineView jobs={filtered} onEdit={setEditingJob} onNotes={setNotesJobId} />;
+    if (view === "list") return <ListView jobs={filtered} onEdit={setEditingJob} onNotes={setNotesJobId} onDelete={handleDeleteJob} />;
+    
+    const columns = {
+      "Not Started": filtered.filter(j => j.status === "Not Started"),
+      "In Progress": filtered.filter(j => j.status === "In Progress"),
+      "Input Needed": filtered.filter(j => j.status === "Input Needed"),
+      "Complete": filtered.filter(j => j.status === "Complete")
+    };
+
+    return (
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div style={{ display: "flex", gap: 16, padding: 16, height: "100%", overflowX: "auto", alignItems: "flex-start", boxSizing: "border-box" }}>
+          {Object.entries(columns).map(([colId, colJobs]) => (
+            <Column key={colId} id={colId} title={colId} count={colJobs.length}>
+              <SortableContext items={colJobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
+                {colJobs.map(j => <JobCard key={j.id} job={j} onEdit={setEditingJob} onNotes={setNotesJobId} />)}
+              </SortableContext>
+            </Column>
+          ))}
+        </div>
+        <DragOverlay>
+          {activeId && activeJob ? <JobCard job={activeJob} isOverlay /> : null}
+        </DragOverlay>
+      </DndContext>
+    );
   };
 
-  // Jobs Booked: est hours for In Progress + Input Needed
-  const bookedHrs = useMemo(()=>{
-    const relevant = filterEmp
-      ? jobs.filter(j=>(j.status==="In Progress"||j.status==="Input Needed")&&(j.allocated_to===filterEmp||j.owner===filterEmp))
-      : jobs.filter(j=>j.status==="In Progress"||j.status==="Input Needed");
-    return relevant.reduce((a,j)=>a+(j.est_hours||0),0);
-  },[jobs,filterEmp]);
+  return (
+    <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden", background: "#F7FAFC", color: COLORS.textDark, fontFamily: "sans-serif" }}>
+      {/* Sidebar */}
+      <div style={{ width: 220, background: COLORS.navy, color: "#fff", display: "flex", flexDirection: "column", borderRight: `1px solid ${COLORS.navyMid}` }}>
+        <div style={{ padding: "24px 16px", borderBottom: `1px solid ${COLORS.navyMid}` }}>
+          <div style={{ fontSize: 15, fontWeight: 800, tracking: "0.5px", color: "#fff" }}>FLEXACHEM</div>
+          <div style={{ fontSize: 10, color: COLORS.orange, fontWeight: 700, marginTop: 2, tracking: "1px" }}>WORKSHOP TRACKER</div>
+        </div>
+        
+        <div style={{ flex: 1, padding: "16px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+          <button onClick={() => setView("board")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "board" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>📋 Board View</button>
+          <button onClick={() => setView("timeline")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "timeline" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>⏱️ Schedule Timeline</button>
+          <button onClick={() => setView("list")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "list" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>⚙️ Detailed Master List</button>
+          
+          <div style={{ height: 1, background: COLORS.navyMid, margin: "12px 0" }} />
+          
+          <button onClick={() => setAllNotesOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>💬 All Recent Notes</button>
+          <button onClick={() => setLogsOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>📜 Complete History Logs</button>
+        </div>
 
-  return<><style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=Mulish:wght@300;400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}html,body,#root{height:100%;width:100%;}body{font-family:'Mulish',sans-serif;background:${COLORS.mist};}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-thumb{background:${COLORS.rule};border-radius:3px;}@keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:translateY(0);opacity:1;}}`}</style>
-    <div style={{height:"100vh",display:"flex",flexDirection:isMob?"column":"row",background:COLORS.mist}}>
-      <div style={{background:COLORS.navy,flexShrink:0,width:isMob?"100%":240,padding:isMob?"10px 12px":"16px 14px",borderRight:isMob?"none":`1px solid ${COLORS.rule}`,borderBottom:isMob?`1px solid ${COLORS.rule}`:"none",display:"flex",flexDirection:"column"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:isMob?8:14}}>
-          <div style={{background:COLORS.orange,borderRadius:6,width:isMob?30:32,height:isMob?30:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:isMob?14:16}}>⚙</span></div>
-          <div style={{flex:isMob?0:1}}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:isMob?12:14,color:"#fff",letterSpacing:-0.3}}>Flexachem</div>{!isMob&&<div style={{fontSize:8,color:COLORS.orange,fontWeight:700,letterSpacing:0.08,textTransform:"uppercase",marginTop:1}}>Tracker</div>}</div>
-          {isMob&&<div style={{marginLeft:"auto",display:"flex",gap:4,alignItems:"center"}}>{od_count>0&&<div style={{background:COLORS.red,color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:8,fontWeight:800}}>{od_count}</div>}{inp_count>0&&<div style={{background:"#F59E0B",color:"#fff",borderRadius:5,padding:"1px 6px",fontSize:8,fontWeight:800}}>⚠{inp_count}</div>}<button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{background:COLORS.orange,color:"#fff",border:"none",borderRadius:4,padding:"3px 6px",fontSize:9,fontWeight:800,cursor:"pointer"}}>＋</button></div>}
+        <div style={{ padding: 12, borderTop: `1px solid ${COLORS.navyMid}`, background: COLORS.navyMid, display: "flex", alignItems: "center", justifyContent: "between", gap: 8 }}>
+          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: "#A0AEC0", flex: 1 }}>{user.email}</div>
+          <button onClick={handleLogout} style={{ background: "transparent", border: "none", color: COLORS.orange, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Exit</button>
         </div>
-        {!isMob&&<>{od_count>0&&<div style={{background:COLORS.redLt,color:COLORS.red,border:`1px solid ${COLORS.red}`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>{od_count} overdue</div>}{inp_count>0&&<div style={{background:"#FFF8E1",color:"#78350F",border:`1px solid #F59E0B`,borderRadius:6,padding:"8px 12px",fontSize:11,fontWeight:700,marginBottom:12,textAlign:"center"}}>⚠ {inp_count} need input</div>}<button onClick={()=>{setAddOpen(true);setEditJobId(null);}} style={{width:"100%",background:COLORS.orange,color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:800,cursor:"pointer",marginBottom:16}}>＋ Add Job</button></>}
-        <div style={{display:"flex",flexDirection:"column",gap:isMob?4:6,marginBottom:isMob?8:16,flex:isMob?0:1}}>
-          {[ {key:"list",label:"📋 List"},{key:"kanban",label:"📌 Kanban"},{key:"gantt",label:"📅 Gantt"},{key:"dashboard",label:"📊 Dashboard"},{key:"employees",label:"👥 Employees"} ].map(({key,label})=>(
-            <button key={key} onClick={()=>setActiveView(key)} style={{textAlign:"left",background:activeView===key?COLORS.mist:"transparent",color:activeView===key?COLORS.navy:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:isMob?"6px 8px":"10px 12px",fontSize:isMob?10:12,fontWeight:activeView===key?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}><span style={{marginRight:isMob?4:8}}>{label.split(" ")[0]}</span>{!isMob && label}</button>
-          ))}
-          {!isMob && <button onClick={()=>setAllNotesOpen(true)} style={{textAlign:"left",background:"transparent",color:"rgba(255,255,255,0.6)",border:"none",borderRadius:6,padding:"10px 12px",fontSize:12,fontWeight:500,cursor:"pointer"}}><span style={{marginRight:8}}>💬</span>All Notes</button>}
-        </div>
-        {!isMob&&<div style={{borderTop:`1px solid rgba(255,255,255,0.1)`,paddingTop:12}}><div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:600,marginBottom:6}}>Logged in</div><div style={{fontSize:11,color:"#fff",marginBottom:8,wordBreak:"break-all"}}>{user.email}</div><button onClick={logout} style={{width:"100%",background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",border:"none",borderRadius:6,padding:"8px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Sign Out</button></div>}
       </div>
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{padding:"12px 16px",background:"#fff",borderBottom:`1px solid ${COLORS.rule}`,flexShrink:0,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{display:"flex",gap:6,flex:1,flexWrap:"wrap"}}>{["","In Progress","Input Needed","Complete"].map(s=><button key={s} onClick={()=>setFilterStatus(s)} style={{background:filterStatus===s?"#fff":COLORS.steelLt,color:filterStatus===s?COLORS.navy:COLORS.textMid,border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:filterStatus===s?700:500,cursor:"pointer",whiteSpace:"nowrap"}}>{s||"All"}</button>)}</div>
-          <select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)} style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,background:"#fff"}}><option value="">All People</option>{people.map(p=><option key={p}>{p}</option>)}</select>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." style={{border:`1px solid ${COLORS.rule}`,borderRadius:6,padding:"6px 10px",fontSize:11,width:180,background:"#fff"}} />
-          <div style={{background:COLORS.navy,color:"#fff",borderRadius:6,padding:"6px 12px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>📦 Jobs Booked: <span style={{fontFamily:"'DM Mono',monospace"}}>{bookedHrs}h</span>{filterEmp&&<span style={{opacity:0.7,fontSize:9,marginLeft:4}}>({filterEmp})</span>}</div>
-          <div style={{background:COLORS.steelLt,borderRadius:6,padding:"6px 10px",fontSize:10,color:COLORS.textMid}}>{filtered.length}/{jobs.length}</div>
+
+      {/* Main Panel */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {/* Topbar */}
+        <div style={{ background: "#fff", height: 56, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: COLORS.navy }}>
+              {view === "board" && "Workshop Floor Columns"}
+              {view === "timeline" && "Master Schedule Timeline"}
+              {view === "list" && "Detailed Assembly Registry"}
+            </h2>
+            <button onClick={() => setEditingJob({})} style={{ background: COLORS.orange, color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>+ Log New Job</button>
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <select value={filterEmp} onChange={e => setFilterEmp(e.target.value)} style={{ border: `1px solid ${COLORS.rule}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, background: "#fff" }}>
+              <option value="">All People</option>
+              {people.map(p => <option key={p}>{p}</option>)}
+            </select>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ border: `1px solid ${COLORS.rule}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, width: 180, background: "#fff" }} />
+            <div style={{ background: COLORS.navy, color: "#fff", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>📦 Jobs Booked: <span style={{ fontFamily: "monospace" }}>{bookedHrs}h</span>{filterEmp && <span style={{ opacity: 0.7, fontSize: 9, marginLeft: 4 }}>({filterEmp})</span>}</div>
+            <div style={{ background: COLORS.steelLt, borderRadius: 6, padding: "6px 10px", fontSize: 10, color: COLORS.textMid }}>{filtered.length}/{jobs.length}</div>
+          </div>
         </div>
-        <div style={{flex:1, overflow:"auto" }}>{renderContent()}</div>
+        
+        <div style={{ flex: 1, overflow: "auto" }}>{renderContent()}</div>
       </div>
     </div>
-    {(notesJobId||allNotesOpen)&&<NotesPanel job={notesJob} notes={notes} allJobs={jobs} allMode={allNotesOpen} onClose={()=>{setNotesJobId(null);setAllNotesOpen(false);}} onAddNote={addNote} user={user}/>}
-    {addOpen&&<JobModal job={editJob} onSave={saveJob} onClose={()=>{setAddOpen(false);setEditJobId(null);}} people={people}/>}
-    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
-  </>;
+    
+    {(notesJobId || allNotesOpen) && (
+      <NotesPanel job={notesJob} notes={notes} allJobs={jobs} allMode={allNotesOpen} onClose={() => { setNotesJobId(null); setAllNotesOpen(false); }} onAddNote={handleAddNote} />
+    )}
+    
+    {editingJob && (
+      <JobModal job={editingJob} onClose={() => setEditingJob(null)} onSave={handleSaveJob} people={people} />
+    )}
+    
+    <LogsModal isOpen={logsOpen} onClose={() => setLogsOpen(false)} jobs={jobs} />
+  );
+}
+
+// -------------------- Sub Components --------------------
+function Column({ id, title, count, children }) {
+  const { setNodeRef } = useSortable({ id });
+  
+  const bg = id === "Not Started" ? "#EDF2F7" : id === "In Progress" ? COLORS.blueLt : id === "Input Needed" ? COLORS.yellowLt : COLORS.greenLt;
+  const tc = id === "Not Started" ? COLORS.textDark : id === "In Progress" ? COLORS.blue : id === "Input Needed" ? COLORS.yellow : COLORS.green;
+
+  return (
+    <div style={{ background: "#F1F5F9", width: 280, borderRadius: 8, display: "flex", flexDirection: "column", maxHeight: "100%", flexShrink: 0, border: "1px solid #E2E8F0" }}>
+      <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", tracking: "0.5px", color: COLORS.navy }}>{title}</span>
+          <span style={{ background: bg, color: tc, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{count}</span>
+        </div>
+      </div>
+      <div ref={setNodeRef} style={{ flex: 1, padding: "0 10px 10px 10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, minHeight: 150 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function JobCard({ job, onEdit, onNotes, isOverlay }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
+  
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+    background: "#fff",
+    padding: 12,
+    borderRadius: 6,
+    boxShadow: isOverlay ? "0 10px 20px rgba(0,0,0,0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
+    borderLeft: `4px solid ${job.type === "Valve Assembly" ? COLORS.orange : job.type === "Pump Assembly" ? COLORS.blue : job.type === "Valve Overhaul" ? COLORS.purple : job.type === "Pump Overhaul" ? COLORS.yellow : COLORS.steel}`,
+    cursor: "grab",
+    boxSizing: "border-box"
+  };
+
+  let notePreview = "";
+  if (job.notes) {
+    try {
+      const arr = typeof job.notes === "string" ? JSON.parse(job.notes) : job.notes;
+      if (Array.isArray(arr) && arr.length > 0) notePreview = arr[0].txt;
+    } catch(e){}
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.textMid }}>{job.cust || "No Customer"}</span>
+        <span style={{ fontSize: 10, background: COLORS.steelLt, color: COLORS.textMid, padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }}>{job.so || "No SO"}</span>
+      </div>
+      
+      <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navy, marginBottom: 8 }}>
+        {job.asm} <span style={{ fontWeight: 400, color: COLORS.textMid, fontSize: 11 }}>- {job.type}</span>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, borderTop: `1px solid ${COLORS.rule}`, paddingTop: 8 }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <span style={{ fontSize: 10, background: COLORS.orangeLt, color: COLORS.orange, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>👤 {job.alloc || "Unassigned"}</span>
+          {job.hrs && <span style={{ fontSize: 10, background: "#EDF2F7", color: COLORS.textMid, padding: "2px 6px", borderRadius: 4 }}>⏱️ {job.hrs}h</span>}
+        </div>
+        
+        <div style={{ display: "flex", gap: 4 }}>
+          <button onPointerDown={e => { e.stopPropagation(); onNotes(job.id); }} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, padding: 2 }}>💬</button>
+          <button onPointerDown={e => { e.stopPropagation(); onEdit(job); }} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, padding: 2 }}>✏️</button>
+        </div>
+      </div>
+      
+      {notePreview && (
+        <div style={{ marginTop: 6, fontSize: 10, color: COLORS.textMid, background: "#F7FAFC", padding: "4px 6px", borderRadius: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          Latest: "{notePreview}"
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineView({ jobs }) {
+  return (
+    <div style={{ padding: 20, background: "#fff", margin: 16, borderRadius: 8, border: `1px solid ${COLORS.rule}` }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy, marginBottom: 12 }}>Active Schedule Layout</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {jobs.map(j => (
+          <div key={j.id} style={{ display: "flex", alignItems: "center", padding: 10, background: "#F8FAFC", borderRadius: 6, border: `1px solid ${COLORS.rule}`, fontSize: 12 }}>
+            <div style={{ width: 120, fontWeight: 700, color: COLORS.navy }}>{j.cust}</div>
+            <div style={{ width: 100, fontFamily: "monospace" }}>{j.so}</div>
+            <div style={{ width: 120 }}>{j.asm}</div>
+            <div style={{ flex: 1, color: COLORS.textMid }}>{j.type}</div>
+            <div style={{ width: 100, fontWeight: 600, color: COLORS.orange }}>{j.alloc || "Unassigned"}</div>
+            <div style={{ width: 120, color: COLORS.textMid }}>Target: {j.due || "TBA"}</div>
+            <div style={{ width: 100, textAlign: "right", fontWeight: 700 }}>{j.hrs || 0} hrs</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ListView({ jobs, onEdit, onNotes, onDelete }) {
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ background: "#fff", borderRadius: 8, border: `1px solid ${COLORS.rule}`, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: "#F8FAFC", borderBottom: `1px solid ${COLORS.rule}`, color: COLORS.textMid, fontWeight: 600 }}>
+              <th style={{ padding: 12 }}>Assembly ID</th>
+              <th style={{ padding: 12 }}>Sales Order</th>
+              <th style={{ padding: 12 }}>Customer</th>
+              <th style={{ padding: 12 }}>Job Classification</th>
+              <th style={{ padding: 12 }}>Owner</th>
+              <th style={{ padding: 12 }}>Allocated To</th>
+              <th style={{ padding: 12 }}>Est. Hrs</th>
+              <th style={{ padding: 12 }}>Target Completion</th>
+              <th style={{ padding: 12 }}>Status</th>
+              <th style={{ padding: 12, textAlign: "right" }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.map(j => (
+              <tr key={j.id} style={{ borderBottom: `1px solid ${COLORS.rule}`, color: COLORS.textDark }}>
+                <td style={{ padding: 12, fontWeight: 700 }}>{j.asm}</td>
+                <td style={{ padding: 12, fontFamily: "monospace" }}>{j.so}</td>
+                <td style={{ padding: 12 }}>{j.cust}</td>
+                <td style={{ padding: 12 }}>{j.type}</td>
+                <td style={{ padding: 12 }}>{j.owner || "-"}</td>
+                <td style={{ padding: 12, fontWeight: 600, color: COLORS.orange }}>{j.alloc || "Unassigned"}</td>
+                <td style={{ padding: 12 }}>{j.hrs || 0}h</td>
+                <td style={{ padding: 12 }}>{j.due || "TBA"}</td>
+                <td style={{ padding: 12 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: j.status === "Complete" ? COLORS.greenLt : j.status === "In Progress" ? COLORS.blueLt : j.status === "Input Needed" ? COLORS.yellowLt : "#EDF2F7", color: j.status === "Complete" ? COLORS.green : j.status === "In Progress" ? COLORS.blue : j.status === "Input Needed" ? COLORS.yellow : COLORS.textDark }}>
+                    {j.status}
+                  </span>
+                </td>
+                <td style={{ padding: 12, textAlign: "right" }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button onClick={() => onNotes(j.id)} style={{ background: "none", border: "none", cursor: "pointer" }}>💬</button>
+                    <button onClick={() => onEdit(j)} style={{ background: "none", border: "none", cursor: "pointer" }}>✏️</button>
+                    <button onClick={() => onDelete(j.id)} style={{ background: "none", border: "none", cursor: "pointer" }}>🗑️</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function JobModal({ job, onClose, onSave, people }) {
+  const [asm, setAsm] = useState(job.asm || "");
+  const [so, setSo] = useState(job.so || "");
+  const [cust, setCust] = useState(job.cust || "");
+  const [type, setType] = useState(job.type || "Valve Assembly");
+  const [owner, setOwner] = useState(job.owner || "");
+  const [alloc, setAlloc] = useState(job.alloc || "");
+  const [due, setDue] = useState(job.due || "");
+  const [hrs, setHrs] = useState(job.hrs || "");
+  const [bus, setBus] = useState(job.bus || "Industrial");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({ asm, so, cust, type, owner, alloc, due, hrs, bus });
+  };
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, fontFamily: "sans-serif" }}>
+      <form onSubmit={handleSubmit} style={{ background: "#fff", padding: 24, borderRadius: 8, width: 400, boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+        <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy, fontSize: 16 }}>{job.id ? "Modify Production Entry" : "Record New Assembly Job"}</h3>
+        
+        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Assembly No / Tag</label>
+            <input value={asm} onChange={e => setAsm(e.target.value)} required style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Sales Order (SO)</label>
+            <input value={so} onChange={e => setSo(e.target.value)} required style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Customer Name</label>
+          <input value={cust} onChange={e => setCust(e.target.value)} required style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
+        </div>
+
+        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Classification</label>
+            <select value={type} onChange={e => setType(e.target.value)} style={{ width: "100%", padding: 6 }}>
+              {JOB_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Business Stream</label>
+            <select value={bus} onChange={e => setBus(e.target.value)} style={{ width: "100%", padding: 6 }}>
+              {BUS.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Project Owner</label>
+            <input value={owner} onChange={e => setOwner(e.target.value)} style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Allocated Fitter</label>
+            <select value={alloc} onChange={e => setAlloc(e.target.value)} style={{ width: "100%", padding: 6 }}>
+              <option value="">Unassigned</option>
+              {people.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Target Completion</label>
+            <input type="date" value={due} onChange={e => setDue(e.target.value)} style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Est. Hours</label>
+            <input type="number" step="0.5" value={hrs} onChange={e => setHrs(e.target.value)} style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button type="button" onClick={onClose} style={{ padding: "6px 12px", background: "#EDF2F7", border: "none", borderRadius: 4, cursor: "pointer" }}>Cancel</button>
+          <button type="submit" style={{ padding: "6px 12px", background: COLORS.orange, color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}>Save Record</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function NotesPanel({ job, notes, allJobs, allMode, onClose, onAddNote }) {
+  const [txt, setTxt] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!txt.trim()) return;
+    onAddNote(allMode ? allJobs[0]?.id : job.id, txt.trim());
+    setTxt("");
+  };
+
+  return (
+    <div style={{ position: "fixed", top: 0, right: 0, width: 360, bottom: 0, background: "#fff", boxShadow: "-4px 0 20px rgba(0,0,0,0.1)", zIndex: 1000, display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
+      <div style={{ padding: 16, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.navy, color: "#fff" }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{allMode ? "Central Update Thread" : `Job Discussion logs`}</div>
+          <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{allMode ? "Viewing comments across all workshop entries" : `${job?.asm} - ${job?.cust}`}</div>
+        </div>
+        <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#fff", fontSize: 16, cursor: "pointer" }}>✕</button>
+      </div>
+
+      <div style={{ flex: 1, padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, background: "#F7FAFC" }}>
+        {notes.length === 0 ? (
+          <div style={{ textAlignment: "center", color: COLORS.textMid, fontSize: 11, padding: 20 }}>No logs recorded yet.</div>
+        ) : (
+          notes.map((n, i) => (
+            <div key={i} style={{ background: "#fff", padding: 10, borderRadius: 6, border: `1px solid ${COLORS.rule}`, boxShadow: "0 1px 2px rgba(0,0,0,0.02)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: COLORS.textMid, marginBottom: 4, fontWeight: 600 }}>
+                <span>👤 {n.by}</span>
+                <span>⏱️ {n.at}</span>
+              </div>
+              {allMode && <div style={{ fontSize: 9, background: COLORS.steelLt, color: COLORS.navy, padding: "2px 4px", borderRadius: 4, display: "inline-block", marginBottom: 4 }}>{n.jobCust} ({n.jobAsm})</div>}
+              <div style={{ fontSize: 12, color: COLORS.textDark, lineHeight: "1.4" }}>{n.txt}</div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} style={{ padding: 12, borderTop: `1px solid ${COLORS.rule}`, background: "#fff" }}>
+        <input value={txt} onChange={e => setTxt(e.target.value)} placeholder={allMode ? "Select a specific job on the board to add comments..." : "Type production update details here..."} disabled={allMode} style={{ width: "100%", padding: 8, borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 12, boxSizing: "border-box", marginBottom: 6 }} />
+        <button type="submit" disabled={allMode || !txt.trim()} style={{ width: "100%", background: COLORS.navy, color: "#fff", padding: 6, border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: (!txt.trim() || allMode) ? 0.5 : 1 }}>
+          Post Internal Note
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function LogsModal({ isOpen, onClose, jobs }) {
+  if (!isOpen) return null;
+
+  let allLogs = [];
+  jobs.forEach(j => {
+    if (j.notes) {
+      try {
+        const parsed = typeof j.notes === "string" ? JSON.parse(j.notes) : j.notes;
+        if (Array.isArray(parsed)) {
+          parsed.forEach(n => {
+            allLogs.push({ ...n, jobAsm: j.asm, jobCust: j.cust, so: j.so });
+          });
+        }
+      } catch(e){}
+    }
+  });
+  
+  allLogs.sort((a,b) => new Date(b.at) - new Date(a.at));
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, fontFamily: "sans-serif" }}>
+      <div style={{ background: "#fff", borderRadius: 8, width: 650, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.2)" }}>
+        <div style={{ padding: 16, background: COLORS.navy, color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ margin: 0, fontSize: 15 }}>Complete Production Audit Trail</h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", fontSize: 16, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ flex: 1, padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, background: "#F7FAFC" }}>
+          {allLogs.length === 0 ? (
+            <div style={{ textAlign: "center", color: COLORS.textMid, fontSize: 12, padding: 20 }}>No logs found in registry.</div>
+          ) : (
+            allLogs.map((l, idx) => (
+              <div key={idx} style={{ background: "#fff", padding: 12, borderRadius: 6, border: `1px solid ${COLORS.rule}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.navy, marginBottom: 4 }}>
+                    {l.jobCust} <span style={{ fontWeight: 400, color: COLORS.textMid }}>({l.jobAsm} / SO: {l.so})</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: COLORS.textDark }}>{l.txt}</div>
+                </div>
+                <div style={{ textAlignment: "right", minWidth: 110, fontSize: 10, color: COLORS.textMid }}>
+                  <div style={{ fontWeight: 600 }}>👤 {l.by}</div>
+                  <div style={{ fontSize: 9, marginTop: 2 }}>⏱️ {l.at}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
