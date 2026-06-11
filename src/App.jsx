@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import {
   DndContext,
-  closestCenter,
   DragOverlay,
+  PointerSensor,
+  closestCorners,
+  useDroppable,
   useSensor,
   useSensors,
-  PointerSensor,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -14,652 +16,1265 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// -------------------- Constants --------------------
-const JOB_TYPES = ["Valve Assembly","Pump Assembly","Valve Overhaul","Pump Overhaul","Mechanical Seal Refurb","Testing","Site Visit"];
-const DEFAULT_PEOPLE = ["Darragh","Shauna","Cathal","Ross","Dave","Colin"];
-const BUS = ["Pharma","Industrial","Engineering","Mining","Other"];
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_TABLE = import.meta.env.VITE_SUPABASE_JOBS_TABLE || "jobs";
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-const COLORS = {
-  navy:"#0B1F3A", navyMid:"#122847", orange:"#E8601A", orangeMid:"#F9845A", orangeLt:"#FFF0E8",
-  steel:"#4A6380", steelLt:"#EDF2F7", slate:"#2D4A6E", textDark:"#1A202C", textMid:"#4A5568",
-  rule:"#E2E8F0", green:"#2F855A", greenLt:"#E6FFFA", red:"#C53030", redLt:"#FFF5F5",
-  blue:"#2B6CB0", blueLt:"#EBF8FF", yellow:"#B7791F", yellowLt:"#FEFCBF", purple:"#6B46C1", purpleLt:"#F3E8FF"
+const STATUS_ORDER = ["Not Started", "In Progress", "Input Needed", "Complete"];
+const STATUS_META = {
+  "Not Started": { label: "Not Started", short: "Queued", tone: "neutral", icon: "◌" },
+  "In Progress": { label: "In Progress", short: "Active", tone: "blue", icon: "↗" },
+  "Input Needed": { label: "Input Needed", short: "Blocked", tone: "amber", icon: "!" },
+  Complete: { label: "Complete", short: "Done", tone: "green", icon: "✓" },
+};
+const JOB_TYPES = ["Valve Assembly", "Pump Assembly", "Valve Overhaul", "Pump Overhaul", "Mechanical Seal Refurb", "Testing", "Site Visit"];
+const PEOPLE = ["Darragh", "Shauna", "Cathal", "Ross", "Dave", "Colin"];
+const BUSINESS_UNITS = ["Pharma", "Industrial", "Engineering", "Mining", "Other"];
+const PRIORITIES = ["Low", "Normal", "High", "Critical"];
+const STORAGE_KEY = "flexachem_workshop_jobs_v2";
+const USER_KEY = "flexachem_workshop_user_v2";
+
+const today = () => new Date();
+const toISODate = (date) => {
+  const d = new Date(date);
+  d.setHours(12, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+};
+const offsetDate = (days) => {
+  const d = today();
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
 };
 
-// ---------- Seed Demo Data ----------
 const SEED_JOBS = [
-  { id: 1, asm: "A007529", so: "296966", cust: "Busch Ire", type: "Valve Overhaul", owner: "Darragh", alloc: "Darragh", due: "2025-11-28", hrs: 6, status: "Complete", bus: "Industrial", notes: JSON.stringify([{ at: "2025-11-28 09:14", by: "Darragh", txt: "Completed ahead of schedule. Passed all tests." }]) },
-  { id: 2, asm: "A007527", so: "296966", cust: "Busch Ire", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-11-28", hrs: 2, status: "Complete", bus: "Industrial", notes: "[]" },
-  { id: 3, asm: "A007445", so: "296987", cust: "Aughinish", type: "Pump Overhaul", owner: "Darragh", alloc: "Darragh", due: "2025-11-28", hrs: 4, status: "Complete", bus: "Mining", notes: "[]" },
-  { id: 4, asm: "A007582", so: "297516", cust: "BMD", type: "Mechanical Seal Refurb", owner: "Shauna", alloc: "Shauna", due: "2026-01-02", hrs: 6, status: "In Progress", bus: "Pharma", notes: JSON.stringify([{ at: "2025-12-02 10:20", by: "Shauna", txt: "Seal lapping complete. Awaiting test bench slot." }]) },
-  { id: 5, asm: "A007583", so: "297516", cust: "BMD", type: "Mechanical Seal Refurb", owner: "Shauna", alloc: "Shauna", due: "2026-01-02", hrs: 3, status: "In Progress", bus: "Pharma", notes: "[]" },
-  { id: 6, asm: "A007584", so: "297516", cust: "BMD", type: "Testing", owner: "Shauna", alloc: "Shauna", due: "2026-01-02", hrs: 1, status: "Input Needed", bus: "Pharma", notes: JSON.stringify([{ at: "2025-12-03 16:00", by: "Shauna", txt: "Test specification not yet received from BMD." }]) },
-  { id: 7, asm: "A007585", so: "297516", cust: "BMD", type: "Testing", owner: "Shauna", alloc: "Shauna", due: "2026-01-02", hrs: 1, status: "Input Needed", bus: "Pharma", notes: "[]" },
-  { id: 8, asm: "A007563", so: "296767", cust: "MSD", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2026-01-07", hrs: 18, status: "In Progress", bus: "Pharma", notes: JSON.stringify([{ at: "2025-12-01 13:00", by: "Darragh", txt: "Valve bodies machined. Actuator installation next." }]) },
-  { id: 9, asm: "A007564", so: "296767", cust: "MSD", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2026-01-07", hrs: 7, status: "In Progress", bus: "Pharma", notes: "[]" },
-  { id: 10, asm: "A007528", so: "296966", cust: "Busch Ire", type: "Pump Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-11-28", hrs: 10, status: "Complete", bus: "Industrial", notes: "[]" },
-  { id: 11, asm: "A007471", so: "296754", cust: "BCD Engineering", type: "Valve Overhaul", owner: "Shauna", alloc: "Shauna", due: "2025-11-28", hrs: 4, status: "Complete", bus: "Engineering", notes: "[]" },
-  { id: 12, asm: "A07427", so: "297068", cust: "European Refresh", type: "Valve Assembly", owner: "Shauna", alloc: "Shauna", due: "2025-12-05", hrs: 2, status: "In Progress", bus: "Industrial", notes: "[]" },
-  { id: 13, asm: "A007587", so: "297522", cust: "Eli Lilly", type: "Site Visit", owner: "Cathal", alloc: "Cathal", due: "2025-11-28", hrs: 1, status: "Complete", bus: "Pharma", notes: "[]" },
-  { id: 14, asm: "A007595", so: "297527", cust: "Jacobs", type: "Pump Overhaul", owner: "Cathal", alloc: "Cathal", due: "2025-11-28", hrs: 1, status: "Complete", bus: "Engineering", notes: "[]" },
-  { id: 15, asm: "A007613", so: "296819", cust: "MSD Ballydine", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-12-05", hrs: 2, status: "In Progress", bus: "Pharma", notes: "[]" },
-  { id: 16, asm: "A007615", so: "296819", cust: "MSD Ballydine", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-12-05", hrs: 2, status: "In Progress", bus: "Pharma", notes: "[]" },
-  { id: 17, asm: "A007616", so: "297155", cust: "MSD Ballydine", type: "Valve Overhaul", owner: "Darragh", alloc: "Darragh", due: "2026-01-15", hrs: 1, status: "In Progress", bus: "Pharma", notes: "[]" },
-  { id: 18, asm: "A007618", so: "297155", cust: "MSD Ballydine", type: "Pump Overhaul", owner: "Darragh", alloc: "Dave", due: "2026-01-15", hrs: 4, status: "Input Needed", bus: "Pharma", notes: JSON.stringify([{ at: "2025-12-01 14:00", by: "Dave", txt: "Customer has not confirmed scope." }]) },
-  { id: 19, asm: "A007623", so: "297080", cust: "EES", type: "Mechanical Seal Refurb", owner: "Ross", alloc: "Ross", due: "2025-12-05", hrs: 0.5, status: "Complete", bus: "Industrial", notes: "[]" },
-  { id: 20, asm: "A007405", so: "296889", cust: "Eli Lilly", type: "Valve Overhaul", owner: "Darragh", alloc: "Colin", due: "2025-12-12", hrs: 6, status: "In Progress", bus: "Pharma", notes: "[]" },
-  { id: 21, asm: "SITE-001", so: "TBA", cust: "Aughinish", type: "Site Visit", owner: "Darragh", alloc: "Colin", due: "2026-04-01", hrs: 8, status: "In Progress", bus: "Mining", notes: "[]" },
-  { id: 22, asm: "SITE-002", so: "TBA", cust: "Astrazeneca", type: "Site Visit", owner: "Darragh", alloc: "Dave", due: "2026-01-01", hrs: 16, status: "In Progress", bus: "Pharma", notes: "[]" },
-  { id: 23, asm: "SITE-003", so: "TBA", cust: "MSD Balline", type: "Site Visit", owner: "Darragh", alloc: "Dave", due: "2025-12-31", hrs: 4, status: "Input Needed", bus: "Pharma", notes: "[]" },
-  { id: 24, asm: "SITE-004", so: "TBA", cust: "Eli Lilly Limerick", type: "Site Visit", owner: "Cathal", alloc: "Colin", due: "2026-01-15", hrs: 4, status: "In Progress", bus: "Pharma", notes: "[]" },
-  { id: 25, asm: "A007509", so: "295768", cust: "Astrazeneca", type: "Pump Assembly", owner: "Darragh", alloc: "Darragh", due: "2025-11-14", hrs: 2, status: "Complete", bus: "Pharma", notes: "[]" }
+  { id: "demo-1", asm: "A007563", so: "296767", cust: "MSD", type: "Valve Assembly", owner: "Darragh", alloc: "Darragh", start: offsetDate(-2), due: offsetDate(3), hrs: 18, status: "In Progress", bus: "Pharma", priority: "High", details: "Actuator installation and pressure test", notes: [{ at: new Date().toISOString(), by: "Darragh", txt: "Valve bodies machined. Actuator installation next.", status: "In Progress" }] },
+  { id: "demo-2", asm: "A007584", so: "297516", cust: "BMD", type: "Testing", owner: "Shauna", alloc: "Shauna", start: offsetDate(-4), due: offsetDate(-1), hrs: 3, status: "Input Needed", bus: "Pharma", priority: "Critical", details: "Test cert pending", notes: [{ at: new Date(Date.now() - 86400000).toISOString(), by: "Shauna", txt: "Test specification not yet received from BMD. Three hours of bench time, but waiting on customer input.", status: "Input Needed" }] },
+  { id: "demo-3", asm: "A007528", so: "296966", cust: "Busch Ire", type: "Pump Assembly", owner: "Darragh", alloc: "Darragh", start: offsetDate(-7), due: offsetDate(-2), hrs: 10, status: "Complete", bus: "Industrial", priority: "Normal", details: "Final inspection complete", notes: [{ at: new Date(Date.now() - 172800000).toISOString(), by: "Darragh", txt: "Completed ahead of schedule. Passed all tests.", status: "Complete" }] },
+  { id: "demo-4", asm: "A007445", so: "296987", cust: "Aughinish", type: "Pump Overhaul", owner: "Darragh", alloc: "Colin", start: offsetDate(1), due: offsetDate(7), hrs: 4, status: "Not Started", bus: "Mining", priority: "Normal", details: "Awaiting strip-down slot", notes: [] },
+  { id: "demo-5", asm: "A007582", so: "297516", cust: "BMD", type: "Mechanical Seal Refurb", owner: "Shauna", alloc: "Shauna", start: offsetDate(-1), due: offsetDate(5), hrs: 6, status: "In Progress", bus: "Pharma", priority: "High", details: "Seal lapping complete; test bench next", notes: [{ at: new Date(Date.now() - 3600000 * 6).toISOString(), by: "Shauna", txt: "Seal lapping complete. Awaiting test bench slot.", status: "In Progress" }] },
+  { id: "demo-6", asm: "A007471", so: "296754", cust: "BCD Engineering", type: "Valve Overhaul", owner: "Shauna", alloc: "Dave", start: offsetDate(0), due: offsetDate(2), hrs: 4, status: "In Progress", bus: "Engineering", priority: "Normal", details: "Strip, clean, rebuild", notes: [] },
+  { id: "demo-7", asm: "A07427", so: "297068", cust: "European Refresh", type: "Valve Assembly", owner: "Shauna", alloc: "Ross", start: offsetDate(2), due: offsetDate(11), hrs: 2, status: "Not Started", bus: "Industrial", priority: "Low", details: "Small job, wide delivery window", notes: [] },
+  { id: "demo-8", asm: "SITE-004", so: "TBA", cust: "Eli Lilly Limerick", type: "Site Visit", owner: "Cathal", alloc: "Colin", start: offsetDate(6), due: offsetDate(12), hrs: 4, status: "Not Started", bus: "Pharma", priority: "High", details: "Site support visit", notes: [] },
+  { id: "demo-9", asm: "A007618", so: "297155", cust: "MSD Ballydine", type: "Pump Overhaul", owner: "Darragh", alloc: "Dave", start: offsetDate(-9), due: offsetDate(1), hrs: 4, status: "Input Needed", bus: "Pharma", priority: "Critical", details: "Customer scope confirmation missing", notes: [{ at: new Date(Date.now() - 3600000 * 30).toISOString(), by: "Dave", txt: "Customer has not confirmed scope. No more workshop time should be booked until clarified.", status: "Input Needed" }] },
+  { id: "demo-10", asm: "A007623", so: "297080", cust: "EES", type: "Mechanical Seal Refurb", owner: "Ross", alloc: "Ross", start: offsetDate(-1), due: offsetDate(0), hrs: 0.5, status: "Complete", bus: "Industrial", priority: "Normal", details: "Collected by customer", notes: [{ at: new Date(Date.now() - 3600000 * 3).toISOString(), by: "Ross", txt: "Customer collected. Close out complete.", status: "Complete" }] },
+  { id: "demo-11", asm: "SITE-001", so: "TBA", cust: "Aughinish", type: "Site Visit", owner: "Darragh", alloc: "Colin", start: offsetDate(14), due: offsetDate(21), hrs: 8, status: "Not Started", bus: "Mining", priority: "High", details: "Planned maintenance support", notes: [] },
+  { id: "demo-12", asm: "A007405", so: "296889", cust: "Eli Lilly", type: "Valve Overhaul", owner: "Darragh", alloc: "Colin", start: offsetDate(-3), due: offsetDate(4), hrs: 6, status: "In Progress", bus: "Pharma", priority: "Normal", details: "Rebuild kit available", notes: [] },
 ];
 
-// -------------------- Demo Local Storage Helpers --------------------
-const loadJobs = () => {
-  const stored = localStorage.getItem("demo_jobs");
-  if (stored) return JSON.parse(stored);
-  return SEED_JOBS;
-};
-const saveJobs = (jobs) => {
-  localStorage.setItem("demo_jobs", JSON.stringify(jobs));
-};
+function parseISODate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "number") {
+    const base = new Date(Date.UTC(1899, 11, 30));
+    base.setUTCDate(base.getUTCDate() + value);
+    return new Date(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 12);
+  }
+  const text = String(value).trim();
+  if (!text) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+    const [y, m, d] = text.slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, d, 12);
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
-// -------------------- Main App --------------------
-export default function App() {
-  const [jobs, setJobs] = useState(loadJobs);
-  const [loading, setLoading] = useState(false);
-  const [view, setView] = useState("board"); // board, timeline, list
-  const [search, setSearch] = useState("");
-  const [filterEmp, setFilterEmp] = useState("");
-  const [editingJob, setEditingJob] = useState(null);
-  const [notesJobId, setNotesJobId] = useState(null);
-  const [allNotesOpen, setAllNotesOpen] = useState(false);
-  const [logsOpen, setLogsOpen] = useState(false);
+function asISO(value) {
+  const parsed = parseISODate(value);
+  return parsed ? toISODate(parsed) : "";
+}
 
-  // Auth States (demo: any email/password works)
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPass, setLoginPass] = useState("");
-  const [authError, setAuthError] = useState("");
+function daysBetween(a, b) {
+  const start = parseISODate(a);
+  const end = parseISODate(b);
+  if (!start || !end) return 0;
+  const ms = end.setHours(12, 0, 0, 0) - start.setHours(12, 0, 0, 0);
+  return Math.round(ms / 86400000);
+}
 
-  // Drag State
-  const [activeId, setActiveId] = useState(null);
+function daysUntil(value) {
+  const due = parseISODate(value);
+  if (!due) return null;
+  const now = today();
+  now.setHours(12, 0, 0, 0);
+  return Math.round((due.setHours(12, 0, 0, 0) - now.getTime()) / 86400000);
+}
 
-  const sensors = useSensors(useSensor(PointerSensor));
+function formatDate(value, options = {}) {
+  const parsed = parseISODate(value);
+  if (!parsed) return "TBA";
+  return parsed.toLocaleDateString("en-IE", { day: "2-digit", month: "short", ...options });
+}
 
-  // Persist jobs to localStorage whenever they change
+function formatDateTime(value) {
+  const parsed = parseISODate(value);
+  if (!parsed) return "Just now";
+  return parsed.toLocaleString("en-IE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function parseNotes(notes) {
+  if (!notes) return [];
+  if (Array.isArray(notes)) return notes.filter(Boolean);
+  if (typeof notes === "string") {
+    try {
+      const parsed = JSON.parse(notes);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch {
+      return notes.trim() ? [{ at: new Date().toISOString(), by: "System", txt: notes.trim() }] : [];
+    }
+  }
+  return [];
+}
+
+function normalizeStatus(status) {
+  const found = STATUS_ORDER.find((s) => s.toLowerCase() === String(status || "").toLowerCase());
+  return found || "Not Started";
+}
+
+function normalizeJob(row) {
+  const notes = parseNotes(row.notes || row.updates || row.comments);
+  const due = asISO(row.due || row.due_date || row.target_completion || row.target_date);
+  const start = asISO(row.start || row.start_date || row.to_be_done || row.scheduled_start) || (due ? asISO(offsetDate(-Math.max(0, Math.ceil(Number(row.hrs || row.hours || 0) / 8)))) : "");
+  return {
+    id: row.id || crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+    asm: row.asm || row.assembly_no || row.assembly || row.tag || "",
+    so: row.so || row.sales_order || row.sales_order_no || "",
+    cust: row.cust || row.customer || row.customer_name || "",
+    type: row.type || row.job_type || row.classification || JOB_TYPES[0],
+    owner: row.owner || row.project_owner || row.contact || "",
+    alloc: row.alloc || row.employee || row.allocated_to || row.assignee || "Unassigned",
+    start,
+    due,
+    hrs: Number(row.hrs ?? row.hours ?? row.estimated_hours ?? row.hours_required ?? 0) || 0,
+    actualHrs: Number(row.actualHrs ?? row.actual_hours ?? 0) || 0,
+    status: normalizeStatus(row.status),
+    bus: row.bus || row.business_unit || row.business_stream || "Other",
+    priority: row.priority || "Normal",
+    details: row.details || row.description || row.work_order || "",
+    notes,
+    createdAt: row.createdAt || row.created_at || new Date().toISOString(),
+    updatedAt: row.updatedAt || row.updated_at || notes[0]?.at || new Date().toISOString(),
+  };
+}
+
+function toDbPayload(job) {
+  return {
+    asm: job.asm,
+    so: job.so,
+    cust: job.cust,
+    type: job.type,
+    owner: job.owner,
+    alloc: job.alloc,
+    start: job.start || null,
+    due: job.due || null,
+    hrs: Number(job.hrs) || 0,
+    actual_hours: Number(job.actualHrs) || 0,
+    status: job.status,
+    bus: job.bus,
+    priority: job.priority,
+    details: job.details,
+    notes: job.notes,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function loadStoredJobs() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored).map(normalizeJob) : SEED_JOBS.map(normalizeJob);
+  } catch {
+    return SEED_JOBS.map(normalizeJob);
+  }
+}
+
+function saveStoredJobs(jobs) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
+  } catch {
+    // Ignore storage quota/privacy errors.
+  }
+}
+
+function getInitialUser() {
+  try {
+    return JSON.parse(localStorage.getItem(USER_KEY)) || null;
+  } catch {
+    return null;
+  }
+}
+
+function makeGroups(items, keyGetter) {
+  return items.reduce((acc, item) => {
+    const key = keyGetter(item) || "Unassigned";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+}
+
+function jobCalendarSpan(job) {
+  if (!job.start || !job.due) return Math.max(1, Math.ceil((Number(job.hrs) || 1) / 8));
+  return Math.max(1, daysBetween(job.start, job.due) + 1);
+}
+
+function riskScore(job) {
+  if (job.status === "Complete") return 0;
+  const due = daysUntil(job.due);
+  const blocked = job.status === "Input Needed" ? 25 : 0;
+  const priority = job.priority === "Critical" ? 25 : job.priority === "High" ? 12 : 0;
+  const dueRisk = due === null ? 8 : due < 0 ? 40 + Math.min(20, Math.abs(due) * 2) : due <= 2 ? 28 : due <= 7 ? 14 : 0;
+  return dueRisk + blocked + priority;
+}
+
+function dueBucket(job) {
+  if (job.status === "Complete") return "Complete";
+  const delta = daysUntil(job.due);
+  if (delta === null) return "No due date";
+  if (delta < 0) return "Overdue";
+  if (delta === 0) return "Due today";
+  if (delta <= 7) return "Next 7 days";
+  if (delta <= 30) return "Next 30 days";
+  return "Later";
+}
+
+function useWorkshopData() {
+  const [jobs, setJobs] = useState(loadStoredJobs);
+  const [loading, setLoading] = useState(Boolean(supabase));
+  const [syncState, setSyncState] = useState(supabase ? "Connecting to Supabase…" : "Local demo mode");
+
   useEffect(() => {
-    saveJobs(jobs);
+    let cancelled = false;
+    async function fetchJobs() {
+      if (!supabase) return;
+      setLoading(true);
+      const { data, error } = await supabase.from(SUPABASE_TABLE).select("*").order("due", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        setSyncState(`Local fallback — Supabase read failed: ${error.message}`);
+      } else if (Array.isArray(data) && data.length) {
+        setJobs(data.map(normalizeJob));
+        setSyncState(`Live Supabase: ${SUPABASE_TABLE}`);
+      } else {
+        setSyncState(`Live Supabase connected — no rows in ${SUPABASE_TABLE}; showing seeded layout`);
+      }
+      setLoading(false);
+    }
+    fetchJobs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    saveStoredJobs(jobs);
   }, [jobs]);
 
-  const filtered = useMemo(() => {
-    return jobs.filter(j => {
-      const searchText = (j.asm + j.so + j.cust + j.type + j.alloc).toLowerCase();
-      const matchSearch = searchText.includes(search.toLowerCase());
-      const matchEmp = !filterEmp || j.alloc === filterEmp;
-      return matchSearch && matchEmp;
-    });
-  }, [jobs, search, filterEmp]);
+  const patchJob = useCallback(async (id, patch) => {
+    const updatedAt = new Date().toISOString();
+    let nextJob = null;
+    setJobs((prev) => prev.map((job) => {
+      if (job.id !== id) return job;
+      nextJob = normalizeJob({ ...job, ...patch, updatedAt });
+      return nextJob;
+    }));
+    if (supabase && nextJob) {
+      const { error } = await supabase.from(SUPABASE_TABLE).update(toDbPayload(nextJob)).eq("id", id);
+      setSyncState(error ? `Local change saved — Supabase update failed: ${error.message}` : "Synced just now");
+    }
+  }, []);
 
-  const bookedHrs = useMemo(() => {
-    return filtered.reduce((sum, j) => sum + (parseFloat(j.hrs) || 0), 0);
-  }, [filtered]);
+  const addJob = useCallback(async (fields) => {
+    const localJob = normalizeJob({ ...fields, id: crypto.randomUUID?.() || `job-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: [] });
+    setJobs((prev) => [localJob, ...prev]);
+    if (supabase) {
+      const { data, error } = await supabase.from(SUPABASE_TABLE).insert(toDbPayload(localJob)).select("*").single();
+      if (error) {
+        setSyncState(`Local job added — Supabase insert failed: ${error.message}`);
+      } else if (data) {
+        const savedJob = normalizeJob(data);
+        setJobs((prev) => prev.map((job) => (job.id === localJob.id ? savedJob : job)));
+        setSyncState("Synced just now");
+      }
+    }
+  }, []);
+
+  const deleteJob = useCallback(async (id) => {
+    setJobs((prev) => prev.filter((job) => job.id !== id));
+    if (supabase) {
+      const { error } = await supabase.from(SUPABASE_TABLE).delete().eq("id", id);
+      setSyncState(error ? `Local delete complete — Supabase delete failed: ${error.message}` : "Synced just now");
+    }
+  }, []);
+
+  const addNote = useCallback(async (id, noteText, nextStatus, by) => {
+    const current = jobs.find((job) => job.id === id);
+    if (!current || !noteText.trim()) return;
+    const note = { at: new Date().toISOString(), by: by || "Workshop", txt: noteText.trim(), status: nextStatus || current.status };
+    const patch = {
+      notes: [note, ...parseNotes(current.notes)],
+      status: nextStatus || current.status,
+      updatedAt: note.at,
+    };
+    await patchJob(id, patch);
+  }, [jobs, patchJob]);
+
+  const saveJob = useCallback(async (jobId, fields) => {
+    if (jobId) await patchJob(jobId, fields);
+    else await addJob(fields);
+  }, [addJob, patchJob]);
+
+  return { jobs, setJobs, loading, syncState, patchJob, addNote, saveJob, deleteJob };
+}
+
+export default function App() {
+  const { jobs, loading, syncState, patchJob, addNote, saveJob, deleteJob } = useWorkshopData();
+  const [user, setUser] = useState(getInitialUser);
+  const [view, setView] = useState("dashboard");
+  const [filters, setFilters] = useState({ search: "", employee: "All", bus: "All", status: "All", horizon: "All" });
+  const [selectedJobId, setSelectedJobId] = useState(null);
+  const [editingJob, setEditingJob] = useState(null);
+  const [allUpdatesOpen, setAllUpdatesOpen] = useState(false);
+  const [activeId, setActiveId] = useState(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  useEffect(() => {
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }, [user]);
 
   const people = useMemo(() => {
-    const s = new Set(DEFAULT_PEOPLE);
-    jobs.forEach(j => { if (j.alloc) s.add(j.alloc); });
-    return Array.from(s);
+    const set = new Set(PEOPLE);
+    jobs.forEach((job) => job.alloc && set.add(job.alloc));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [jobs]);
 
-  const activeJob = useMemo(() => jobs.find(j => j.id === activeId), [activeId, jobs]);
-  const notesJob = useMemo(() => jobs.find(j => j.id === notesJobId), [notesJobId, jobs]);
+  const businessUnits = useMemo(() => {
+    const set = new Set(BUSINESS_UNITS);
+    jobs.forEach((job) => job.bus && set.add(job.bus));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [jobs]);
 
-  const notes = useMemo(() => {
-    if (allNotesOpen) {
-      let arr = [];
-      jobs.forEach(j => {
-        if (j.notes) {
-          try {
-            const parsed = typeof j.notes === "string" ? JSON.parse(j.notes) : j.notes;
-            if (Array.isArray(parsed)) {
-              parsed.forEach(n => arr.push({ ...n, jobId: j.id, jobAsm: j.asm, jobCust: j.cust }));
-            }
-          } catch(e){}
-        }
-      });
-      return arr.sort((a,b) => new Date(b.at) - new Date(a.at));
-    }
-    if (!notesJob || !notesJob.notes) return [];
-    try {
-      const parsed = typeof notesJob.notes === "string" ? JSON.parse(notesJob.notes) : notesJob.notes;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch(e) {
-      return [];
-    }
-  }, [notesJob, jobs, allNotesOpen]);
+  const filteredJobs = useMemo(() => {
+    const term = filters.search.trim().toLowerCase();
+    return jobs.filter((job) => {
+      const haystack = [job.asm, job.so, job.cust, job.type, job.owner, job.alloc, job.bus, job.details].join(" ").toLowerCase();
+      const matchSearch = !term || haystack.includes(term);
+      const matchEmployee = filters.employee === "All" || job.alloc === filters.employee;
+      const matchBus = filters.bus === "All" || job.bus === filters.bus;
+      const matchStatus = filters.status === "All" || job.status === filters.status;
+      const matchHorizon = filters.horizon === "All" || dueBucket(job) === filters.horizon;
+      return matchSearch && matchEmployee && matchBus && matchStatus && matchHorizon;
+    }).sort((a, b) => (riskScore(b) - riskScore(a)) || ((parseISODate(a.due)?.getTime() || 0) - (parseISODate(b.due)?.getTime() || 0)));
+  }, [jobs, filters]);
 
-  // --- Handlers ---
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setAuthError("");
-    // Demo: any email/password works
-    if (loginEmail.trim() && loginPass.trim()) {
-      setUser({ email: loginEmail, name: loginEmail.split("@")[0] });
-    } else {
-      setAuthError("Please enter any email and password (demo mode)");
-    }
-  };
+  const metrics = useMemo(() => {
+    const open = filteredJobs.filter((j) => j.status !== "Complete");
+    const complete = filteredJobs.filter((j) => j.status === "Complete").length;
+    const dueSoon = filteredJobs.filter((j) => j.status !== "Complete" && daysUntil(j.due) !== null && daysUntil(j.due) <= 7).length;
+    const overdue = filteredJobs.filter((j) => j.status !== "Complete" && daysUntil(j.due) !== null && daysUntil(j.due) < 0).length;
+    const blocked = filteredJobs.filter((j) => j.status === "Input Needed").length;
+    const hours = filteredJobs.reduce((sum, j) => sum + (Number(j.hrs) || 0), 0);
+    const calendarDays = open.reduce((sum, j) => sum + jobCalendarSpan(j), 0);
+    const progress = filteredJobs.length ? Math.round((complete / filteredJobs.length) * 100) : 0;
+    return { open: open.length, complete, dueSoon, overdue, blocked, hours, calendarDays, progress };
+  }, [filteredJobs]);
 
+  const selectedJob = jobs.find((job) => job.id === selectedJobId) || null;
+  const activeJob = jobs.find((job) => job.id === activeId) || null;
+
+  const updates = useMemo(() => jobs.flatMap((job) => parseNotes(job.notes).map((note) => ({ ...note, job })))
+    .sort((a, b) => (parseISODate(b.at)?.getTime() || 0) - (parseISODate(a.at)?.getTime() || 0)), [jobs]);
+
+  const updateFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+  const resetFilters = () => setFilters({ search: "", employee: "All", bus: "All", status: "All", horizon: "All" });
+
+  const handleLogin = (profile) => setUser(profile);
   const handleLogout = () => {
+    localStorage.removeItem(USER_KEY);
     setUser(null);
   };
 
-  const handleDragStart = (e) => {
-    setActiveId(e.active.id);
-  };
-
-  const handleDragEnd = (e) => {
-    const { active, over } = e;
+  const handleDragEnd = async ({ active, over }) => {
     setActiveId(null);
     if (!over) return;
-    const jobId = active.id;
-    const newStatus = over.id;
-    const job = jobs.find(j => j.id === jobId);
-    if (job && job.status !== newStatus) {
-      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
-    }
-  };
-
-  const handleSaveJob = (fields) => {
-    if (editingJob && editingJob.id) {
-      // update existing
-      setJobs(prev => prev.map(j => j.id === editingJob.id ? { ...j, ...fields, notes: j.notes } : j));
-    } else {
-      // create new
-      const newId = Math.max(...jobs.map(j => j.id), 0) + 1;
-      setJobs(prev => [...prev, { ...fields, id: newId, status: "Not Started", notes: "[]" }]);
-    }
-    setEditingJob(null);
-  };
-
-  const handleDeleteJob = (id) => {
-    if (!window.confirm("Delete this job?")) return;
-    setJobs(prev => prev.filter(j => j.id !== id));
-  };
-
-  const handleAddNote = (jobId, txt) => {
-    const job = jobs.find(j => j.id === jobId);
+    const job = jobs.find((j) => j.id === active.id);
     if (!job) return;
-    let current = [];
-    try {
-      current = typeof job.notes === "string" ? JSON.parse(job.notes) : job.notes;
-      if (!Array.isArray(current)) current = [];
-    } catch(e){}
-    const newNote = {
-      at: new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-      by: user?.email?.split("@")[0] || "User",
-      txt
-    };
-    const updated = [newNote, ...current];
-    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, notes: JSON.stringify(updated) } : j));
+    const targetStatus = over.data?.current?.status || (String(over.id).startsWith("status:") ? String(over.id).replace("status:", "") : null);
+    if (targetStatus && targetStatus !== job.status) {
+      await patchJob(job.id, { status: targetStatus });
+    }
   };
 
-  // Render login screen if not authenticated
-  if (!user) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: COLORS.navy, fontFamily: "sans-serif" }}>
-        <form onSubmit={handleLogin} style={{ background: "#fff", padding: 30, borderRadius: 8, width: 320, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-          <h3 style={{ margin: "0 0 20px 0", color: COLORS.navy, fontSize: 18, fontWeight: 700, textAlign: "center" }}>Workshop Tracker (Demo)</h3>
-          {authError && <div style={{ background: COLORS.redLt, color: COLORS.red, padding: "8px 12px", borderRadius: 4, fontSize: 12, marginBottom: 15, border: `1px solid ${COLORS.red}` }}>{authError}</div>}
-          <div style={{ marginBottom: 15 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: COLORS.textMid, marginBottom: 4 }}>Email (any)</label>
-            <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required style={{ width: "100%", padding: "8px 10px", borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 13 }} />
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: COLORS.textMid, marginBottom: 4 }}>Password (any)</label>
-            <input type="password" value={loginPass} onChange={e => setLoginPass(e.target.value)} required style={{ width: "100%", padding: "8px 10px", borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 13 }} />
-          </div>
-          <button type="submit" style={{ width: "100%", background: COLORS.orange, color: "#fff", padding: "10px", borderRadius: 4, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Sign In (Demo)</button>
-          <div style={{ marginTop: 12, fontSize: 10, color: COLORS.textMid, textAlign: "center" }}>Use any email/password – no database required</div>
-        </form>
-      </div>
-    );
-  }
-
-  // --- Render Content based on view ---
-  const renderContent = () => {
-    if (loading) return <div style={{ padding: 40, textAlign: "center", color: COLORS.textMid, fontSize: 13 }}>Loading jobs...</div>;
-    if (view === "timeline") return <TimelineView jobs={filtered} onEdit={setEditingJob} onNotes={setNotesJobId} />;
-    if (view === "list") return <ListView jobs={filtered} onEdit={setEditingJob} onNotes={setNotesJobId} onDelete={handleDeleteJob} />;
-    
-    const columns = {
-      "Not Started": filtered.filter(j => j.status === "Not Started"),
-      "In Progress": filtered.filter(j => j.status === "In Progress"),
-      "Input Needed": filtered.filter(j => j.status === "Input Needed"),
-      "Complete": filtered.filter(j => j.status === "Complete")
-    };
-
-    return (
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div style={{ display: "flex", gap: 16, padding: 16, height: "100%", overflowX: "auto", alignItems: "flex-start", boxSizing: "border-box" }}>
-          {Object.entries(columns).map(([colId, colJobs]) => (
-            <Column key={colId} id={colId} title={colId} count={colJobs.length}>
-              <SortableContext items={colJobs.map(j => j.id)} strategy={verticalListSortingStrategy}>
-                {colJobs.map(j => <JobCard key={j.id} job={j} onEdit={setEditingJob} onNotes={setNotesJobId} />)}
-              </SortableContext>
-            </Column>
-          ))}
-        </div>
-        <DragOverlay>
-          {activeId && activeJob ? <JobCard job={activeJob} isOverlay /> : null}
-        </DragOverlay>
-      </DndContext>
-    );
+  const handleDelete = async (job) => {
+    if (window.confirm(`Delete ${job.asm || job.cust}?`)) {
+      await deleteJob(job.id);
+      if (selectedJobId === job.id) setSelectedJobId(null);
+    }
   };
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
 
   return (
     <>
-      <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden", background: "#F7FAFC", color: COLORS.textDark, fontFamily: "sans-serif" }}>
-        {/* Sidebar */}
-        <div style={{ width: 220, background: COLORS.navy, color: "#fff", display: "flex", flexDirection: "column", borderRight: `1px solid ${COLORS.navyMid}` }}>
-          <div style={{ padding: "24px 16px", borderBottom: `1px solid ${COLORS.navyMid}` }}>
-            <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.5px", color: "#fff" }}>FLEXACHEM</div>
-            <div style={{ fontSize: 10, color: COLORS.orange, fontWeight: 700, marginTop: 2, letterSpacing: "1px" }}>WORKSHOP TRACKER</div>
-          </div>
-          
-          <div style={{ flex: 1, padding: "16px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
-            <button onClick={() => setView("board")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "board" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>📋 Board View</button>
-            <button onClick={() => setView("timeline")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "timeline" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>⏱️ Schedule Timeline</button>
-            <button onClick={() => setView("list")} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: view === "list" ? COLORS.slate : "transparent", border: "none", color: "#fff", padding: "10px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: "left", cursor: "pointer" }}>⚙️ Detailed Master List</button>
-            
-            <div style={{ height: 1, background: COLORS.navyMid, margin: "12px 0" }} />
-            
-            <button onClick={() => setAllNotesOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>💬 All Recent Notes</button>
-            <button onClick={() => setLogsOpen(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "transparent", border: "none", color: "#A0AEC0", padding: "8px 12px", borderRadius: 6, fontSize: 12, textAlign: "left", cursor: "pointer" }}>📜 Complete History Logs</button>
-          </div>
-
-          <div style={{ padding: 12, borderTop: `1px solid ${COLORS.navyMid}`, background: COLORS.navyMid, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, color: "#A0AEC0", flex: 1 }}>{user.email}</div>
-            <button onClick={handleLogout} style={{ background: "transparent", border: "none", color: COLORS.orange, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Exit</button>
-          </div>
-        </div>
-
-        {/* Main Panel */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {/* Topbar */}
-          <div style={{ background: "#fff", height: 56, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: COLORS.navy }}>
-                {view === "board" && "Workshop Floor Columns"}
-                {view === "timeline" && "Master Schedule Timeline"}
-                {view === "list" && "Detailed Assembly Registry"}
-              </h2>
-              <button onClick={() => setEditingJob({})} style={{ background: COLORS.orange, color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>+ Log New Job</button>
-            </div>
-            
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <select value={filterEmp} onChange={e => setFilterEmp(e.target.value)} style={{ border: `1px solid ${COLORS.rule}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, background: "#fff" }}>
-                <option value="">All People</option>
-                {people.map(p => <option key={p}>{p}</option>)}
-              </select>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." style={{ border: `1px solid ${COLORS.rule}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, width: 180, background: "#fff" }} />
-              <div style={{ background: COLORS.navy, color: "#fff", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>📦 Jobs Booked: <span style={{ fontFamily: "monospace" }}>{bookedHrs}h</span>{filterEmp && <span style={{ opacity: 0.7, fontSize: 9, marginLeft: 4 }}>({filterEmp})</span>}</div>
-              <div style={{ background: COLORS.steelLt, borderRadius: 6, padding: "6px 10px", fontSize: 10, color: COLORS.textMid }}>{filtered.length}/{jobs.length}</div>
+      <DesignSystem />
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="brand-block">
+            <div className="brand-mark">F</div>
+            <div>
+              <div className="brand-title">Flexachem</div>
+              <div className="brand-subtitle">Workshop Control Tower</div>
             </div>
           </div>
-          
-          <div style={{ flex: 1, overflow: "auto" }}>{renderContent()}</div>
-        </div>
+
+          <nav className="nav-stack">
+            <NavButton active={view === "dashboard"} icon="◆" label="Dashboard" hint="Live command centre" onClick={() => setView("dashboard")} />
+            <NavButton active={view === "board"} icon="▦" label="Kanban" hint="Drag status columns" onClick={() => setView("board")} />
+            <NavButton active={view === "employees"} icon="☷" label="Employees" hint="Workload by service guy" onClick={() => setView("employees")} />
+            <NavButton active={view === "business"} icon="◫" label="Business Units" hint="Pharma, mining, industrial" onClick={() => setView("business")} />
+            <NavButton active={view === "due"} icon="◴" label="Due Dates" hint="Delivery windows" onClick={() => setView("due")} />
+            <NavButton active={view === "list"} icon="≡" label="Master List" hint="Full job register" onClick={() => setView("list")} />
+          </nav>
+
+          <div className="sidebar-card">
+            <div className="sidebar-card-label">Data source</div>
+            <div className="sync-pill">{syncState}</div>
+            <div className="sidebar-card-text">Designed for Supabase when VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are present.</div>
+          </div>
+
+          <div className="profile-card">
+            <div className="avatar">{(user.name || user.email || "U").slice(0, 1).toUpperCase()}</div>
+            <div className="profile-copy">
+              <strong>{user.name || "Workshop user"}</strong>
+              <span>{user.email}</span>
+            </div>
+            <button className="ghost-button compact" onClick={handleLogout}>Exit</button>
+          </div>
+        </aside>
+
+        <main className="workspace">
+          <Topbar
+            view={view}
+            filters={filters}
+            people={people}
+            businessUnits={businessUnits}
+            metrics={metrics}
+            updateFilter={updateFilter}
+            resetFilters={resetFilters}
+            onNewJob={() => setEditingJob({})}
+            onOpenUpdates={() => setAllUpdatesOpen(true)}
+          />
+
+          <section className="content-scroll">
+            {loading ? <LoadingState /> : (
+              <>
+                {view === "dashboard" && <DashboardView jobs={filteredJobs} allJobs={jobs} metrics={metrics} updates={updates} people={people} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={patchJob} onOpenUpdates={() => setAllUpdatesOpen(true)} />}
+                {view === "board" && (
+                  <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={({ active }) => setActiveId(active.id)} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
+                    <BoardView jobs={filteredJobs} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={patchJob} />
+                    <DragOverlay>{activeJob ? <JobCard job={activeJob} overlay onSelect={() => {}} onEdit={() => {}} onStatus={() => {}} /> : null}</DragOverlay>
+                  </DndContext>
+                )}
+                {view === "employees" && <EmployeeView jobs={filteredJobs} people={people} onSelect={setSelectedJobId} onStatus={patchJob} />}
+                {view === "business" && <BusinessUnitView jobs={filteredJobs} businessUnits={businessUnits} onSelect={setSelectedJobId} onStatus={patchJob} />}
+                {view === "due" && <DueDateView jobs={filteredJobs} onSelect={setSelectedJobId} onStatus={patchJob} />}
+                {view === "list" && <ListView jobs={filteredJobs} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={patchJob} onDelete={handleDelete} />}
+              </>
+            )}
+          </section>
+        </main>
       </div>
-      
-      {(notesJobId || allNotesOpen) && (
-        <NotesPanel job={notesJob} notes={notes} allJobs={jobs} allMode={allNotesOpen} onClose={() => { setNotesJobId(null); setAllNotesOpen(false); }} onAddNote={handleAddNote} />
+
+      {selectedJob && (
+        <JobDrawer
+          job={selectedJob}
+          user={user}
+          onClose={() => setSelectedJobId(null)}
+          onEdit={() => setEditingJob(selectedJob)}
+          onStatus={patchJob}
+          onAddNote={addNote}
+        />
       )}
-      
+
+      {allUpdatesOpen && <UpdatesDrawer updates={updates} onClose={() => setAllUpdatesOpen(false)} onSelect={(id) => { setAllUpdatesOpen(false); setSelectedJobId(id); }} />}
+
       {editingJob && (
-        <JobModal job={editingJob} onClose={() => setEditingJob(null)} onSave={handleSaveJob} people={people} />
+        <JobModal
+          job={editingJob}
+          people={people}
+          businessUnits={businessUnits}
+          onClose={() => setEditingJob(null)}
+          onSave={async (fields) => {
+            await saveJob(editingJob.id, fields);
+            setEditingJob(null);
+          }}
+        />
       )}
-      
-      <LogsModal isOpen={logsOpen} onClose={() => setLogsOpen(false)} jobs={jobs} />
     </>
   );
 }
 
-// -------------------- Sub Components --------------------
-function Column({ id, title, count, children }) {
-  const { setNodeRef } = useSortable({ id });
-  
-  let bg, tc;
-  if (id === "Not Started") { bg = "#EDF2F7"; tc = COLORS.textDark; }
-  else if (id === "In Progress") { bg = COLORS.blueLt; tc = COLORS.blue; }
-  else if (id === "Input Needed") { bg = COLORS.yellowLt; tc = COLORS.yellow; }
-  else { bg = COLORS.greenLt; tc = COLORS.green; }
-
+function DesignSystem() {
   return (
-    <div style={{ background: "#F1F5F9", width: 280, borderRadius: 8, display: "flex", flexDirection: "column", maxHeight: "100%", flexShrink: 0, border: "1px solid #E2E8F0" }}>
-      <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: COLORS.navy }}>{title}</span>
-          <span style={{ background: bg, color: tc, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10 }}>{count}</span>
-        </div>
-      </div>
-      <div ref={setNodeRef} style={{ flex: 1, padding: "0 10px 10px 10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, minHeight: 150 }}>
-        {children}
-      </div>
-    </div>
+    <style>{`
+      :root {
+        --ink: #071b33;
+        --navy: #0a1f3d;
+        --navy-2: #0d2a52;
+        --navy-3: #12345f;
+        --orange: #f26a21;
+        --orange-2: #ff8a4c;
+        --paper: #f7f9fc;
+        --card: rgba(255,255,255,0.92);
+        --muted: #667085;
+        --soft: #e7eef7;
+        --line: rgba(15, 36, 64, 0.11);
+        --shadow: 0 20px 60px rgba(6, 24, 44, 0.13);
+        --shadow-soft: 0 10px 30px rgba(6, 24, 44, 0.08);
+        --green: #16875f;
+        --green-bg: #e8fff4;
+        --amber: #b7791f;
+        --amber-bg: #fff7db;
+        --red: #c2413b;
+        --red-bg: #fff0ee;
+        --blue: #2563eb;
+        --blue-bg: #ecf4ff;
+        --neutral-bg: #eef2f7;
+      }
+      * { box-sizing: border-box; }
+      html, body, #root { width: 100%; min-height: 100%; margin: 0; }
+      body { background: radial-gradient(circle at top left, #eaf2ff 0, #f8fafc 34%, #eff4f9 100%); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      button, input, select, textarea { font: inherit; }
+      button { cursor: pointer; }
+      .app-shell { width: 100vw; height: 100vh; display: grid; grid-template-columns: 288px minmax(0, 1fr); overflow: hidden; }
+      .sidebar { position: relative; overflow: hidden; padding: 22px 16px; background: linear-gradient(165deg, #06172d 0%, #092447 55%, #0a2d59 100%); color: #fff; display: flex; flex-direction: column; gap: 18px; }
+      .sidebar:before { content: ""; position: absolute; inset: -120px -160px auto auto; width: 320px; height: 320px; border-radius: 999px; background: rgba(242,106,33,0.20); filter: blur(4px); }
+      .brand-block { position: relative; display: flex; gap: 12px; align-items: center; padding: 10px 8px 18px; border-bottom: 1px solid rgba(255,255,255,0.10); }
+      .brand-mark { width: 46px; height: 46px; border-radius: 16px; display: grid; place-items: center; font-weight: 900; font-size: 24px; background: linear-gradient(135deg, var(--orange), #ffbc84); color: #fff; box-shadow: 0 18px 40px rgba(242,106,33,0.34); }
+      .brand-title { text-transform: uppercase; letter-spacing: 0.12em; font-weight: 900; font-size: 14px; }
+      .brand-subtitle { margin-top: 4px; color: #b7c8dc; font-size: 12px; }
+      .nav-stack { position: relative; display: grid; gap: 8px; }
+      .nav-button { width: 100%; border: 1px solid transparent; color: #d9e7f7; background: transparent; border-radius: 18px; display: flex; gap: 12px; align-items: center; padding: 12px; text-align: left; transition: 180ms ease; }
+      .nav-button:hover { background: rgba(255,255,255,0.08); transform: translateX(2px); }
+      .nav-button.active { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.18); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12); }
+      .nav-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 12px; background: rgba(255,255,255,0.09); color: #fff; font-weight: 900; }
+      .nav-button.active .nav-icon { background: linear-gradient(135deg, var(--orange), #ffb16d); }
+      .nav-text { display: grid; gap: 2px; }
+      .nav-text strong { font-size: 13px; }
+      .nav-text span { font-size: 11px; color: #9fb4cd; }
+      .sidebar-card { position: relative; padding: 16px; border-radius: 22px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.13); margin-top: auto; }
+      .sidebar-card-label { color: #b7c8dc; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; font-weight: 800; }
+      .sync-pill { display: inline-flex; margin-top: 10px; padding: 7px 9px; border-radius: 999px; background: rgba(22,135,95,0.18); color: #bbf7d0; font-size: 11px; max-width: 100%; word-break: break-word; }
+      .sidebar-card-text { margin-top: 10px; color: #aec1d8; font-size: 11px; line-height: 1.45; }
+      .profile-card { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 20px; background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.10); }
+      .avatar { width: 36px; height: 36px; border-radius: 12px; background: #fff; color: var(--navy); display: grid; place-items: center; font-weight: 900; }
+      .profile-copy { min-width: 0; display: grid; gap: 2px; flex: 1; }
+      .profile-copy strong { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .profile-copy span { color: #a9bad0; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .workspace { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: linear-gradient(180deg, rgba(255,255,255,0.68), rgba(247,249,252,0.90)); }
+      .topbar { padding: 18px 26px 16px; display: grid; gap: 14px; border-bottom: 1px solid var(--line); backdrop-filter: blur(16px); background: rgba(255,255,255,0.64); }
+      .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+      .eyebrow { color: var(--orange); text-transform: uppercase; letter-spacing: 0.18em; font-size: 11px; font-weight: 900; }
+      .page-title { margin: 2px 0 0; font-size: 28px; line-height: 1.05; letter-spacing: -0.04em; color: var(--ink); }
+      .page-subtitle { margin-top: 5px; color: var(--muted); font-size: 13px; }
+      .top-actions, .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .filter-bar { background: rgba(255,255,255,0.74); border: 1px solid var(--line); border-radius: 22px; padding: 9px; box-shadow: var(--shadow-soft); }
+      .search-box { position: relative; min-width: min(360px, 100%); flex: 1; }
+      .search-box input { width: 100%; height: 40px; border: 1px solid var(--line); border-radius: 15px; padding: 0 14px 0 38px; background: #fff; outline: none; color: var(--ink); }
+      .search-box span { position: absolute; left: 14px; top: 10px; color: var(--muted); }
+      .select, .input, .textarea { border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); outline: none; }
+      .select { height: 40px; padding: 0 12px; }
+      .input { min-height: 40px; padding: 0 12px; }
+      .textarea { width: 100%; min-height: 92px; padding: 12px; resize: vertical; }
+      .primary-button, .secondary-button, .ghost-button { border: 0; border-radius: 14px; min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; transition: 180ms ease; }
+      .primary-button { background: linear-gradient(135deg, var(--orange), #ff9c5f); color: #fff; box-shadow: 0 16px 30px rgba(242,106,33,0.25); }
+      .primary-button:hover, .secondary-button:hover, .ghost-button:hover { transform: translateY(-1px); }
+      .secondary-button { background: var(--ink); color: #fff; }
+      .ghost-button { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+      .ghost-button.compact { min-height: 30px; padding: 0 10px; font-size: 11px; background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.14); }
+      .content-scroll { overflow: auto; padding: 22px 26px 32px; }
+      .dashboard-grid { display: grid; grid-template-columns: 1.36fr 0.84fr; gap: 20px; }
+      .hero-card, .panel, .metric-card, .lane-card, .column, .drawer, .modal-card, .login-panel { background: var(--card); border: 1px solid rgba(255,255,255,0.74); box-shadow: var(--shadow); backdrop-filter: blur(18px); }
+      .hero-card { position: relative; overflow: hidden; border-radius: 30px; padding: 28px; display: grid; gap: 24px; min-height: 258px; background: linear-gradient(135deg, #071b33 0%, #123d70 58%, #f26a21 138%); color: #fff; }
+      .hero-card:after { content: ""; position: absolute; width: 420px; height: 420px; right: -180px; top: -160px; background: radial-gradient(circle, rgba(255,255,255,0.24), rgba(255,255,255,0) 62%); }
+      .hero-content { position: relative; z-index: 1; max-width: 720px; }
+      .hero-title { font-size: clamp(32px, 4.2vw, 58px); line-height: 0.95; letter-spacing: -0.07em; margin: 0; }
+      .hero-copy { margin: 14px 0 0; max-width: 640px; color: #d9e7f7; line-height: 1.55; }
+      .hero-stats { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+      .hero-stat { padding: 14px; border-radius: 20px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); }
+      .hero-stat strong { display: block; font-size: 26px; letter-spacing: -0.05em; }
+      .hero-stat span { color: #bdd0e6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 800; }
+      .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
+      .metric-card { border-radius: 24px; padding: 18px; box-shadow: var(--shadow-soft); }
+      .metric-label { display: flex; justify-content: space-between; color: var(--muted); text-transform: uppercase; letter-spacing: 0.11em; font-size: 10px; font-weight: 900; }
+      .metric-value { margin-top: 10px; font-size: 32px; letter-spacing: -0.06em; font-weight: 900; color: var(--ink); }
+      .metric-detail { margin-top: 5px; color: var(--muted); font-size: 12px; }
+      .panel { border-radius: 28px; padding: 20px; box-shadow: var(--shadow-soft); }
+      .panel + .panel { margin-top: 18px; }
+      .panel-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+      .panel-title { margin: 0; font-size: 17px; letter-spacing: -0.03em; }
+      .panel-subtitle { color: var(--muted); font-size: 12px; margin-top: 4px; }
+      .progress-ring { width: 126px; height: 126px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--orange) calc(var(--progress) * 1%), #e7eef7 0); position: relative; }
+      .progress-ring:after { content: ""; width: 92px; height: 92px; border-radius: 50%; background: #fff; position: absolute; }
+      .progress-ring strong { position: relative; z-index: 1; font-size: 28px; letter-spacing: -0.06em; }
+      .split-panel { display: grid; grid-template-columns: 146px minmax(0, 1fr); gap: 18px; align-items: center; }
+      .bar-list { display: grid; gap: 12px; }
+      .bar-row { display: grid; gap: 7px; }
+      .bar-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+      .bar-track { height: 9px; border-radius: 999px; background: #e8edf4; overflow: hidden; }
+      .bar-fill { height: 100%; width: var(--width); background: linear-gradient(90deg, var(--orange), #ffb27a); border-radius: inherit; }
+      .risk-list, .updates-list, .job-list { display: grid; gap: 10px; }
+      .risk-item, .update-item, .mini-job, .timeline-item { border: 1px solid var(--line); background: #fff; border-radius: 18px; padding: 12px; transition: 160ms ease; }
+      .risk-item:hover, .update-item:hover, .mini-job:hover, .timeline-item:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); }
+      .risk-top, .mini-top, .timeline-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+      .job-code { font-weight: 900; color: var(--ink); letter-spacing: -0.02em; }
+      .job-subline { color: var(--muted); font-size: 12px; margin-top: 3px; }
+      .chip, .status-chip, .priority-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 5px 8px; font-weight: 900; font-size: 11px; white-space: nowrap; }
+      .chip { background: #eef2f7; color: var(--muted); }
+      .status-chip.neutral { background: var(--neutral-bg); color: #475467; }
+      .status-chip.blue { background: var(--blue-bg); color: var(--blue); }
+      .status-chip.amber { background: var(--amber-bg); color: var(--amber); }
+      .status-chip.green { background: var(--green-bg); color: var(--green); }
+      .priority-chip.Low { background: #eef2f7; color: #475467; }
+      .priority-chip.Normal { background: #ecf4ff; color: #2563eb; }
+      .priority-chip.High { background: #fff7db; color: #b7791f; }
+      .priority-chip.Critical { background: #fff0ee; color: #c2413b; }
+      .status-switch { display: flex; gap: 5px; flex-wrap: wrap; }
+      .status-button { border: 1px solid var(--line); background: #fff; border-radius: 999px; min-height: 30px; padding: 0 10px; font-size: 11px; font-weight: 900; color: var(--muted); }
+      .status-button.active { border-color: transparent; color: #fff; background: var(--ink); }
+      .board { display: grid; grid-template-columns: repeat(4, minmax(270px, 1fr)); gap: 16px; align-items: start; min-width: 1120px; }
+      .column { min-height: calc(100vh - 218px); border-radius: 26px; padding: 12px; box-shadow: var(--shadow-soft); background: rgba(255,255,255,0.72); }
+      .column.over { outline: 3px solid rgba(242,106,33,0.28); }
+      .column-header { padding: 8px 8px 14px; display: flex; justify-content: space-between; align-items: center; }
+      .column-title { display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 900; }
+      .column-count { color: var(--muted); font-size: 12px; }
+      .column-body { min-height: 260px; display: grid; gap: 11px; align-content: start; }
+      .job-card { position: relative; border: 1px solid var(--line); background: #fff; border-radius: 22px; padding: 15px; box-shadow: 0 8px 24px rgba(6,24,44,0.06); transition: 160ms ease; }
+      .job-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); }
+      .job-card.dragging { opacity: 0.3; }
+      .job-card.overlay { width: 292px; transform: rotate(1deg); box-shadow: 0 24px 70px rgba(6,24,44,0.24); }
+      .job-accent { position: absolute; left: 0; top: 16px; bottom: 16px; width: 4px; border-radius: 999px; background: var(--orange); }
+      .job-card-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+      .job-title { margin: 8px 0 0; font-size: 17px; letter-spacing: -0.04em; }
+      .job-details { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+      .job-footer { margin-top: 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+      .job-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+      .card-actions { display: flex; gap: 6px; align-items: center; }
+      .icon-button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font-weight: 900; display: grid; place-items: center; }
+      .empty-state { min-height: 240px; border: 1px dashed rgba(15,36,64,0.24); border-radius: 22px; display: grid; place-items: center; color: var(--muted); font-size: 13px; padding: 18px; text-align: center; }
+      .lane-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+      .lane-card { border-radius: 26px; padding: 18px; box-shadow: var(--shadow-soft); }
+      .lane-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+      .lane-title { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 900; letter-spacing: -0.04em; }
+      .lane-avatar { width: 42px; height: 42px; border-radius: 16px; background: linear-gradient(135deg, var(--navy), var(--navy-3)); color: #fff; display: grid; place-items: center; font-weight: 900; }
+      .lane-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+      .summary-cell { background: #f8fafc; border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+      .summary-cell strong { display: block; font-size: 20px; letter-spacing: -0.05em; }
+      .summary-cell span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 900; }
+      .business-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+      .bu-card { border-radius: 28px; overflow: hidden; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow-soft); }
+      .bu-hero { padding: 20px; color: #fff; background: linear-gradient(135deg, var(--navy), #21578f); display: flex; justify-content: space-between; gap: 14px; }
+      .bu-hero h3 { margin: 0; font-size: 24px; letter-spacing: -0.05em; }
+      .bu-body { padding: 14px; display: grid; gap: 10px; }
+      .due-stack { display: grid; gap: 18px; }
+      .due-section { border-radius: 28px; background: rgba(255,255,255,0.74); border: 1px solid rgba(255,255,255,0.78); box-shadow: var(--shadow-soft); padding: 16px; }
+      .due-heading { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
+      .due-heading h3 { margin: 0; letter-spacing: -0.04em; }
+      .timeline-item { display: grid; grid-template-columns: 170px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+      .timeline-date { font-weight: 900; color: var(--ink); }
+      .window-bar { margin-top: 8px; height: 8px; border-radius: 999px; background: #edf2f7; overflow: hidden; }
+      .window-fill { height: 100%; width: var(--width); min-width: 16%; border-radius: inherit; background: linear-gradient(90deg, var(--orange), #ffc59b); }
+      .table-wrap { overflow: auto; border-radius: 26px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow-soft); }
+      table { width: 100%; border-collapse: collapse; min-width: 1040px; }
+      th { background: #f8fafc; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+      td { padding: 14px 16px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+      tr:hover td { background: #fbfdff; }
+      .drawer-backdrop, .modal-backdrop { position: fixed; inset: 0; z-index: 80; background: rgba(6, 16, 29, 0.32); backdrop-filter: blur(8px); }
+      .drawer { position: fixed; right: 18px; top: 18px; bottom: 18px; width: min(520px, calc(100vw - 36px)); z-index: 90; border-radius: 30px; overflow: hidden; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
+      .drawer-header { padding: 22px; color: #fff; background: linear-gradient(135deg, var(--navy), var(--navy-3)); }
+      .drawer-header-row { display: flex; justify-content: space-between; gap: 16px; }
+      .drawer-title { margin: 8px 0 0; font-size: 30px; letter-spacing: -0.06em; }
+      .drawer-body { overflow: auto; padding: 18px; display: grid; gap: 16px; background: #f7f9fc; }
+      .drawer-footer { padding: 16px; background: #fff; border-top: 1px solid var(--line); }
+      .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .detail-cell { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 12px; }
+      .detail-cell span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 900; }
+      .detail-cell strong { display: block; margin-top: 5px; font-size: 14px; }
+      .note-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 12px; }
+      .note-meta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+      .modal-backdrop { display: grid; place-items: center; padding: 20px; }
+      .modal-card { width: min(900px, 100%); max-height: min(860px, calc(100vh - 40px)); overflow: hidden; border-radius: 30px; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
+      .modal-header { padding: 22px; background: linear-gradient(135deg, #fff, #f8fafc); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+      .modal-header h2 { margin: 0; letter-spacing: -0.05em; }
+      .modal-body { padding: 22px; overflow: auto; display: grid; gap: 18px; }
+      .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .field { display: grid; gap: 7px; }
+      .field label { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; font-weight: 900; }
+      .modal-footer { padding: 16px 22px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 10px; background: #fff; }
+      .login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 20% 0%, rgba(242,106,33,0.22), transparent 28%), linear-gradient(135deg, #06172d 0%, #0b2d55 100%); }
+      .login-panel { width: min(960px, 100%); display: grid; grid-template-columns: 1.1fr 0.9fr; overflow: hidden; border-radius: 34px; }
+      .login-story { padding: 44px; background: linear-gradient(135deg, rgba(7,27,51,0.96), rgba(18,61,112,0.96)); color: #fff; }
+      .login-story h1 { margin: 18px 0 0; font-size: clamp(38px, 5vw, 68px); line-height: 0.92; letter-spacing: -0.08em; }
+      .login-story p { color: #cadaec; line-height: 1.6; max-width: 520px; }
+      .login-form { padding: 44px; background: rgba(255,255,255,0.94); display: grid; align-content: center; gap: 18px; }
+      .login-form h2 { margin: 0; font-size: 28px; letter-spacing: -0.05em; }
+      .login-kpis { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 24px; }
+      .login-kpis div { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.16); border-radius: 18px; padding: 14px; }
+      .login-kpis strong { display: block; font-size: 22px; }
+      .login-kpis span { color: #b7c8dc; font-size: 11px; }
+      @media (max-width: 1180px) { .app-shell { grid-template-columns: 86px minmax(0, 1fr); } .brand-block, .sidebar-card, .profile-copy, .nav-text { display: none; } .sidebar { padding: 18px 12px; } .nav-button { justify-content: center; padding: 12px 8px; } .profile-card { justify-content: center; } .dashboard-grid { grid-template-columns: 1fr; } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @media (max-width: 760px) { .app-shell { display: block; height: auto; min-height: 100vh; } .sidebar { position: sticky; top: 0; z-index: 20; flex-direction: row; overflow-x: auto; border-radius: 0 0 24px 24px; } .nav-stack { display: flex; } .profile-card { margin-left: auto; } .workspace { min-height: 100vh; } .topbar-row { align-items: flex-start; flex-direction: column; } .filter-bar { border-radius: 18px; } .hero-stats, .metric-grid, .form-grid, .detail-grid { grid-template-columns: 1fr; } .split-panel, .timeline-item, .login-panel { grid-template-columns: 1fr; } .content-scroll { padding: 16px; } .page-title { font-size: 24px; } .login-story, .login-form { padding: 28px; } }
+    `}</style>
   );
 }
 
-function JobCard({ job, onEdit, onNotes, isOverlay }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id });
-  
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-    background: "#fff",
-    padding: 12,
-    borderRadius: 6,
-    boxShadow: isOverlay ? "0 10px 20px rgba(0,0,0,0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
-    borderLeft: `4px solid ${job.type === "Valve Assembly" ? COLORS.orange : job.type === "Pump Assembly" ? COLORS.blue : job.type === "Valve Overhaul" ? COLORS.purple : job.type === "Pump Overhaul" ? COLORS.yellow : COLORS.steel}`,
-    cursor: "grab",
-    boxSizing: "border-box"
-  };
-
-  let notePreview = "";
-  if (job.notes) {
-    try {
-      const arr = typeof job.notes === "string" ? JSON.parse(job.notes) : job.notes;
-      if (Array.isArray(arr) && arr.length > 0) notePreview = arr[0].txt;
-    } catch(e){}
-  }
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.textMid }}>{job.cust || "No Customer"}</span>
-        <span style={{ fontSize: 10, background: COLORS.steelLt, color: COLORS.textMid, padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }}>{job.so || "No SO"}</span>
-      </div>
-      
-      <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.navy, marginBottom: 8 }}>
-        {job.asm} <span style={{ fontWeight: 400, color: COLORS.textMid, fontSize: 11 }}>- {job.type}</span>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, borderTop: `1px solid ${COLORS.rule}`, paddingTop: 8 }}>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <span style={{ fontSize: 10, background: COLORS.orangeLt, color: COLORS.orange, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>👤 {job.alloc || "Unassigned"}</span>
-          {job.hrs && <span style={{ fontSize: 10, background: "#EDF2F7", color: COLORS.textMid, padding: "2px 6px", borderRadius: 4 }}>⏱️ {job.hrs}h</span>}
-        </div>
-        
-        <div style={{ display: "flex", gap: 4 }}>
-          <button onPointerDown={e => { e.stopPropagation(); onNotes(job.id); }} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, padding: 2 }}>💬</button>
-          <button onPointerDown={e => { e.stopPropagation(); onEdit(job); }} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, padding: 2 }}>✏️</button>
-        </div>
-      </div>
-      
-      {notePreview && (
-        <div style={{ marginTop: 6, fontSize: 10, color: COLORS.textMid, background: "#F7FAFC", padding: "4px 6px", borderRadius: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          Latest: "{notePreview}"
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TimelineView({ jobs, onEdit, onNotes }) {
-  return (
-    <div style={{ padding: 20, background: "#fff", margin: 16, borderRadius: 8, border: `1px solid ${COLORS.rule}` }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy, marginBottom: 12 }}>Active Schedule Layout</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {jobs.map(j => (
-          <div key={j.id} style={{ display: "flex", alignItems: "center", padding: 10, background: "#F8FAFC", borderRadius: 6, border: `1px solid ${COLORS.rule}`, fontSize: 12 }}>
-            <div style={{ width: 120, fontWeight: 700, color: COLORS.navy }}>{j.cust}</div>
-            <div style={{ width: 100, fontFamily: "monospace" }}>{j.so}</div>
-            <div style={{ width: 120 }}>{j.asm}</div>
-            <div style={{ flex: 1, color: COLORS.textMid }}>{j.type}</div>
-            <div style={{ width: 100, fontWeight: 600, color: COLORS.orange }}>{j.alloc || "Unassigned"}</div>
-            <div style={{ width: 120, color: COLORS.textMid }}>Target: {j.due || "TBA"}</div>
-            <div style={{ width: 100, textAlign: "right", fontWeight: 700 }}>{j.hrs || 0} hrs</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ListView({ jobs, onEdit, onNotes, onDelete }) {
-  return (
-    <div style={{ padding: 16 }}>
-      <div style={{ background: "#fff", borderRadius: 8, border: `1px solid ${COLORS.rule}`, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}>
-          <thead>
-            <tr style={{ background: "#F8FAFC", borderBottom: `1px solid ${COLORS.rule}`, color: COLORS.textMid, fontWeight: 600 }}>
-              <th style={{ padding: 12 }}>Assembly ID</th>
-              <th style={{ padding: 12 }}>Sales Order</th>
-              <th style={{ padding: 12 }}>Customer</th>
-              <th style={{ padding: 12 }}>Job Classification</th>
-              <th style={{ padding: 12 }}>Owner</th>
-              <th style={{ padding: 12 }}>Allocated To</th>
-              <th style={{ padding: 12 }}>Est. Hrs</th>
-              <th style={{ padding: 12 }}>Target Completion</th>
-              <th style={{ padding: 12 }}>Status</th>
-              <th style={{ padding: 12, textAlign: "right" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map(j => (
-              <tr key={j.id} style={{ borderBottom: `1px solid ${COLORS.rule}`, color: COLORS.textDark }}>
-                <td style={{ padding: 12, fontWeight: 700 }}>{j.asm}</td>
-                <td style={{ padding: 12, fontFamily: "monospace" }}>{j.so}</td>
-                <td style={{ padding: 12 }}>{j.cust}</td>
-                <td style={{ padding: 12 }}>{j.type}</td>
-                <td style={{ padding: 12 }}>{j.owner || "-"}</td>
-                <td style={{ padding: 12, fontWeight: 600, color: COLORS.orange }}>{j.alloc || "Unassigned"}</td>
-                <td style={{ padding: 12 }}>{j.hrs || 0}h</td>
-                <td style={{ padding: 12 }}>{j.due || "TBA"}</td>
-                <td style={{ padding: 12 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: j.status === "Complete" ? COLORS.greenLt : j.status === "In Progress" ? COLORS.blueLt : j.status === "Input Needed" ? COLORS.yellowLt : "#EDF2F7", color: j.status === "Complete" ? COLORS.green : j.status === "In Progress" ? COLORS.blue : j.status === "Input Needed" ? COLORS.yellow : COLORS.textDark }}>
-                    {j.status}
-                  </span>
-                </td>
-                <td style={{ padding: 12, textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                    <button onClick={() => onNotes(j.id)} style={{ background: "none", border: "none", cursor: "pointer" }}>💬</button>
-                    <button onClick={() => onEdit(j)} style={{ background: "none", border: "none", cursor: "pointer" }}>✏️</button>
-                    <button onClick={() => onDelete(j.id)} style={{ background: "none", border: "none", cursor: "pointer" }}>🗑️</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function JobModal({ job, onClose, onSave, people }) {
-  const [asm, setAsm] = useState(job.asm || "");
-  const [so, setSo] = useState(job.so || "");
-  const [cust, setCust] = useState(job.cust || "");
-  const [type, setType] = useState(job.type || "Valve Assembly");
-  const [owner, setOwner] = useState(job.owner || "");
-  const [alloc, setAlloc] = useState(job.alloc || "");
-  const [due, setDue] = useState(job.due || "");
-  const [hrs, setHrs] = useState(job.hrs || "");
-  const [busField, setBusField] = useState(job.bus || "Industrial");
-
-  const handleSubmit = (e) => {
+function LoginScreen({ onLogin }) {
+  const [email, setEmail] = useState("workshop@flexachem.com");
+  const [name, setName] = useState("Workshop Lead");
+  const submit = (e) => {
     e.preventDefault();
-    onSave({ asm, so, cust, type, owner, alloc, due, hrs, bus: busField });
+    onLogin({ email: email.trim() || "workshop@flexachem.com", name: name.trim() || "Workshop Lead" });
   };
-
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, fontFamily: "sans-serif" }}>
-      <form onSubmit={handleSubmit} style={{ background: "#fff", padding: 24, borderRadius: 8, width: 400, boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
-        <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy, fontSize: 16 }}>{job.id ? "Modify Production Entry" : "Record New Assembly Job"}</h3>
-        
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Assembly No / Tag</label>
-            <input value={asm} onChange={e => setAsm(e.target.value)} required style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Sales Order (SO)</label>
-            <input value={so} onChange={e => setSo(e.target.value)} required style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Customer Name</label>
-          <input value={cust} onChange={e => setCust(e.target.value)} required style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
-        </div>
-
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Classification</label>
-            <select value={type} onChange={e => setType(e.target.value)} style={{ width: "100%", padding: 6 }}>
-              {JOB_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Business Stream</label>
-            <select value={busField} onChange={e => setBusField(e.target.value)} style={{ width: "100%", padding: 6 }}>
-              {BUS.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Project Owner</label>
-            <input value={owner} onChange={e => setOwner(e.target.value)} style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Allocated Fitter</label>
-            <select value={alloc} onChange={e => setAlloc(e.target.value)} style={{ width: "100%", padding: 6 }}>
-              <option value="">Unassigned</option>
-              {people.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Target Completion</label>
-            <input type="date" value={due} onChange={e => setDue(e.target.value)} style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Est. Hours</label>
-            <input type="number" step="0.5" value={hrs} onChange={e => setHrs(e.target.value)} style={{ width: "100%", padding: 6, boxSizing: "border-box" }} />
-          </div>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button type="button" onClick={onClose} style={{ padding: "6px 12px", background: "#EDF2F7", border: "none", borderRadius: 4, cursor: "pointer" }}>Cancel</button>
-          <button type="submit" style={{ padding: "6px 12px", background: COLORS.orange, color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}>Save Record</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function NotesPanel({ job, notes, allJobs, allMode, onClose, onAddNote }) {
-  const [txt, setTxt] = useState("");
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!txt.trim()) return;
-    onAddNote(allMode ? allJobs[0]?.id : job.id, txt.trim());
-    setTxt("");
-  };
-
-  return (
-    <div style={{ position: "fixed", top: 0, right: 0, width: 360, bottom: 0, background: "#fff", boxShadow: "-4px 0 20px rgba(0,0,0,0.1)", zIndex: 1000, display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
-      <div style={{ padding: 16, borderBottom: `1px solid ${COLORS.rule}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.navy, color: "#fff" }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{allMode ? "Central Update Thread" : `Job Discussion logs`}</div>
-          <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{allMode ? "Viewing comments across all workshop entries" : `${job?.asm} - ${job?.cust}`}</div>
-        </div>
-        <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#fff", fontSize: 16, cursor: "pointer" }}>✕</button>
-      </div>
-
-      <div style={{ flex: 1, padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, background: "#F7FAFC" }}>
-        {notes.length === 0 ? (
-          <div style={{ textAlign: "center", color: COLORS.textMid, fontSize: 11, padding: 20 }}>No logs recorded yet.</div>
-        ) : (
-          notes.map((n, i) => (
-            <div key={i} style={{ background: "#fff", padding: 10, borderRadius: 6, border: `1px solid ${COLORS.rule}`, boxShadow: "0 1px 2px rgba(0,0,0,0.02)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: COLORS.textMid, marginBottom: 4, fontWeight: 600 }}>
-                <span>👤 {n.by}</span>
-                <span>⏱️ {n.at}</span>
+    <>
+      <DesignSystem />
+      <div className="login-shell">
+        <div className="login-panel">
+          <div className="login-story">
+            <div className="brand-block" style={{ padding: 0, border: 0 }}>
+              <div className="brand-mark">F</div>
+              <div>
+                <div className="brand-title">Flexachem</div>
+                <div className="brand-subtitle">Workshop Control Tower</div>
               </div>
-              {allMode && <div style={{ fontSize: 9, background: COLORS.steelLt, color: COLORS.navy, padding: "2px 4px", borderRadius: 4, display: "inline-block", marginBottom: 4 }}>{n.jobCust} ({n.jobAsm})</div>}
-              <div style={{ fontSize: 12, color: COLORS.textDark, lineHeight: "1.4" }}>{n.txt}</div>
             </div>
-          ))
-        )}
+            <h1>Service jobs, dates and blockers in one premium dashboard.</h1>
+            <p>Built for the real workshop: a three-hour job can sit open for days while parts, customers, testing slots and service updates move around it.</p>
+            <div className="login-kpis">
+              <div><strong>3</strong><span>core statuses</span></div>
+              <div><strong>BU</strong><span>business unit views</span></div>
+              <div><strong>Live</strong><span>notes from service guys</span></div>
+            </div>
+          </div>
+          <form className="login-form" onSubmit={submit}>
+            <div>
+              <div className="eyebrow">Secure workshop entry</div>
+              <h2>Continue to the dashboard</h2>
+              <p className="page-subtitle">This keeps note authorship clean. Supabase auth can be wired in later without changing the interface.</p>
+            </div>
+            <div className="field">
+              <label>Your name</label>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Email</label>
+              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <button className="primary-button" type="submit">Enter workshop dashboard →</button>
+          </form>
+        </div>
       </div>
+    </>
+  );
+}
 
-      <form onSubmit={handleSubmit} style={{ padding: 12, borderTop: `1px solid ${COLORS.rule}`, background: "#fff" }}>
-        <input value={txt} onChange={e => setTxt(e.target.value)} placeholder={allMode ? "Select a specific job on the board to add comments..." : "Type production update details here..."} disabled={allMode} style={{ width: "100%", padding: 8, borderRadius: 4, border: `1px solid ${COLORS.rule}`, fontSize: 12, boxSizing: "border-box", marginBottom: 6 }} />
-        <button type="submit" disabled={allMode || !txt.trim()} style={{ width: "100%", background: COLORS.navy, color: "#fff", padding: 6, border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: (!txt.trim() || allMode) ? 0.5 : 1 }}>
-          Post Internal Note
+function NavButton({ active, icon, label, hint, onClick }) {
+  return (
+    <button className={`nav-button ${active ? "active" : ""}`} onClick={onClick}>
+      <span className="nav-icon">{icon}</span>
+      <span className="nav-text"><strong>{label}</strong><span>{hint}</span></span>
+    </button>
+  );
+}
+
+function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, resetFilters, onNewJob, onOpenUpdates }) {
+  const titles = {
+    dashboard: ["Workshop Command Centre", "Executive-grade visibility across people, business units and due-date risk."],
+    board: ["Kanban Production Board", "Drag cards between status lanes or use the quick status controls."],
+    employees: ["Employee Workload", "See exactly which service guy owns each job, hours and calendar window."],
+    business: ["Business Unit Portfolio", "Roll up jobs by Pharma, Industrial, Engineering, Mining and Other."],
+    due: ["Due Date Control", "Understand overdue work, delivery windows and small jobs that span multiple days."],
+    list: ["Master Job Register", "Dense, searchable production list for admin and planning."],
+  };
+  const [title, subtitle] = titles[view] || titles.dashboard;
+  return (
+    <header className="topbar">
+      <div className="topbar-row">
+        <div>
+          <div className="eyebrow">Flexachem workshop</div>
+          <h1 className="page-title">{title}</h1>
+          <div className="page-subtitle">{subtitle}</div>
+        </div>
+        <div className="top-actions">
+          <button className="ghost-button" onClick={onOpenUpdates}>Recent updates</button>
+          <button className="secondary-button" onClick={resetFilters}>Reset filters</button>
+          <button className="primary-button" onClick={onNewJob}>+ Log new job</button>
+        </div>
+      </div>
+      <div className="filter-bar">
+        <label className="search-box">
+          <span>⌕</span>
+          <input value={filters.search} onChange={(e) => updateFilter("search", e.target.value)} placeholder="Search assembly, SO, customer, notes…" />
+        </label>
+        <select className="select" value={filters.employee} onChange={(e) => updateFilter("employee", e.target.value)}>
+          <option>All</option>{people.map((p) => <option key={p}>{p}</option>)}
+        </select>
+        <select className="select" value={filters.bus} onChange={(e) => updateFilter("bus", e.target.value)}>
+          <option>All</option>{businessUnits.map((b) => <option key={b}>{b}</option>)}
+        </select>
+        <select className="select" value={filters.status} onChange={(e) => updateFilter("status", e.target.value)}>
+          <option>All</option>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}
+        </select>
+        <select className="select" value={filters.horizon} onChange={(e) => updateFilter("horizon", e.target.value)}>
+          <option>All</option>{["Overdue", "Due today", "Next 7 days", "Next 30 days", "Later", "No due date", "Complete"].map((s) => <option key={s}>{s}</option>)}
+        </select>
+        <span className="chip">{metrics.open} open</span>
+        <span className="chip">{metrics.hours}h booked</span>
+      </div>
+    </header>
+  );
+}
+
+function LoadingState() {
+  return <div className="panel"><div className="panel-title">Loading workshop jobs…</div><div className="panel-subtitle">Fetching rows and preparing the control tower.</div></div>;
+}
+
+function DashboardView({ jobs, allJobs, metrics, updates, people, onSelect, onEdit, onStatus, onOpenUpdates }) {
+  const risky = jobs.filter((j) => j.status !== "Complete").sort((a, b) => riskScore(b) - riskScore(a)).slice(0, 5);
+  return (
+    <div>
+      <div className="dashboard-grid">
+        <div>
+          <section className="hero-card">
+            <div className="hero-content">
+              <div className="eyebrow">Live production health</div>
+              <h2 className="hero-title">Precision planning for jobs that refuse to fit one day.</h2>
+              <p className="hero-copy">The dashboard separates labour hours from calendar span, so a 3-hour job can be planned across days while it waits for parts, customer input, testing or site access.</p>
+            </div>
+            <div className="hero-stats">
+              <div className="hero-stat"><strong>{metrics.open}</strong><span>Open jobs</span></div>
+              <div className="hero-stat"><strong>{metrics.blocked}</strong><span>Need input</span></div>
+              <div className="hero-stat"><strong>{metrics.dueSoon}</strong><span>Due in 7 days</span></div>
+              <div className="hero-stat"><strong>{metrics.calendarDays}</strong><span>Calendar job-days</span></div>
+            </div>
+          </section>
+          <div className="metric-grid">
+            <Metric label="Overdue" value={metrics.overdue} detail="Requires attention" tone="red" />
+            <Metric label="Workshop hours" value={`${metrics.hours}h`} detail="Filtered allocation" />
+            <Metric label="Complete" value={metrics.complete} detail={`${metrics.progress}% done`} tone="green" />
+            <Metric label="Total jobs" value={jobs.length} detail={`${allJobs.length} in database/cache`} />
+          </div>
+          <section className="panel" style={{ marginTop: 20 }}>
+            <div className="panel-header">
+              <div><h3 className="panel-title">High-risk queue</h3><div className="panel-subtitle">Sorted by due date, blocker status and priority.</div></div>
+              <button className="ghost-button" onClick={() => onEdit({})}>Add job</button>
+            </div>
+            <div className="risk-list">
+              {risky.length ? risky.map((job) => <RiskItem key={job.id} job={job} onSelect={onSelect} onStatus={onStatus} />) : <EmptyState text="No risk items in the current filter." />}
+            </div>
+          </section>
+        </div>
+        <div>
+          <section className="panel">
+            <div className="panel-header">
+              <div><h3 className="panel-title">Completion shape</h3><div className="panel-subtitle">Filtered completion ratio.</div></div>
+            </div>
+            <div className="split-panel">
+              <div className="progress-ring" style={{ "--progress": metrics.progress }}><strong>{metrics.progress}%</strong></div>
+              <div className="bar-list">
+                {STATUS_ORDER.map((status) => {
+                  const count = jobs.filter((j) => j.status === status).length;
+                  const width = jobs.length ? Math.max(4, (count / jobs.length) * 100) : 0;
+                  return <BarRow key={status} label={status} value={`${count} jobs`} width={width} />;
+                })}
+              </div>
+            </div>
+          </section>
+          <section className="panel">
+            <div className="panel-header">
+              <div><h3 className="panel-title">People capacity</h3><div className="panel-subtitle">Open hours by employee.</div></div>
+            </div>
+            <div className="bar-list">
+              {people.map((person) => {
+                const hours = jobs.filter((j) => j.alloc === person && j.status !== "Complete").reduce((sum, j) => sum + Number(j.hrs || 0), 0);
+                const max = Math.max(1, ...people.map((p) => jobs.filter((j) => j.alloc === p && j.status !== "Complete").reduce((sum, j) => sum + Number(j.hrs || 0), 0)));
+                return <BarRow key={person} label={person} value={`${hours}h`} width={(hours / max) * 100} />;
+              })}
+            </div>
+          </section>
+          <section className="panel">
+            <div className="panel-header">
+              <div><h3 className="panel-title">Recent service updates</h3><div className="panel-subtitle">Latest notes across the floor.</div></div>
+              <button className="ghost-button" onClick={onOpenUpdates}>View all</button>
+            </div>
+            <UpdatesList updates={updates.slice(0, 5)} onSelect={onSelect} />
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value, detail }) {
+  return <div className="metric-card"><div className="metric-label"><span>{label}</span><span>●</span></div><div className="metric-value">{value}</div><div className="metric-detail">{detail}</div></div>;
+}
+
+function BarRow({ label, value, width }) {
+  return <div className="bar-row"><div className="bar-meta"><strong>{label}</strong><span>{value}</span></div><div className="bar-track"><div className="bar-fill" style={{ "--width": `${Math.min(100, Math.max(0, width))}%` }} /></div></div>;
+}
+
+function RiskItem({ job, onSelect, onStatus }) {
+  return (
+    <button className="risk-item" style={{ textAlign: "left" }} onClick={() => onSelect(job.id)}>
+      <div className="risk-top">
+        <div><div className="job-code">{job.asm || "No assembly"} · {job.cust}</div><div className="job-subline">{job.type} · {job.alloc} · due {formatDate(job.due)}</div></div>
+        <StatusChip status={job.status} />
+      </div>
+      <div className="job-meta">
+        <span className={`priority-chip ${job.priority}`}>{job.priority}</span>
+        <span className="chip">{job.hrs}h labour</span>
+        <span className="chip">{jobCalendarSpan(job)} day window</span>
+      </div>
+      <div style={{ marginTop: 10 }}><StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} /></div>
+    </button>
+  );
+}
+
+function BoardView({ jobs, onSelect, onEdit, onStatus }) {
+  const columns = STATUS_ORDER.map((status) => ({ status, jobs: jobs.filter((job) => job.status === status) }));
+  return (
+    <div className="board">
+      {columns.map((column) => <BoardColumn key={column.status} status={column.status} jobs={column.jobs} onSelect={onSelect} onEdit={onEdit} onStatus={onStatus} />)}
+    </div>
+  );
+}
+
+function BoardColumn({ status, jobs, onSelect, onEdit, onStatus }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `status:${status}`, data: { type: "column", status } });
+  const meta = STATUS_META[status];
+  return (
+    <section ref={setNodeRef} className={`column ${isOver ? "over" : ""}`}>
+      <div className="column-header">
+        <div className="column-title"><StatusChip status={status} /> <span>{meta.label}</span></div>
+        <div className="column-count">{jobs.length} jobs</div>
+      </div>
+      <SortableContext items={jobs.map((job) => job.id)} strategy={verticalListSortingStrategy}>
+        <div className="column-body">
+          {jobs.length ? jobs.map((job) => <JobCard key={job.id} job={job} onSelect={onSelect} onEdit={onEdit} onStatus={onStatus} />) : <EmptyState text={`Drop jobs here to mark them ${status.toLowerCase()}.`} />}
+        </div>
+      </SortableContext>
+    </section>
+  );
+}
+
+function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id, data: { type: "job", status: job.status } });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  const latest = parseNotes(job.notes)[0];
+  return (
+    <article ref={setNodeRef} style={style} className={`job-card ${overlay ? "overlay" : ""} ${isDragging ? "dragging" : ""}`}>
+      <div className="job-accent" />
+      <div className="job-card-header" {...attributes} {...listeners}>
+        <div>
+          <StatusChip status={job.status} />
+          <h3 className="job-title">{job.asm || "No assembly"}</h3>
+          <div className="job-subline">SO {job.so || "TBA"} · {job.cust || "No customer"}</div>
+        </div>
+        <span className={`priority-chip ${job.priority}`}>{job.priority}</span>
+      </div>
+      <p className="job-details">{job.type} · {job.details || "No extra details recorded."}</p>
+      <div className="job-meta">
+        <span className="chip">{job.alloc || "Unassigned"}</span>
+        <span className="chip">{job.bus}</span>
+        <span className="chip">{job.hrs}h / {jobCalendarSpan(job)} days</span>
+        <span className="chip">Due {formatDate(job.due)}</span>
+      </div>
+      {latest && <div className="note-card" style={{ marginTop: 12, padding: 10 }}><div className="note-meta"><span>{latest.by}</span><span>{formatDateTime(latest.at)}</span></div><div style={{ fontSize: 12, color: "var(--muted)" }}>{latest.txt}</div></div>}
+      <div className="job-footer">
+        <StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} />
+        <div className="card-actions">
+          <button className="icon-button" onClick={() => onSelect(job.id)} title="Open notes">↗</button>
+          <button className="icon-button" onClick={() => onEdit(job)} title="Edit">✎</button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function StatusChip({ status }) {
+  const meta = STATUS_META[status] || STATUS_META["Not Started"];
+  return <span className={`status-chip ${meta.tone}`}><span>{meta.icon}</span>{meta.short}</span>;
+}
+
+function StatusSwitch({ value, onChange }) {
+  return (
+    <div className="status-switch" onClick={(e) => e.stopPropagation()}>
+      {["In Progress", "Input Needed", "Complete"].map((status) => (
+        <button key={status} className={`status-button ${value === status ? "active" : ""}`} onClick={() => onChange(status)}>{STATUS_META[status].short}</button>
+      ))}
+    </div>
+  );
+}
+
+function EmployeeView({ jobs, people, onSelect, onStatus }) {
+  const groups = makeGroups(jobs, (job) => job.alloc);
+  return (
+    <div className="lane-grid">
+      {people.map((person) => {
+        const items = groups[person] || [];
+        const open = items.filter((j) => j.status !== "Complete");
+        const hours = open.reduce((sum, j) => sum + Number(j.hrs || 0), 0);
+        const blocked = open.filter((j) => j.status === "Input Needed").length;
+        return (
+          <section className="lane-card" key={person}>
+            <div className="lane-header">
+              <div className="lane-title"><span className="lane-avatar">{person.slice(0, 1)}</span>{person}</div>
+              <StatusChip status={blocked ? "Input Needed" : open.length ? "In Progress" : "Complete"} />
+            </div>
+            <div className="lane-summary">
+              <div className="summary-cell"><strong>{open.length}</strong><span>Open</span></div>
+              <div className="summary-cell"><strong>{hours}h</strong><span>Labour</span></div>
+              <div className="summary-cell"><strong>{blocked}</strong><span>Blocked</span></div>
+            </div>
+            <div className="job-list">
+              {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={onSelect} onStatus={onStatus} />) : <EmptyState text="No filtered work allocated." />}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function BusinessUnitView({ jobs, businessUnits, onSelect, onStatus }) {
+  const groups = makeGroups(jobs, (job) => job.bus);
+  return (
+    <div className="business-grid">
+      {businessUnits.map((unit) => {
+        const items = groups[unit] || [];
+        const open = items.filter((j) => j.status !== "Complete");
+        const hours = open.reduce((sum, j) => sum + Number(j.hrs || 0), 0);
+        return (
+          <section className="bu-card" key={unit}>
+            <div className="bu-hero">
+              <div><h3>{unit}</h3><div className="panel-subtitle" style={{ color: "#d8e8fb" }}>{open.length} open · {hours}h booked</div></div>
+              <div className="hero-stat" style={{ minWidth: 95 }}><strong>{items.length}</strong><span>Total</span></div>
+            </div>
+            <div className="bu-body">
+              {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={onSelect} onStatus={onStatus} />) : <EmptyState text="No filtered jobs for this business unit." />}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function DueDateView({ jobs, onSelect, onStatus }) {
+  const order = ["Overdue", "Due today", "Next 7 days", "Next 30 days", "Later", "No due date", "Complete"];
+  const groups = makeGroups(jobs, dueBucket);
+  return (
+    <div className="due-stack">
+      {order.map((bucket) => {
+        const items = (groups[bucket] || []).sort((a, b) => (parseISODate(a.due)?.getTime() || 0) - (parseISODate(b.due)?.getTime() || 0));
+        return (
+          <section className="due-section" key={bucket}>
+            <div className="due-heading"><h3>{bucket}</h3><span className="chip">{items.length} jobs</span></div>
+            <div className="job-list">
+              {items.length ? items.map((job) => <TimelineJob key={job.id} job={job} onSelect={onSelect} onStatus={onStatus} />) : <EmptyState text="No jobs in this due-date bucket." />}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function TimelineJob({ job, onSelect, onStatus }) {
+  const span = jobCalendarSpan(job);
+  const width = Math.min(100, Math.max(16, span * 9));
+  return (
+    <div className="timeline-item">
+      <div><div className="timeline-date">{formatDate(job.due, { year: "numeric" })}</div><div className="job-subline">Start {formatDate(job.start)}</div></div>
+      <button style={{ textAlign: "left", background: "transparent", border: 0, padding: 0 }} onClick={() => onSelect(job.id)}>
+        <div className="timeline-top"><div><div className="job-code">{job.asm} · {job.cust}</div><div className="job-subline">{job.alloc} · {job.type} · {job.hrs} labour hours across {span} calendar day{span === 1 ? "" : "s"}</div></div><StatusChip status={job.status} /></div>
+        <div className="window-bar"><div className="window-fill" style={{ "--width": `${width}%` }} /></div>
+      </button>
+      <StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} />
+    </div>
+  );
+}
+
+function ListView({ jobs, onSelect, onEdit, onStatus, onDelete }) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead><tr><th>Assembly</th><th>Customer / SO</th><th>BU</th><th>Employee</th><th>Work window</th><th>Hours</th><th>Status</th><th>Updates</th><th>Actions</th></tr></thead>
+        <tbody>
+          {jobs.map((job) => {
+            const notes = parseNotes(job.notes);
+            return (
+              <tr key={job.id}>
+                <td><button style={{ background: "transparent", border: 0, padding: 0, textAlign: "left" }} onClick={() => onSelect(job.id)}><div className="job-code">{job.asm || "No assembly"}</div><div className="job-subline">{job.type}</div></button></td>
+                <td><strong>{job.cust}</strong><div className="job-subline">SO {job.so || "TBA"}</div></td>
+                <td>{job.bus}</td>
+                <td>{job.alloc}</td>
+                <td>{formatDate(job.start)} → {formatDate(job.due)}<div className="job-subline">{jobCalendarSpan(job)} calendar days</div></td>
+                <td>{job.hrs}h<div className="job-subline">Actual {job.actualHrs || 0}h</div></td>
+                <td><StatusChip status={job.status} /><div style={{ marginTop: 8 }}><StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} /></div></td>
+                <td>{notes[0] ? <div><strong>{notes[0].by}</strong><div className="job-subline">{notes[0].txt}</div></div> : <span className="job-subline">No notes</span>}</td>
+                <td><div className="card-actions"><button className="icon-button" onClick={() => onSelect(job.id)}>↗</button><button className="icon-button" onClick={() => onEdit(job)}>✎</button><button className="icon-button" onClick={() => onDelete(job)}>×</button></div></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MiniJob({ job, onSelect, onStatus }) {
+  return (
+    <div className="mini-job">
+      <div className="mini-top">
+        <button style={{ textAlign: "left", background: "transparent", border: 0, padding: 0 }} onClick={() => onSelect(job.id)}>
+          <div className="job-code">{job.asm} · {job.cust}</div>
+          <div className="job-subline">{job.type} · due {formatDate(job.due)} · {job.hrs}h / {jobCalendarSpan(job)} days</div>
         </button>
+        <StatusChip status={job.status} />
+      </div>
+      <div style={{ marginTop: 10 }}><StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} /></div>
+    </div>
+  );
+}
+
+function UpdatesList({ updates, onSelect }) {
+  if (!updates.length) return <EmptyState text="No service updates have been recorded yet." />;
+  return <div className="updates-list">{updates.map((u, idx) => <button key={`${u.job.id}-${u.at}-${idx}`} className="update-item" style={{ textAlign: "left" }} onClick={() => onSelect(u.job.id)}><div className="note-meta"><strong>{u.by}</strong><span>{formatDateTime(u.at)}</span></div><div className="job-code">{u.job.asm} · {u.job.cust}</div><div className="job-subline">{u.txt}</div></button>)}</div>;
+}
+
+function EmptyState({ text }) {
+  return <div className="empty-state">{text}</div>;
+}
+
+function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
+  const [text, setText] = useState("");
+  const [nextStatus, setNextStatus] = useState(job.status);
+  useEffect(() => { setNextStatus(job.status); setText(""); }, [job.id, job.status]);
+  const notes = parseNotes(job.notes);
+  const submit = async (e) => {
+    e.preventDefault();
+    await onAddNote(job.id, text, nextStatus, user.name || user.email);
+    setText("");
+  };
+  return (
+    <>
+      <div className="drawer-backdrop" onClick={onClose} />
+      <aside className="drawer">
+        <div className="drawer-header">
+          <div className="drawer-header-row">
+            <div><StatusChip status={job.status} /><h2 className="drawer-title">{job.asm || "No assembly"}</h2><div style={{ color: "#c8daee" }}>{job.cust} · SO {job.so || "TBA"}</div></div>
+            <button className="icon-button" onClick={onClose}>×</button>
+          </div>
+        </div>
+        <div className="drawer-body">
+          <div className="detail-grid">
+            <Detail label="Employee" value={job.alloc} />
+            <Detail label="Business unit" value={job.bus} />
+            <Detail label="Work type" value={job.type} />
+            <Detail label="Priority" value={job.priority} />
+            <Detail label="Labour hours" value={`${job.hrs}h`} />
+            <Detail label="Calendar window" value={`${jobCalendarSpan(job)} day${jobCalendarSpan(job) === 1 ? "" : "s"}`} />
+            <Detail label="Start" value={formatDate(job.start, { year: "numeric" })} />
+            <Detail label="Due" value={formatDate(job.due, { year: "numeric" })} />
+          </div>
+          <section className="panel" style={{ boxShadow: "none" }}>
+            <div className="panel-header"><div><h3 className="panel-title">Service notes</h3><div className="panel-subtitle">Updates from the floor, newest first.</div></div><button className="ghost-button" onClick={onEdit}>Edit job</button></div>
+            <div className="updates-list">
+              {notes.length ? notes.map((note, i) => <div className="note-card" key={`${note.at}-${i}`}><div className="note-meta"><strong>{note.by}</strong><span>{formatDateTime(note.at)}</span></div><div>{note.txt}</div>{note.status && <div style={{ marginTop: 8 }}><StatusChip status={note.status} /></div>}</div>) : <EmptyState text="No updates yet. Add the first workshop note below." />}
+            </div>
+          </section>
+        </div>
+        <form className="drawer-footer" onSubmit={submit}>
+          <div className="field"><label>Add note / status update</label><textarea className="textarea" value={text} onChange={(e) => setText(e.target.value)} placeholder="Example: Waiting on customer spec. Job is only 3 labour hours but will remain open until Friday." /></div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <select className="select" value={nextStatus} onChange={(e) => setNextStatus(e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</select>
+            <button className="primary-button" disabled={!text.trim()} type="submit">Post update</button>
+          </div>
+        </form>
+      </aside>
+    </>
+  );
+}
+
+function UpdatesDrawer({ updates, onClose, onSelect }) {
+  return (
+    <>
+      <div className="drawer-backdrop" onClick={onClose} />
+      <aside className="drawer">
+        <div className="drawer-header"><div className="drawer-header-row"><div><div className="eyebrow">Complete audit trail</div><h2 className="drawer-title">Recent updates</h2><div style={{ color: "#c8daee" }}>All service notes across filtered and unfiltered jobs.</div></div><button className="icon-button" onClick={onClose}>×</button></div></div>
+        <div className="drawer-body"><UpdatesList updates={updates} onSelect={onSelect} /></div>
+        <div className="drawer-footer"><button className="secondary-button" onClick={onClose}>Close</button></div>
+      </aside>
+    </>
+  );
+}
+
+function Detail({ label, value }) {
+  return <div className="detail-cell"><span>{label}</span><strong>{value || "—"}</strong></div>;
+}
+
+function JobModal({ job, people, businessUnits, onClose, onSave }) {
+  const [fields, setFields] = useState(() => ({
+    asm: job.asm || "",
+    so: job.so || "",
+    cust: job.cust || "",
+    type: job.type || JOB_TYPES[0],
+    owner: job.owner || "",
+    alloc: job.alloc || people[0] || "Unassigned",
+    bus: job.bus || businessUnits[0] || "Other",
+    start: job.start || offsetDate(0),
+    due: job.due || offsetDate(7),
+    hrs: job.hrs ?? 1,
+    actualHrs: job.actualHrs ?? 0,
+    status: job.status || "Not Started",
+    priority: job.priority || "Normal",
+    details: job.details || "",
+  }));
+  const set = (key, value) => setFields((prev) => ({ ...prev, [key]: value }));
+  const submit = (e) => {
+    e.preventDefault();
+    onSave({ ...fields, hrs: Number(fields.hrs) || 0, actualHrs: Number(fields.actualHrs) || 0 });
+  };
+  return (
+    <div className="modal-backdrop">
+      <form className="modal-card" onSubmit={submit}>
+        <div className="modal-header"><div><div className="eyebrow">{job.id ? "Edit workshop job" : "New workshop job"}</div><h2>{job.id ? `${job.asm} · ${job.cust}` : "Create a production record"}</h2><div className="page-subtitle">Capture labour hours separately from the calendar start and due dates.</div></div><button className="icon-button" type="button" onClick={onClose}>×</button></div>
+        <div className="modal-body">
+          <div className="form-grid">
+            <Field label="Assembly / Tag"><input className="input" value={fields.asm} onChange={(e) => set("asm", e.target.value)} required /></Field>
+            <Field label="Sales Order"><input className="input" value={fields.so} onChange={(e) => set("so", e.target.value)} /></Field>
+            <Field label="Customer"><input className="input" value={fields.cust} onChange={(e) => set("cust", e.target.value)} required /></Field>
+            <Field label="Job Type"><select className="select" value={fields.type} onChange={(e) => set("type", e.target.value)}>{JOB_TYPES.map((v) => <option key={v}>{v}</option>)}</select></Field>
+            <Field label="Project Owner"><input className="input" value={fields.owner} onChange={(e) => set("owner", e.target.value)} /></Field>
+            <Field label="Employee / Service guy"><select className="select" value={fields.alloc} onChange={(e) => set("alloc", e.target.value)}><option>Unassigned</option>{people.map((p) => <option key={p}>{p}</option>)}</select></Field>
+            <Field label="Business Unit"><select className="select" value={fields.bus} onChange={(e) => set("bus", e.target.value)}>{businessUnits.map((b) => <option key={b}>{b}</option>)}</select></Field>
+            <Field label="Priority"><select className="select" value={fields.priority} onChange={(e) => set("priority", e.target.value)}>{PRIORITIES.map((p) => <option key={p}>{p}</option>)}</select></Field>
+            <Field label="Start / To be done"><input className="input" type="date" value={fields.start} onChange={(e) => set("start", e.target.value)} /></Field>
+            <Field label="Due date"><input className="input" type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} /></Field>
+            <Field label="Estimated labour hours"><input className="input" type="number" step="0.25" min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
+            <Field label="Actual hours"><input className="input" type="number" step="0.25" min="0" value={fields.actualHrs} onChange={(e) => set("actualHrs", e.target.value)} /></Field>
+            <Field label="Status"><select className="select" value={fields.status} onChange={(e) => set("status", e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</select></Field>
+            <Field label="Calendar interpretation"><div className="detail-cell" style={{ background: "#f8fafc" }}><span>Planned span</span><strong>{Math.max(1, daysBetween(fields.start, fields.due) + 1)} day window for {fields.hrs || 0}h work</strong></div></Field>
+          </div>
+          <Field label="Details / scope"><textarea className="textarea" value={fields.details} onChange={(e) => set("details", e.target.value)} placeholder="Scope, work order path, testing notes, customer blockers…" /></Field>
+        </div>
+        <div className="modal-footer"><button className="ghost-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit">Save job</button></div>
       </form>
     </div>
   );
 }
 
-function LogsModal({ isOpen, onClose, jobs }) {
-  if (!isOpen) return null;
-
-  let allLogs = [];
-  jobs.forEach(j => {
-    if (j.notes) {
-      try {
-        const parsed = typeof j.notes === "string" ? JSON.parse(j.notes) : j.notes;
-        if (Array.isArray(parsed)) {
-          parsed.forEach(n => {
-            allLogs.push({ ...n, jobAsm: j.asm, jobCust: j.cust, so: j.so });
-          });
-        }
-      } catch(e){}
-    }
-  });
-  
-  allLogs.sort((a,b) => new Date(b.at) - new Date(a.at));
-
-  return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, fontFamily: "sans-serif" }}>
-      <div style={{ background: "#fff", borderRadius: 8, width: 650, maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.2)" }}>
-        <div style={{ padding: 16, background: COLORS.navy, color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ margin: 0, fontSize: 15 }}>Complete Production Audit Trail</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", fontSize: 16, cursor: "pointer" }}>✕</button>
-        </div>
-        <div style={{ flex: 1, padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, background: "#F7FAFC" }}>
-          {allLogs.length === 0 ? (
-            <div style={{ textAlign: "center", color: COLORS.textMid, fontSize: 12, padding: 20 }}>No logs found in registry.</div>
-          ) : (
-            allLogs.map((l, idx) => (
-              <div key={idx} style={{ background: "#fff", padding: 12, borderRadius: 6, border: `1px solid ${COLORS.rule}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.navy, marginBottom: 4 }}>
-                    {l.jobCust} <span style={{ fontWeight: 400, color: COLORS.textMid }}>({l.jobAsm} / SO: {l.so})</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: COLORS.textDark }}>{l.txt}</div>
-                </div>
-                <div style={{ textAlign: "right", minWidth: 110, fontSize: 10, color: COLORS.textMid }}>
-                  <div style={{ fontWeight: 600 }}>👤 {l.by}</div>
-                  <div style={{ fontSize: 9, marginTop: 2 }}>⏱️ {l.at}</div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function Field({ label, children }) {
+  return <label className="field"><span>{label}</span>{children}</label>;
 }
