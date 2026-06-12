@@ -430,7 +430,7 @@ export default function App() {
           <nav className="nav-stack">
             <NavButton active={view === "dashboard"} icon="◆" label="Dashboard" hint="Live command centre" onClick={() => setView("dashboard")} />
             <NavButton active={view === "board"} icon="▦" label="Kanban" hint="Drag status columns" onClick={() => setView("board")} />
-            <NavButton active={view === "employees"} icon="☷" label="Employees" hint="Workload by service guy" onClick={() => setView("employees")} />
+            <NavButton active={view === "employees"} icon="☷" label="Employees" hint="Workload by workshop technician" onClick={() => setView("employees")} />
             <NavButton active={view === "business"} icon="◫" label="Business Units" hint="Pharma, mining, industrial" onClick={() => setView("business")} />
             <NavButton active={view === "due"} icon="◴" label="Due Dates" hint="Delivery windows" onClick={() => setView("due")} />
             <NavButton active={view === "list"} icon="≡" label="Master List" hint="Full job register" onClick={() => setView("list")} />
@@ -753,7 +753,7 @@ function LoginScreen({ onLogin }) {
             <div className="login-kpis">
               <div><strong>3</strong><span>core statuses</span></div>
               <div><strong>BU</strong><span>business unit views</span></div>
-              <div><strong>Live</strong><span>notes from service guys</span></div>
+              <div><strong>Live</strong><span>notes from workshop technicians</span></div>
             </div>
           </div>
           <form className="login-form" onSubmit={submit}>
@@ -791,7 +791,7 @@ function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, r
   const titles = {
     dashboard: ["Workshop Command Centre", "Executive-grade visibility across people, business units and due-date risk."],
     board: ["Kanban Production Board", "Drag cards between status lanes or use the quick status controls."],
-    employees: ["Employee Workload", "See exactly which service guy owns each job, hours and calendar window."],
+    employees: ["Staff Workload", "See exactly which workshop technician owns each job, hours and calendar window."],
     business: ["Business Unit Portfolio", "Roll up jobs by Pharma, Industrial, Engineering, Mining and Other."],
     due: ["Due Date Control", "Understand overdue work, delivery windows and small jobs that span multiple days."],
     list: ["Master Job Register", "Dense, searchable production list for admin and planning."],
@@ -849,7 +849,7 @@ function DashboardView({ jobs, allJobs, metrics, updates, people, onSelect, onEd
             <div className="hero-content">
               <div className="eyebrow">Live production health</div>
               <h2 className="hero-title">Precision planning for jobs that refuse to fit one day.</h2>
-              <p className="hero-copy">The dashboard separates labour hours from calendar span, so a 3-hour job can be planned across days while it waits for parts, customer input, testing or site access.</p>
+              <p className="hero-copy">Live overview of open jobs, blocked work, due-date pressure and booked workshop hours.</p>
             </div>
             <div className="hero-stats">
               <div className="hero-stat"><strong>{metrics.open}</strong><span>Open jobs</span></div>
@@ -932,7 +932,7 @@ function RiskItem({ job, onSelect, onStatus }) {
       </div>
       <div className="job-meta">
         <span className={`priority-chip ${job.priority}`}>{job.priority}</span>
-        <span className="chip">{job.hrs}h labour</span>
+        <span className="chip">{job.hrs}h hours booked</span>
         <span className="chip">{jobCalendarSpan(job)} day window</span>
       </div>
       <div style={{ marginTop: 10 }}><StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} /></div>
@@ -1033,7 +1033,7 @@ function EmployeeView({ jobs, people, onSelect, onStatus }) {
             </div>
             <div className="lane-summary">
               <div className="summary-cell"><strong>{open.length}</strong><span>Open</span></div>
-              <div className="summary-cell"><strong>{hours}h</strong><span>Labour</span></div>
+              <div className="summary-cell"><strong>{hours}h</strong><span>Hours booked</span></div>
               <div className="summary-cell"><strong>{blocked}</strong><span>Blocked</span></div>
             </div>
             <div className="job-list">
@@ -1097,7 +1097,7 @@ function TimelineJob({ job, onSelect, onStatus }) {
     <div className="timeline-item">
       <div><div className="timeline-date">{formatDate(job.due, { year: "numeric" })}</div><div className="job-subline">Start {formatDate(job.start)}</div></div>
       <button style={{ textAlign: "left", background: "transparent", border: 0, padding: 0 }} onClick={() => onSelect(job.id)}>
-        <div className="timeline-top"><div><div className="job-code">{job.asm} · {job.cust}</div><div className="job-subline">{job.alloc} · {job.type} · {job.hrs} labour hours across {span} calendar day{span === 1 ? "" : "s"}</div></div><StatusChip status={job.status} /></div>
+        <div className="timeline-top"><div><div className="job-code">{job.asm} · {job.cust}</div><div className="job-subline">{job.alloc} · {job.type} · {job.hrs} hours booked hours across {span} calendar day{span === 1 ? "" : "s"}</div></div><StatusChip status={job.status} /></div>
         <div className="window-bar"><div className="window-fill" style={{ "--width": `${width}%` }} /></div>
       </button>
       <StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} />
@@ -1183,7 +1183,7 @@ function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
             <Detail label="Business unit" value={job.bus} />
             <Detail label="Work type" value={job.type} />
             <Detail label="Priority" value={job.priority} />
-            <Detail label="Labour hours" value={`${job.hrs}h`} />
+            <Detail label="Hours booked hours" value={`${job.hrs}h`} />
             <Detail label="Calendar window" value={`${jobCalendarSpan(job)} day${jobCalendarSpan(job) === 1 ? "" : "s"}`} />
             <Detail label="Start" value={formatDate(job.start, { year: "numeric" })} />
             <Detail label="Due" value={formatDate(job.due, { year: "numeric" })} />
@@ -1196,7 +1196,7 @@ function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
           </section>
         </div>
         <form className="drawer-footer" onSubmit={submit}>
-          <div className="field"><label>Add note / status update</label><textarea className="textarea" value={text} onChange={(e) => setText(e.target.value)} placeholder="Example: Waiting on customer spec. Job is only 3 labour hours but will remain open until Friday." /></div>
+          <div className="field"><label>Add note / status update</label><textarea className="textarea" value={text} onChange={(e) => setText(e.target.value)} placeholder="Example: Waiting on customer spec. Job is only 3 hours booked hours but will remain open until Friday." /></div>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
             <select className="select" value={nextStatus} onChange={(e) => setNextStatus(e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</select>
             <button className="primary-button" disabled={!text.trim()} type="submit">Post update</button>
@@ -1249,7 +1249,7 @@ function JobModal({ job, people, businessUnits, onClose, onSave }) {
   return (
     <div className="modal-backdrop">
       <form className="modal-card" onSubmit={submit}>
-        <div className="modal-header"><div><div className="eyebrow">{job.id ? "Edit workshop job" : "New workshop job"}</div><h2>{job.id ? `${job.asm} · ${job.cust}` : "Create a production record"}</h2><div className="page-subtitle">Capture labour hours separately from the calendar start and due dates.</div></div><button className="icon-button" type="button" onClick={onClose}>×</button></div>
+        <div className="modal-header"><div><div className="eyebrow">{job.id ? "Edit workshop job" : "New workshop job"}</div><h2>{job.id ? `${job.asm} · ${job.cust}` : "Create a production record"}</h2><div className="page-subtitle">Capture hours booked hours separately from the calendar start and due dates.</div></div><button className="icon-button" type="button" onClick={onClose}>×</button></div>
         <div className="modal-body">
           <div className="form-grid">
             <Field label="Assembly / Tag"><input className="input" value={fields.asm} onChange={(e) => set("asm", e.target.value)} required /></Field>
@@ -1262,7 +1262,7 @@ function JobModal({ job, people, businessUnits, onClose, onSave }) {
             <Field label="Priority"><select className="select" value={fields.priority} onChange={(e) => set("priority", e.target.value)}>{PRIORITIES.map((p) => <option key={p}>{p}</option>)}</select></Field>
             <Field label="Start / To be done"><input className="input" type="date" value={fields.start} onChange={(e) => set("start", e.target.value)} /></Field>
             <Field label="Due date"><input className="input" type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} /></Field>
-            <Field label="Estimated labour hours"><input className="input" type="number" step="0.25" min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
+            <Field label="Estimated hours booked hours"><input className="input" type="number" step="0.25" min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
             <Field label="Actual hours"><input className="input" type="number" step="0.25" min="0" value={fields.actualHrs} onChange={(e) => set("actualHrs", e.target.value)} /></Field>
             <Field label="Status"><select className="select" value={fields.status} onChange={(e) => set("status", e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</select></Field>
             <Field label="Calendar interpretation"><div className="detail-cell" style={{ background: "#f8fafc" }}><span>Planned span</span><strong>{Math.max(1, daysBetween(fields.start, fields.due) + 1)} day window for {fields.hrs || 0}h work</strong></div></Field>
