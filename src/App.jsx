@@ -19,6 +19,9 @@ import { CSS } from "@dnd-kit/utilities";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const SUPABASE_TABLE = import.meta.env.VITE_SUPABASE_JOBS_TABLE || "jobs";
+const SUPABASE_STAFF_TABLE = import.meta.env.VITE_SUPABASE_STAFF_TABLE || "staff";
+const SUPABASE_START_COLUMN = import.meta.env.VITE_SUPABASE_START_COLUMN || "start_date";
+const SUPABASE_DUE_COLUMN = import.meta.env.VITE_SUPABASE_DUE_COLUMN || "due_date";
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const STATUS_ORDER = ["Not Started", "In Progress", "Input Needed", "Complete"];
@@ -30,9 +33,19 @@ const STATUS_META = {
 };
 const JOB_TYPES = ["Valve Assembly", "Pump Assembly", "Valve Overhaul", "Pump Overhaul", "Mechanical Seal Refurb", "Testing", "Site Visit"];
 const PEOPLE = ["Darragh", "Shauna", "Cathal", "Ross", "Dave", "Colin"];
+const DEFAULT_STAFF = PEOPLE.map((name) => ({
+  id: `staff-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+  name,
+  role: "Workshop technician",
+  active: true,
+  email: "",
+  phone: "",
+  notes: "",
+}));
 const BUSINESS_UNITS = ["Pharma", "Industrial", "Engineering", "Mining", "Other"];
 const PRIORITIES = ["Low", "Normal", "High", "Critical"];
 const STORAGE_KEY = "flexachem_workshop_jobs_v2";
+const STAFF_STORAGE_KEY = "flexachem_workshop_staff_v1";
 const USER_KEY = "flexachem_workshop_user_v2";
 
 const today = () => new Date();
@@ -158,16 +171,18 @@ function normalizeJob(row) {
   };
 }
 
+function jobSort(a, b) {
+  return (riskScore(b) - riskScore(a)) || ((parseISODate(a.due)?.getTime() || 0) - (parseISODate(b.due)?.getTime() || 0));
+}
+
 function toDbPayload(job) {
-  return {
+  const payload = {
     asm: job.asm,
     so: job.so,
     cust: job.cust,
     type: job.type,
     owner: job.owner,
     alloc: job.alloc,
-    start: job.start || null,
-    due: job.due || null,
     hrs: Number(job.hrs) || 0,
     actual_hours: Number(job.actualHrs) || 0,
     status: job.status,
@@ -175,6 +190,42 @@ function toDbPayload(job) {
     priority: job.priority,
     details: job.details,
     notes: job.notes,
+    updated_at: new Date().toISOString(),
+  };
+  payload[SUPABASE_START_COLUMN] = job.start || null;
+  payload[SUPABASE_DUE_COLUMN] = job.due || null;
+  return payload;
+}
+
+function staffKey(name) {
+  return String(name || "staff").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "staff";
+}
+
+function normalizeStaff(row) {
+  const name = String(row?.name || row?.staff || row?.employee || row?.full_name || "").trim();
+  const id = row?.id || `staff-${staffKey(name || crypto.randomUUID?.() || Date.now())}`;
+  return {
+    id,
+    name: name || "Unnamed staff member",
+    role: row?.role || row?.job_title || "Workshop technician",
+    active: row?.active ?? row?.is_active ?? row?.enabled ?? true,
+    email: row?.email || "",
+    phone: row?.phone || "",
+    notes: row?.notes || "",
+    createdAt: row?.createdAt || row?.created_at || new Date().toISOString(),
+    updatedAt: row?.updatedAt || row?.updated_at || new Date().toISOString(),
+  };
+}
+
+function toStaffDbPayload(member) {
+  return {
+    id: member.id,
+    name: member.name,
+    role: member.role || "Workshop technician",
+    active: Boolean(member.active),
+    email: member.email || null,
+    phone: member.phone || null,
+    notes: member.notes || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -194,6 +245,36 @@ function saveStoredJobs(jobs) {
   } catch {
     // Ignore storage quota/privacy errors.
   }
+}
+
+function loadStoredStaff() {
+  try {
+    const stored = localStorage.getItem(STAFF_STORAGE_KEY);
+    const base = stored ? JSON.parse(stored).map(normalizeStaff) : DEFAULT_STAFF.map(normalizeStaff);
+    return mergeStaffLists(DEFAULT_STAFF.map(normalizeStaff), base);
+  } catch {
+    return DEFAULT_STAFF.map(normalizeStaff);
+  }
+}
+
+function saveStoredStaff(staff) {
+  try {
+    localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staff));
+  } catch {
+    // Ignore storage quota/privacy errors.
+  }
+}
+
+function mergeStaffLists(...lists) {
+  const byName = new Map();
+  lists.flat().filter(Boolean).map(normalizeStaff).forEach((member) => {
+    const key = staffKey(member.name);
+    byName.set(key, { ...(byName.get(key) || {}), ...member });
+  });
+  return Array.from(byName.values()).sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 function getInitialUser() {
@@ -240,20 +321,22 @@ function dueBucket(job) {
 
 function useWorkshopData() {
   const [jobs, setJobs] = useState(loadStoredJobs);
+  const [staff, setStaff] = useState(loadStoredStaff);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [syncState, setSyncState] = useState(supabase ? "Connecting to Supabase…" : "Local demo mode");
+  const [staffSyncState, setStaffSyncState] = useState(supabase ? "Staff syncing with Supabase…" : "Staff saved locally");
 
   useEffect(() => {
     let cancelled = false;
     async function fetchJobs() {
       if (!supabase) return;
       setLoading(true);
-      const { data, error } = await supabase.from(SUPABASE_TABLE).select("*").order("due", { ascending: true });
+      const { data, error } = await supabase.from(SUPABASE_TABLE).select("*");
       if (cancelled) return;
       if (error) {
         setSyncState(`Local fallback — Supabase read failed: ${error.message}`);
       } else if (Array.isArray(data) && data.length) {
-        setJobs(data.map(normalizeJob));
+        setJobs(data.map(normalizeJob).sort(jobSort));
         setSyncState(`Live Supabase: ${SUPABASE_TABLE}`);
       } else {
         setSyncState(`Live Supabase connected — no rows in ${SUPABASE_TABLE}; showing seeded layout`);
@@ -267,8 +350,33 @@ function useWorkshopData() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    async function fetchStaff() {
+      if (!supabase) return;
+      const { data, error } = await supabase.from(SUPABASE_STAFF_TABLE).select("*").order("name", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        setStaffSyncState(`Staff local fallback — Supabase read failed: ${error.message}`);
+      } else if (Array.isArray(data) && data.length) {
+        setStaff(mergeStaffLists(DEFAULT_STAFF, data));
+        setStaffSyncState(`Live Supabase: ${SUPABASE_STAFF_TABLE}`);
+      } else {
+        setStaffSyncState(`Live Supabase connected — no rows in ${SUPABASE_STAFF_TABLE}; using default staff`);
+      }
+    }
+    fetchStaff();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     saveStoredJobs(jobs);
   }, [jobs]);
+
+  useEffect(() => {
+    saveStoredStaff(staff);
+  }, [staff]);
 
   const patchJob = useCallback(async (id, patch) => {
     const updatedAt = new Date().toISOString();
@@ -324,11 +432,87 @@ function useWorkshopData() {
     else await addJob(fields);
   }, [addJob, patchJob]);
 
-  return { jobs, setJobs, loading, syncState, patchJob, addNote, saveJob, deleteJob };
+  const addStaffMember = useCallback(async (fields) => {
+    const name = String(fields.name || "").trim();
+    if (!name) return;
+    const existing = staff.find((member) => staffKey(member.name) === staffKey(name));
+    const localMember = normalizeStaff({
+      ...(existing || {}),
+      ...fields,
+      id: existing?.id || `staff-${staffKey(name)}-${Date.now().toString(36)}`,
+      name,
+      active: fields.active ?? true,
+      updatedAt: new Date().toISOString(),
+    });
+    setStaff((prev) => mergeStaffLists(prev.filter((member) => member.id !== localMember.id), [localMember]));
+    if (supabase) {
+      const { data, error } = await supabase.from(SUPABASE_STAFF_TABLE).upsert(toStaffDbPayload(localMember)).select("*").single();
+      if (error) {
+        setStaffSyncState(`Local staff saved — Supabase staff upsert failed: ${error.message}`);
+      } else if (data) {
+        setStaff((prev) => mergeStaffLists(prev.filter((member) => member.id !== localMember.id), [data]));
+        setStaffSyncState("Staff synced just now");
+      }
+    }
+  }, [staff]);
+
+  const updateStaffMember = useCallback(async (id, patch) => {
+    let nextMember = null;
+    setStaff((prev) => mergeStaffLists(prev.map((member) => {
+      if (member.id !== id) return member;
+      nextMember = normalizeStaff({ ...member, ...patch, updatedAt: new Date().toISOString() });
+      return nextMember;
+    })));
+    if (supabase && nextMember) {
+      const { error } = await supabase.from(SUPABASE_STAFF_TABLE).update(toStaffDbPayload(nextMember)).eq("id", id);
+      setStaffSyncState(error ? `Local staff saved — Supabase staff update failed: ${error.message}` : "Staff synced just now");
+    }
+  }, []);
+
+  const deleteStaffMember = useCallback(async (id) => {
+    const member = staff.find((item) => item.id === id);
+    setStaff((prev) => prev.filter((item) => item.id !== id));
+    if (supabase) {
+      const { error } = await supabase.from(SUPABASE_STAFF_TABLE).delete().eq("id", id);
+      setStaffSyncState(error ? `Local staff removed — Supabase staff delete failed: ${error.message}` : "Staff synced just now");
+    }
+    if (member) {
+      setJobs((prev) => prev.map((job) => (job.alloc === member.name ? normalizeJob({ ...job, alloc: "Unassigned", updatedAt: new Date().toISOString() }) : job)));
+    }
+  }, [staff]);
+
+  return {
+    jobs,
+    setJobs,
+    staff,
+    loading,
+    syncState,
+    staffSyncState,
+    patchJob,
+    addNote,
+    saveJob,
+    deleteJob,
+    addStaffMember,
+    updateStaffMember,
+    deleteStaffMember,
+  };
 }
 
 export default function App() {
-  const { jobs, loading, syncState, patchJob, addNote, saveJob, deleteJob } = useWorkshopData();
+  const {
+    jobs,
+    staff,
+    loading,
+    syncState,
+    staffSyncState,
+    patchJob,
+    addNote,
+    saveJob,
+    deleteJob,
+    addStaffMember,
+    updateStaffMember,
+    deleteStaffMember,
+  } = useWorkshopData();
   const [user, setUser] = useState(getInitialUser);
   const [view, setView] = useState("dashboard");
   const [filters, setFilters] = useState({ search: "", employee: "All", bus: "All", status: "All", horizon: "All" });
@@ -343,10 +527,16 @@ export default function App() {
   }, [user]);
 
   const people = useMemo(() => {
-    const set = new Set(PEOPLE);
+    const set = new Set(staff.map((member) => member.name));
     jobs.forEach((job) => job.alloc && set.add(job.alloc));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [jobs]);
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [jobs, staff]);
+
+  const activePeople = useMemo(() => (staff.length ? staff : DEFAULT_STAFF)
+    .filter((member) => member.active)
+    .map((member) => member.name)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b)), [staff]);
 
   const businessUnits = useMemo(() => {
     const set = new Set(BUSINESS_UNITS);
@@ -364,7 +554,7 @@ export default function App() {
       const matchStatus = filters.status === "All" || job.status === filters.status;
       const matchHorizon = filters.horizon === "All" || dueBucket(job) === filters.horizon;
       return matchSearch && matchEmployee && matchBus && matchStatus && matchHorizon;
-    }).sort((a, b) => (riskScore(b) - riskScore(a)) || ((parseISODate(a.due)?.getTime() || 0) - (parseISODate(b.due)?.getTime() || 0)));
+    }).sort(jobSort);
   }, [jobs, filters]);
 
   const metrics = useMemo(() => {
@@ -387,6 +577,14 @@ export default function App() {
 
   const updateFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
   const resetFilters = () => setFilters({ search: "", employee: "All", bus: "All", status: "All", horizon: "All" });
+
+  const reassignStaffJobs = async (fromName, toName) => {
+    const target = toName || "Unassigned";
+    const affected = jobs.filter((job) => job.alloc === fromName && job.status !== "Complete");
+    for (const job of affected) {
+      await patchJob(job.id, { alloc: target });
+    }
+  };
 
   const handleLogin = (profile) => setUser(profile);
   const handleLogout = () => {
@@ -430,7 +628,7 @@ export default function App() {
           <nav className="nav-stack">
             <NavButton active={view === "dashboard"} icon="◆" label="Dashboard" hint="Live command centre" onClick={() => setView("dashboard")} />
             <NavButton active={view === "board"} icon="▦" label="Kanban" hint="Drag status columns" onClick={() => setView("board")} />
-            <NavButton active={view === "employees"} icon="☷" label="Staff" hint="Workload by workshop technician" onClick={() => setView("employees")} />
+            <NavButton active={view === "employees"} icon="☷" label="Staff" hint="Manage active staff and workload" onClick={() => setView("employees")} />
             <NavButton active={view === "business"} icon="◫" label="Business Units" hint="Pharma, mining, industrial" onClick={() => setView("business")} />
             <NavButton active={view === "due"} icon="◴" label="Due Dates" hint="Delivery windows" onClick={() => setView("due")} />
             <NavButton active={view === "list"} icon="≡" label="Master List" hint="Full job register" onClick={() => setView("list")} />
@@ -439,6 +637,8 @@ export default function App() {
           <div className="sidebar-card">
             <div className="sidebar-card-label">Data source</div>
             <div className="sync-pill">{syncState}</div>
+            <div className="sidebar-card-text">Jobs: {syncState}</div>
+            <div className="sidebar-card-text">Staff: {staffSyncState}</div>
             <div className="sidebar-card-text">Designed for Supabase when VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are present.</div>
           </div>
 
@@ -475,7 +675,21 @@ export default function App() {
                     <DragOverlay>{activeJob ? <JobCard job={activeJob} overlay onSelect={() => {}} onEdit={() => {}} onStatus={() => {}} /> : null}</DragOverlay>
                   </DndContext>
                 )}
-                {view === "employees" && <StaffView jobs={filteredJobs} people={people} onSelect={setSelectedJobId} onStatus={patchJob} />}
+                {view === "employees" && (
+                  <StaffView
+                    jobs={filteredJobs}
+                    allJobs={jobs}
+                    staff={staff}
+                    people={people}
+                    activePeople={activePeople}
+                    onSelect={setSelectedJobId}
+                    onStatus={patchJob}
+                    onAddStaff={addStaffMember}
+                    onUpdateStaff={updateStaffMember}
+                    onDeleteStaff={deleteStaffMember}
+                    onReassignStaff={reassignStaffJobs}
+                  />
+                )}
                 {view === "business" && <BusinessUnitView jobs={filteredJobs} businessUnits={businessUnits} onSelect={setSelectedJobId} onStatus={patchJob} />}
                 {view === "due" && <DueDateView jobs={filteredJobs} onSelect={setSelectedJobId} onStatus={patchJob} />}
                 {view === "list" && <ListView jobs={filteredJobs} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={patchJob} onDelete={handleDelete} />}
@@ -501,7 +715,7 @@ export default function App() {
       {editingJob && (
         <JobModal
           job={editingJob}
-          people={people}
+          people={activePeople}
           businessUnits={businessUnits}
           onClose={() => setEditingJob(null)}
           onSave={async (fields) => {
@@ -656,6 +870,20 @@ function DesignSystem() {
       .card-actions { display: flex; gap: 6px; align-items: center; }
       .icon-button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font-weight: 900; display: grid; place-items: center; }
       .empty-state { min-height: 240px; border: 1px dashed rgba(15,36,64,0.24); border-radius: 22px; display: grid; place-items: center; color: var(--muted); font-size: 13px; padding: 18px; text-align: center; }
+      .staff-page { display: grid; gap: 18px; }
+      .staff-management-panel { overflow: visible; }
+      .staff-kpi-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+      .staff-add-form { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.8fr) auto; gap: 10px; margin-bottom: 14px; }
+      .staff-table { display: grid; gap: 10px; }
+      .staff-row { display: grid; grid-template-columns: minmax(220px, 1fr) auto minmax(420px, 1.2fr); gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 20px; background: #fff; }
+      .staff-row.inactive, .lane-card.inactive { opacity: 0.74; }
+      .staff-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      .staff-main strong { display: block; font-size: 14px; }
+      .staff-main span { color: var(--muted); font-size: 12px; }
+      .staff-status-block { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+      .staff-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+      .ghost-button.danger { color: var(--red); border-color: rgba(194,65,59,0.22); }
+      .ghost-button:disabled, .primary-button:disabled, .secondary-button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
       .lane-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
       .lane-card { border-radius: 26px; padding: 18px; box-shadow: var(--shadow-soft); }
       .lane-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
@@ -717,7 +945,7 @@ function DesignSystem() {
       .login-kpis strong { display: block; font-size: 22px; }
       .login-kpis span { color: #b7c8dc; font-size: 11px; }
       @media (max-width: 1180px) { .app-shell { grid-template-columns: 86px minmax(0, 1fr); } .brand-block, .sidebar-card, .profile-copy, .nav-text { display: none; } .sidebar { padding: 18px 12px; } .nav-button { justify-content: center; padding: 12px 8px; } .profile-card { justify-content: center; } .dashboard-grid { grid-template-columns: 1fr; } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-      @media (max-width: 760px) { .app-shell { display: block; height: auto; min-height: 100vh; } .sidebar { position: sticky; top: 0; z-index: 20; flex-direction: row; overflow-x: auto; border-radius: 0 0 24px 24px; } .nav-stack { display: flex; } .profile-card { margin-left: auto; } .workspace { min-height: 100vh; } .topbar-row { align-items: flex-start; flex-direction: column; } .filter-bar { border-radius: 18px; } .metric-grid, .form-grid, .detail-grid { grid-template-columns: 1fr; } .split-panel, .timeline-item, .login-panel { grid-template-columns: 1fr; } .content-scroll { padding: 16px; } .page-title { font-size: 24px; } .login-story, .login-form { padding: 28px; } }
+      @media (max-width: 760px) { .app-shell { display: block; height: auto; min-height: 100vh; } .sidebar { position: sticky; top: 0; z-index: 20; flex-direction: row; overflow-x: auto; border-radius: 0 0 24px 24px; } .nav-stack { display: flex; } .profile-card { margin-left: auto; } .workspace { min-height: 100vh; } .topbar-row { align-items: flex-start; flex-direction: column; } .filter-bar { border-radius: 18px; } .metric-grid, .form-grid, .detail-grid { grid-template-columns: 1fr; } .split-panel, .timeline-item, .login-panel { grid-template-columns: 1fr; } .content-scroll { padding: 16px; } .page-title { font-size: 24px; } .staff-add-form, .staff-row { grid-template-columns: 1fr; } .staff-status-block, .staff-actions { justify-content: flex-start; } .login-story, .login-form { padding: 28px; } }
     `}</style>
   );
 }
@@ -785,7 +1013,7 @@ function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, r
   const titles = {
     dashboard: ["Workshop Command Centre", "Live visibility across staff, business units and due-date risk."],
     board: ["Kanban Production Board", "Drag cards between status lanes or use the quick status controls."],
-    employees: ["Staff Workload", "See exactly which workshop technician owns each job, hours and calendar window."],
+    employees: ["Staff Management", "Add staff, deactivate leavers, reassign open jobs and monitor workload."],
     business: ["Business Unit Portfolio", "Roll up jobs by Pharma, Industrial, Engineering, Mining and Other."],
     due: ["Due Date Control", "Understand overdue work, delivery windows and small jobs that span multiple days."],
     list: ["Master Job Register", "Dense, searchable production list for admin and planning."],
@@ -997,32 +1225,101 @@ function StatusSwitch({ value, onChange }) {
   );
 }
 
-function StaffView({ jobs, people, onSelect, onStatus }) {
+function StaffView({ jobs, allJobs, staff, people, activePeople, onSelect, onStatus, onAddStaff, onUpdateStaff, onDeleteStaff, onReassignStaff }) {
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffRole, setNewStaffRole] = useState("Workshop technician");
+  const [reassignTargets, setReassignTargets] = useState({});
   const groups = makeGroups(jobs, (job) => job.alloc);
+  const staffByName = useMemo(() => new Map(staff.map((member) => [member.name, member])), [staff]);
+  const activeCount = staff.filter((member) => member.active).length;
+  const inactiveCount = staff.filter((member) => !member.active).length;
+
+  const submit = (e) => {
+    e.preventDefault();
+    const name = newStaffName.trim();
+    if (!name) return;
+    onAddStaff({ name, role: newStaffRole.trim() || "Workshop technician", active: true });
+    setNewStaffName("");
+    setNewStaffRole("Workshop technician");
+  };
+
   return (
-    <div className="lane-grid">
-      {people.map((person) => {
-        const items = groups[person] || [];
-        const open = items.filter((j) => j.status !== "Complete");
-        const hours = open.reduce((sum, j) => sum + Number(j.hrs || 0), 0);
-        const blocked = open.filter((j) => j.status === "Input Needed").length;
-        return (
-          <section className="lane-card" key={person}>
-            <div className="lane-header">
-              <div className="lane-title"><span className="lane-avatar">{person.slice(0, 1)}</span>{person}</div>
-              <StatusChip status={blocked ? "Input Needed" : open.length ? "In Progress" : "Complete"} />
-            </div>
-            <div className="lane-summary">
-              <div className="summary-cell"><strong>{open.length}</strong><span>Open</span></div>
-              <div className="summary-cell"><strong>{hours}h</strong><span>Hours booked</span></div>
-              <div className="summary-cell"><strong>{blocked}</strong><span>Blocked</span></div>
-            </div>
-            <div className="job-list">
-              {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={onSelect} onStatus={onStatus} />) : <EmptyState text="No filtered work allocated." />}
-            </div>
-          </section>
-        );
-      })}
+    <div className="staff-page">
+      <section className="panel staff-management-panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="panel-title">Staff management</h3>
+            <div className="panel-subtitle">Deactivate leavers to remove them from future job assignment, or add new technicians here.</div>
+          </div>
+          <div className="staff-kpi-row">
+            <span className="chip">{activeCount} active</span>
+            <span className="chip">{inactiveCount} inactive</span>
+          </div>
+        </div>
+        <form className="staff-add-form" onSubmit={submit}>
+          <input className="input" value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder="New staff member name" />
+          <input className="input" value={newStaffRole} onChange={(e) => setNewStaffRole(e.target.value)} placeholder="Role" />
+          <button className="primary-button" type="submit">+ Add staff</button>
+        </form>
+        <div className="staff-table">
+          {staff.map((member) => {
+            const openJobs = allJobs.filter((job) => job.alloc === member.name && job.status !== "Complete");
+            const activeChoices = activePeople.filter((name) => name !== member.name);
+            const selectedTarget = reassignTargets[member.name] || "Unassigned";
+            return (
+              <div className={`staff-row ${member.active ? "" : "inactive"}`} key={member.id}>
+                <div className="staff-main">
+                  <div className="lane-avatar">{member.name.slice(0, 1).toUpperCase()}</div>
+                  <div>
+                    <strong>{member.name}</strong>
+                    <span>{member.role || "Workshop technician"}</span>
+                  </div>
+                </div>
+                <div className="staff-status-block">
+                  <span className={`status-chip ${member.active ? "green" : "neutral"}`}><span>{member.active ? "✓" : "–"}</span>{member.active ? "Active" : "Inactive"}</span>
+                  <span className="chip">{openJobs.length} open jobs</span>
+                </div>
+                <div className="staff-actions">
+                  <select className="select" value={selectedTarget} onChange={(e) => setReassignTargets((prev) => ({ ...prev, [member.name]: e.target.value }))}>
+                    <option>Unassigned</option>
+                    {activeChoices.map((name) => <option key={name}>{name}</option>)}
+                  </select>
+                  <button className="ghost-button" type="button" disabled={!openJobs.length} onClick={() => onReassignStaff(member.name, selectedTarget)}>Move open jobs</button>
+                  <button className="secondary-button" type="button" onClick={() => onUpdateStaff(member.id, { active: !member.active })}>{member.active ? "Deactivate" : "Reactivate"}</button>
+                  {!PEOPLE.includes(member.name) && <button className="ghost-button danger" type="button" onClick={() => window.confirm(`Remove ${member.name} from the staff list? Open jobs will be set to Unassigned.`) && onDeleteStaff(member.id)}>Remove</button>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="lane-grid">
+        {people.map((person) => {
+          const items = groups[person] || [];
+          const open = items.filter((j) => j.status !== "Complete");
+          const hours = open.reduce((sum, j) => sum + Number(j.hrs || 0), 0);
+          const blocked = open.filter((j) => j.status === "Input Needed").length;
+          const member = staffByName.get(person);
+          const inactive = member && !member.active;
+          return (
+            <section className={`lane-card ${inactive ? "inactive" : ""}`} key={person}>
+              <div className="lane-header">
+                <div className="lane-title"><span className="lane-avatar">{person.slice(0, 1)}</span>{person}{inactive && <span className="chip">Inactive</span>}</div>
+                <StatusChip status={blocked ? "Input Needed" : open.length ? "In Progress" : "Complete"} />
+              </div>
+              <div className="lane-summary">
+                <div className="summary-cell"><strong>{open.length}</strong><span>Open</span></div>
+                <div className="summary-cell"><strong>{hours}h</strong><span>Hours booked</span></div>
+                <div className="summary-cell"><strong>{blocked}</strong><span>Blocked</span></div>
+              </div>
+              <div className="job-list">
+                {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={onSelect} onStatus={onStatus} />) : <EmptyState text="No filtered work allocated." />}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1206,13 +1503,19 @@ function Detail({ label, value }) {
 }
 
 function JobModal({ job, people, businessUnits, onClose, onSave }) {
+  const assignablePeople = useMemo(() => {
+    const set = new Set(people);
+    if (job.alloc) set.add(job.alloc);
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [people, job.alloc]);
+
   const [fields, setFields] = useState(() => ({
     asm: job.asm || "",
     so: job.so || "",
     cust: job.cust || "",
     type: job.type || JOB_TYPES[0],
     owner: job.owner || "",
-    alloc: job.alloc || people[0] || "Unassigned",
+    alloc: job.alloc || assignablePeople[0] || "Unassigned",
     bus: job.bus || businessUnits[0] || "Other",
     start: job.start || offsetDate(0),
     due: job.due || offsetDate(7),
@@ -1238,7 +1541,7 @@ function JobModal({ job, people, businessUnits, onClose, onSave }) {
             <Field label="Customer"><input className="input" value={fields.cust} onChange={(e) => set("cust", e.target.value)} required /></Field>
             <Field label="Job Type"><select className="select" value={fields.type} onChange={(e) => set("type", e.target.value)}>{JOB_TYPES.map((v) => <option key={v}>{v}</option>)}</select></Field>
             <Field label="Project Owner"><input className="input" value={fields.owner} onChange={(e) => set("owner", e.target.value)} /></Field>
-            <Field label="Staff / Workshop technician"><select className="select" value={fields.alloc} onChange={(e) => set("alloc", e.target.value)}><option>Unassigned</option>{people.map((p) => <option key={p}>{p}</option>)}</select></Field>
+            <Field label="Staff / Workshop technician"><select className="select" value={fields.alloc} onChange={(e) => set("alloc", e.target.value)}><option>Unassigned</option>{assignablePeople.map((p) => <option key={p}>{p}</option>)}</select></Field>
             <Field label="Business Unit"><select className="select" value={fields.bus} onChange={(e) => set("bus", e.target.value)}>{businessUnits.map((b) => <option key={b}>{b}</option>)}</select></Field>
             <Field label="Priority"><select className="select" value={fields.priority} onChange={(e) => set("priority", e.target.value)}>{PRIORITIES.map((p) => <option key={p}>{p}</option>)}</select></Field>
             <Field label="Start / To be done"><input className="input" type="date" value={fields.start} onChange={(e) => set("start", e.target.value)} /></Field>
