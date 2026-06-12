@@ -430,7 +430,7 @@ export default function App() {
           <nav className="nav-stack">
             <NavButton active={view === "dashboard"} icon="◆" label="Dashboard" hint="Live command centre" onClick={() => setView("dashboard")} />
             <NavButton active={view === "board"} icon="▦" label="Kanban" hint="Drag status columns" onClick={() => setView("board")} />
-            <NavButton active={view === "employees"} icon="☷" label="Employees" hint="Workload by workshop technician" onClick={() => setView("employees")} />
+            <NavButton active={view === "employees"} icon="☷" label="Employees" hint="Workload by service guy" onClick={() => setView("employees")} />
             <NavButton active={view === "business"} icon="◫" label="Business Units" hint="Pharma, mining, industrial" onClick={() => setView("business")} />
             <NavButton active={view === "due"} icon="◴" label="Due Dates" hint="Delivery windows" onClick={() => setView("due")} />
             <NavButton active={view === "list"} icon="≡" label="Master List" hint="Full job register" onClick={() => setView("list")} />
@@ -546,8 +546,8 @@ function DesignSystem() {
       body { background: radial-gradient(circle at top left, #eaf2ff 0, #f8fafc 34%, #eff4f9 100%); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       button, input, select, textarea { font: inherit; }
       button { cursor: pointer; }
-      .app-shell { width: 100vw; height: 100vh; display: grid; grid-template-columns: 288px minmax(0, 1fr); overflow: visible; }
-      .sidebar { position: relative; overflow: visible; padding: 22px 16px; background: linear-gradient(165deg, #06172d 0%, #092447 55%, #0a2d59 100%); color: #fff; display: flex; flex-direction: column; gap: 18px; }
+      .app-shell { width: 100vw; height: 100vh; display: grid; grid-template-columns: 288px minmax(0, 1fr); overflow: hidden; }
+      .sidebar { position: relative; overflow: hidden; padding: 22px 16px; background: linear-gradient(165deg, #06172d 0%, #092447 55%, #0a2d59 100%); color: #fff; display: flex; flex-direction: column; gap: 18px; }
       .sidebar:before { content: ""; position: absolute; inset: -120px -160px auto auto; width: 320px; height: 320px; border-radius: 999px; background: rgba(242,106,33,0.20); filter: blur(4px); }
       .brand-block { position: relative; display: flex; gap: 12px; align-items: center; padding: 10px 8px 18px; border-bottom: 1px solid rgba(255,255,255,0.10); }
       .brand-mark { width: 46px; height: 46px; border-radius: 16px; display: grid; place-items: center; font-weight: 900; font-size: 24px; background: linear-gradient(135deg, var(--orange), #ffbc84); color: #fff; box-shadow: 0 18px 40px rgba(242,106,33,0.34); }
@@ -569,8 +569,8 @@ function DesignSystem() {
       .profile-card { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 20px; background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.10); }
       .avatar { width: 36px; height: 36px; border-radius: 12px; background: #fff; color: var(--navy); display: grid; place-items: center; font-weight: 900; }
       .profile-copy { min-width: 0; display: grid; gap: 2px; flex: 1; }
-      .profile-copy strong { font-size: 12px; white-space: nowrap; overflow: visible; text-overflow: ellipsis; }
-      .profile-copy span { color: #a9bad0; font-size: 10px; white-space: nowrap; overflow: visible; text-overflow: ellipsis; }
+      .profile-copy strong { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .profile-copy span { color: #a9bad0; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .workspace { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: linear-gradient(180deg, rgba(255,255,255,0.68), rgba(247,249,252,0.90)); }
       .topbar { padding: 18px 26px 16px; display: grid; gap: 14px; border-bottom: 1px solid var(--line); backdrop-filter: blur(16px); background: rgba(255,255,255,0.64); }
       .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -595,7 +595,7 @@ function DesignSystem() {
       .content-scroll { overflow: auto; padding: 22px 26px 32px; }
       .dashboard-grid { display: grid; grid-template-columns: 1.36fr 0.84fr; gap: 20px; }
       .hero-card, .panel, .metric-card, .lane-card, .column, .drawer, .modal-card, .login-panel { background: var(--card); border: 1px solid rgba(255,255,255,0.74); box-shadow: var(--shadow); backdrop-filter: blur(18px); }
-      .hero-card { position: relative; overflow: visible; border-radius: 30px; padding: 28px; display: grid; gap: 24px; min-height: 258px; background: linear-gradient(135deg, #071b33 0%, #123d70 58%, #f26a21 138%); color: #fff; }
+      .hero-card { position: relative; overflow: hidden; border-radius: 30px; padding: 28px; display: grid; gap: 24px; min-height: 258px; background: linear-gradient(135deg, #071b33 0%, #123d70 58%, #f26a21 138%); color: #fff; }
       .hero-card:after { content: ""; position: absolute; width: 420px; height: 420px; right: -180px; top: -160px; background: radial-gradient(circle, rgba(255,255,255,0.24), rgba(255,255,255,0) 62%); }
       .hero-content { position: relative; z-index: 1; max-width: 720px; }
       .hero-title { font-size: clamp(32px, 4.2vw, 58px); line-height: 0.95; letter-spacing: -0.07em; margin: 0; }
@@ -621,7 +621,7 @@ function DesignSystem() {
       .bar-list { display: grid; gap: 12px; }
       .bar-row { display: grid; gap: 7px; }
       .bar-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
-      .bar-track { height: 9px; border-radius: 999px; background: #e8edf4; overflow: visible; }
+      .bar-track { height: 9px; border-radius: 999px; background: #e8edf4; overflow: hidden; }
       .bar-fill { height: 100%; width: var(--width); background: linear-gradient(90deg, var(--orange), #ffb27a); border-radius: inherit; }
       .risk-list, .updates-list, .job-list { display: grid; gap: 10px; }
       .risk-item, .update-item, .mini-job, .timeline-item { border: 1px solid var(--line); background: #fff; border-radius: 18px; padding: 12px; transition: 160ms ease; }
@@ -672,7 +672,7 @@ function DesignSystem() {
       .summary-cell strong { display: block; font-size: 20px; letter-spacing: -0.05em; }
       .summary-cell span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 900; }
       .business-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
-      .bu-card { border-radius: 28px; overflow: visible; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow-soft); }
+      .bu-card { border-radius: 28px; overflow: hidden; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow-soft); }
       .bu-hero { padding: 20px; color: #fff; background: linear-gradient(135deg, var(--navy), #21578f); display: flex; justify-content: space-between; gap: 14px; }
       .bu-hero h3 { margin: 0; font-size: 24px; letter-spacing: -0.05em; }
       .bu-body { padding: 14px; display: grid; gap: 10px; }
@@ -682,7 +682,7 @@ function DesignSystem() {
       .due-heading h3 { margin: 0; letter-spacing: -0.04em; }
       .timeline-item { display: grid; grid-template-columns: 170px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
       .timeline-date { font-weight: 900; color: var(--ink); }
-      .window-bar { margin-top: 8px; height: 8px; border-radius: 999px; background: #edf2f7; overflow: visible; }
+      .window-bar { margin-top: 8px; height: 8px; border-radius: 999px; background: #edf2f7; overflow: hidden; }
       .window-fill { height: 100%; width: var(--width); min-width: 16%; border-radius: inherit; background: linear-gradient(90deg, var(--orange), #ffc59b); }
       .table-wrap { overflow: auto; border-radius: 26px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow-soft); }
       table { width: 100%; border-collapse: collapse; min-width: 1040px; }
@@ -690,7 +690,7 @@ function DesignSystem() {
       td { padding: 14px 16px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
       tr:hover td { background: #fbfdff; }
       .drawer-backdrop, .modal-backdrop { position: fixed; inset: 0; z-index: 80; background: rgba(6, 16, 29, 0.32); backdrop-filter: blur(8px); }
-      .drawer { position: fixed; right: 18px; top: 18px; bottom: 18px; width: min(520px, calc(100vw - 36px)); z-index: 90; border-radius: 30px; overflow: visible; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
+      .drawer { position: fixed; right: 18px; top: 18px; bottom: 18px; width: min(520px, calc(100vw - 36px)); z-index: 90; border-radius: 30px; overflow: hidden; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
       .drawer-header { padding: 22px; color: #fff; background: linear-gradient(135deg, var(--navy), var(--navy-3)); }
       .drawer-header-row { display: flex; justify-content: space-between; gap: 16px; }
       .drawer-title { margin: 8px 0 0; font-size: 30px; letter-spacing: -0.06em; }
@@ -703,7 +703,7 @@ function DesignSystem() {
       .note-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 12px; }
       .note-meta { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 11px; margin-bottom: 6px; }
       .modal-backdrop { display: grid; place-items: center; padding: 20px; }
-      .modal-card { width: min(900px, 100%); max-height: min(860px, calc(100vh - 40px)); overflow: visible; border-radius: 30px; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
+      .modal-card { width: min(900px, 100%); max-height: min(860px, calc(100vh - 40px)); overflow: hidden; border-radius: 30px; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
       .modal-header { padding: 22px; background: linear-gradient(135deg, #fff, #f8fafc); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
       .modal-header h2 { margin: 0; letter-spacing: -0.05em; }
       .modal-body { padding: 22px; overflow: auto; display: grid; gap: 18px; }
@@ -712,7 +712,7 @@ function DesignSystem() {
       .field label { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; font-weight: 900; }
       .modal-footer { padding: 16px 22px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 10px; background: #fff; }
       .login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 20% 0%, rgba(242,106,33,0.22), transparent 28%), linear-gradient(135deg, #06172d 0%, #0b2d55 100%); }
-      .login-panel { width: min(960px, 100%); display: grid; grid-template-columns: 1.1fr 0.9fr; overflow: visible; border-radius: 34px; }
+      .login-panel { width: min(960px, 100%); display: grid; grid-template-columns: 1.1fr 0.9fr; overflow: hidden; border-radius: 34px; }
       .login-story { padding: 44px; background: linear-gradient(135deg, rgba(7,27,51,0.96), rgba(18,61,112,0.96)); color: #fff; }
       .login-story h1 { margin: 18px 0 0; font-size: clamp(38px, 5vw, 68px); line-height: 0.92; letter-spacing: -0.08em; }
       .login-story p { color: #cadaec; line-height: 1.6; max-width: 520px; }
@@ -753,7 +753,7 @@ function LoginScreen({ onLogin }) {
             <div className="login-kpis">
               <div><strong>3</strong><span>core statuses</span></div>
               <div><strong>BU</strong><span>business unit views</span></div>
-              <div><strong>Live</strong><span>notes from workshop technicians</span></div>
+              <div><strong>Live</strong><span>notes from service guys</span></div>
             </div>
           </div>
           <form className="login-form" onSubmit={submit}>
@@ -791,7 +791,7 @@ function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, r
   const titles = {
     dashboard: ["Workshop Command Centre", "Executive-grade visibility across people, business units and due-date risk."],
     board: ["Kanban Production Board", "Drag cards between status lanes or use the quick status controls."],
-    employees: ["Staff Workload", "See exactly which workshop technician owns each job, hours and calendar window."],
+    employees: ["Employee Workload", "See exactly which service guy owns each job, hours and calendar window."],
     business: ["Business Unit Portfolio", "Roll up jobs by Pharma, Industrial, Engineering, Mining and Other."],
     due: ["Due Date Control", "Understand overdue work, delivery windows and small jobs that span multiple days."],
     list: ["Master Job Register", "Dense, searchable production list for admin and planning."],
@@ -849,7 +849,7 @@ function DashboardView({ jobs, allJobs, metrics, updates, people, onSelect, onEd
             <div className="hero-content">
               <div className="eyebrow">Live production health</div>
               <h2 className="hero-title">Precision planning for jobs that refuse to fit one day.</h2>
-              <p className="hero-copy">Live overview of open jobs, blocked work, due-date pressure and booked workshop hours.</p>
+              <p className="hero-copy">The dashboard separates labour hours from calendar span, so a 3-hour job can be planned across days while it waits for parts, customer input, testing or site access.</p>
             </div>
             <div className="hero-stats">
               <div className="hero-stat"><strong>{metrics.open}</strong><span>Open jobs</span></div>
@@ -932,7 +932,7 @@ function RiskItem({ job, onSelect, onStatus }) {
       </div>
       <div className="job-meta">
         <span className={`priority-chip ${job.priority}`}>{job.priority}</span>
-        <span className="chip">{job.hrs}h hours booked</span>
+        <span className="chip">{job.hrs}h labour</span>
         <span className="chip">{jobCalendarSpan(job)} day window</span>
       </div>
       <div style={{ marginTop: 10 }}><StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} /></div>
@@ -1033,7 +1033,7 @@ function EmployeeView({ jobs, people, onSelect, onStatus }) {
             </div>
             <div className="lane-summary">
               <div className="summary-cell"><strong>{open.length}</strong><span>Open</span></div>
-              <div className="summary-cell"><strong>{hours}h</strong><span>Hours booked</span></div>
+              <div className="summary-cell"><strong>{hours}h</strong><span>Labour</span></div>
               <div className="summary-cell"><strong>{blocked}</strong><span>Blocked</span></div>
             </div>
             <div className="job-list">
@@ -1097,7 +1097,7 @@ function TimelineJob({ job, onSelect, onStatus }) {
     <div className="timeline-item">
       <div><div className="timeline-date">{formatDate(job.due, { year: "numeric" })}</div><div className="job-subline">Start {formatDate(job.start)}</div></div>
       <button style={{ textAlign: "left", background: "transparent", border: 0, padding: 0 }} onClick={() => onSelect(job.id)}>
-        <div className="timeline-top"><div><div className="job-code">{job.asm} · {job.cust}</div><div className="job-subline">{job.alloc} · {job.type} · {job.hrs} hours booked hours across {span} calendar day{span === 1 ? "" : "s"}</div></div><StatusChip status={job.status} /></div>
+        <div className="timeline-top"><div><div className="job-code">{job.asm} · {job.cust}</div><div className="job-subline">{job.alloc} · {job.type} · {job.hrs} labour hours across {span} calendar day{span === 1 ? "" : "s"}</div></div><StatusChip status={job.status} /></div>
         <div className="window-bar"><div className="window-fill" style={{ "--width": `${width}%` }} /></div>
       </button>
       <StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} />
@@ -1183,7 +1183,7 @@ function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
             <Detail label="Business unit" value={job.bus} />
             <Detail label="Work type" value={job.type} />
             <Detail label="Priority" value={job.priority} />
-            <Detail label="Hours booked hours" value={`${job.hrs}h`} />
+            <Detail label="Labour hours" value={`${job.hrs}h`} />
             <Detail label="Calendar window" value={`${jobCalendarSpan(job)} day${jobCalendarSpan(job) === 1 ? "" : "s"}`} />
             <Detail label="Start" value={formatDate(job.start, { year: "numeric" })} />
             <Detail label="Due" value={formatDate(job.due, { year: "numeric" })} />
@@ -1196,7 +1196,7 @@ function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
           </section>
         </div>
         <form className="drawer-footer" onSubmit={submit}>
-          <div className="field"><label>Add note / status update</label><textarea className="textarea" value={text} onChange={(e) => setText(e.target.value)} placeholder="Example: Waiting on customer spec. Job is only 3 hours booked hours but will remain open until Friday." /></div>
+          <div className="field"><label>Add note / status update</label><textarea className="textarea" value={text} onChange={(e) => setText(e.target.value)} placeholder="Example: Waiting on customer spec. Job is only 3 labour hours but will remain open until Friday." /></div>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
             <select className="select" value={nextStatus} onChange={(e) => setNextStatus(e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</select>
             <button className="primary-button" disabled={!text.trim()} type="submit">Post update</button>
@@ -1249,7 +1249,7 @@ function JobModal({ job, people, businessUnits, onClose, onSave }) {
   return (
     <div className="modal-backdrop">
       <form className="modal-card" onSubmit={submit}>
-        <div className="modal-header"><div><div className="eyebrow">{job.id ? "Edit workshop job" : "New workshop job"}</div><h2>{job.id ? `${job.asm} · ${job.cust}` : "Create a production record"}</h2><div className="page-subtitle">Capture hours booked hours separately from the calendar start and due dates.</div></div><button className="icon-button" type="button" onClick={onClose}>×</button></div>
+        <div className="modal-header"><div><div className="eyebrow">{job.id ? "Edit workshop job" : "New workshop job"}</div><h2>{job.id ? `${job.asm} · ${job.cust}` : "Create a production record"}</h2><div className="page-subtitle">Capture labour hours separately from the calendar start and due dates.</div></div><button className="icon-button" type="button" onClick={onClose}>×</button></div>
         <div className="modal-body">
           <div className="form-grid">
             <Field label="Assembly / Tag"><input className="input" value={fields.asm} onChange={(e) => set("asm", e.target.value)} required /></Field>
@@ -1262,7 +1262,7 @@ function JobModal({ job, people, businessUnits, onClose, onSave }) {
             <Field label="Priority"><select className="select" value={fields.priority} onChange={(e) => set("priority", e.target.value)}>{PRIORITIES.map((p) => <option key={p}>{p}</option>)}</select></Field>
             <Field label="Start / To be done"><input className="input" type="date" value={fields.start} onChange={(e) => set("start", e.target.value)} /></Field>
             <Field label="Due date"><input className="input" type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} /></Field>
-            <Field label="Estimated hours booked hours"><input className="input" type="number" step="0.25" min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
+            <Field label="Estimated labour hours"><input className="input" type="number" step="0.25" min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
             <Field label="Actual hours"><input className="input" type="number" step="0.25" min="0" value={fields.actualHrs} onChange={(e) => set("actualHrs", e.target.value)} /></Field>
             <Field label="Status"><select className="select" value={fields.status} onChange={(e) => set("status", e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</select></Field>
             <Field label="Calendar interpretation"><div className="detail-cell" style={{ background: "#f8fafc" }}><span>Planned span</span><strong>{Math.max(1, daysBetween(fields.start, fields.due) + 1)} day window for {fields.hrs || 0}h work</strong></div></Field>
