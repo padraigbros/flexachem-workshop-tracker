@@ -801,6 +801,8 @@ function DesignSystem() {
       .page-subtitle { margin-top: 5px; color: var(--muted); font-size: 13px; }
       .top-actions, .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
       .filter-bar { background: rgba(255,255,255,0.74); border: 1px solid var(--line); border-radius: 22px; padding: 9px; box-shadow: var(--shadow-soft); }
+      .filter-summary, .filter-controls { display: contents; }
+      .filter-toggle { display: none; }
       .search-box { position: relative; min-width: min(360px, 100%); flex: 1; }
       .search-box input { width: 100%; height: 40px; border: 1px solid var(--line); border-radius: 15px; padding: 0 14px 0 38px; background: #fff; outline: none; color: var(--ink); }
       .search-box span { position: absolute; left: 14px; top: 10px; color: var(--muted); }
@@ -975,18 +977,23 @@ function DesignSystem() {
         .nav-text strong { display: block; font-size: 10px; line-height: 1.1; text-align: center; }
         .nav-text span { display: none; }
         .workspace { min-height: 100dvh; display: block; }
-        .topbar { position: sticky; top: 0; z-index: 60; padding: 12px 12px 10px; gap: 10px; box-shadow: 0 8px 30px rgba(6,24,44,0.08); }
-        .topbar-row { align-items: flex-start; flex-direction: column; gap: 10px; }
+        .topbar { position: sticky; top: 0; z-index: 60; padding: 10px 12px 8px; gap: 8px; box-shadow: 0 8px 30px rgba(6,24,44,0.08); }
+        .topbar-row { align-items: flex-start; flex-direction: column; gap: 8px; }
         .eyebrow { font-size: 10px; letter-spacing: 0.14em; }
-        .page-title { font-size: 23px; letter-spacing: -0.05em; }
-        .page-subtitle { font-size: 12px; line-height: 1.35; }
-        .top-actions { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-        .top-actions .ghost-button, .top-actions .secondary-button, .top-actions .primary-button { width: 100%; min-height: 42px; padding: 0 8px; font-size: 12px; border-radius: 14px; }
-        .filter-bar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border-radius: 18px; padding: 8px; box-shadow: none; }
-        .search-box { grid-column: 1 / -1; min-width: 0; }
-        .search-box input { height: 42px; }
-        .select { width: 100%; min-width: 0; height: 42px; }
-        .filter-bar .chip { display: none; }
+        .page-title { font-size: 22px; letter-spacing: -0.05em; }
+        .page-subtitle { display: none; }
+        .top-actions { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+        .top-actions .ghost-button, .top-actions .secondary-button, .top-actions .primary-button { width: 100%; min-height: 36px; padding: 0 6px; font-size: 11px; border-radius: 13px; box-shadow: none; }
+        .filter-bar { display: block; border-radius: 18px; padding: 6px; box-shadow: none; }
+        .filter-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+        .filter-toggle { display: inline-flex; align-items: center; justify-content: center; min-width: 86px; height: 38px; border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); font-weight: 900; font-size: 12px; }
+        .filter-toggle.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+        .filter-controls { display: none; margin-top: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .filter-bar.open .filter-controls { display: grid; }
+        .search-box { grid-column: auto; min-width: 0; }
+        .search-box input { height: 38px; border-radius: 14px; }
+        .select { width: 100%; min-width: 0; height: 38px; }
+        .filter-controls .chip { display: none; }
         .content-scroll { overflow: visible; padding: 14px 12px 104px; }
         .dashboard-grid, .split-panel, .timeline-item, .login-panel { grid-template-columns: 1fr; }
         .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -1025,7 +1032,9 @@ function DesignSystem() {
         .login-kpis { grid-template-columns: 1fr; }
       }
       @media (max-width: 420px) {
-        .metric-grid, .filter-bar, .top-actions { grid-template-columns: 1fr; }
+        .metric-grid { grid-template-columns: 1fr; }
+        .top-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .top-actions .ghost-button, .top-actions .secondary-button, .top-actions .primary-button { font-size: 10px; }
         .nav-stack { grid-auto-columns: minmax(66px, 1fr); }
       }
     `}</style>
@@ -1127,6 +1136,14 @@ function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, r
     list: ["Master Job Register", "Dense, searchable production list for admin and planning."],
   };
   const [title, subtitle] = titles[view] || titles.dashboard;
+  const [filterOpen, setFilterOpen] = useState(false);
+  const activeFilterCount = [
+    filters.search.trim(),
+    filters.employee !== "All",
+    filters.bus !== "All",
+    filters.status !== "All",
+    filters.horizon !== "All",
+  ].filter(Boolean).length;
   return (
     <header className="topbar">
       <div className="topbar-row">
@@ -1141,25 +1158,32 @@ function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, r
           <button className="primary-button" onClick={onNewJob}>+ Log new job</button>
         </div>
       </div>
-      <div className="filter-bar">
-        <label className="search-box">
-          <span>⌕</span>
-          <input value={filters.search} onChange={(e) => updateFilter("search", e.target.value)} placeholder="Search assembly, SO, customer, notes…" />
-        </label>
-        <select className="select" value={filters.employee} onChange={(e) => updateFilter("employee", e.target.value)}>
-          <option>All</option>{people.map((p) => <option key={p}>{p}</option>)}
-        </select>
-        <select className="select" value={filters.bus} onChange={(e) => updateFilter("bus", e.target.value)}>
-          <option>All</option>{businessUnits.map((b) => <option key={b}>{b}</option>)}
-        </select>
-        <select className="select" value={filters.status} onChange={(e) => updateFilter("status", e.target.value)}>
-          <option>All</option>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}
-        </select>
-        <select className="select" value={filters.horizon} onChange={(e) => updateFilter("horizon", e.target.value)}>
-          <option>All</option>{["Overdue", "Due today", "Next 7 days", "Next 30 days", "Later", "No due date", "Complete"].map((s) => <option key={s}>{s}</option>)}
-        </select>
-        <span className="chip">{metrics.open} open</span>
-        <span className="chip">{metrics.hours}h booked</span>
+      <div className={`filter-bar ${filterOpen ? "open" : ""}`}>
+        <div className="filter-summary">
+          <label className="search-box">
+            <span>⌕</span>
+            <input value={filters.search} onChange={(e) => updateFilter("search", e.target.value)} placeholder="Search jobs…" />
+          </label>
+          <button className={`filter-toggle ${filterOpen ? "active" : ""}`} type="button" aria-expanded={filterOpen} onClick={() => setFilterOpen((open) => !open)}>
+            Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
+          </button>
+        </div>
+        <div className="filter-controls">
+          <select className="select" value={filters.employee} onChange={(e) => updateFilter("employee", e.target.value)}>
+            <option value="All">All staff</option>{people.map((p) => <option key={p}>{p}</option>)}
+          </select>
+          <select className="select" value={filters.bus} onChange={(e) => updateFilter("bus", e.target.value)}>
+            <option value="All">All units</option>{businessUnits.map((b) => <option key={b}>{b}</option>)}
+          </select>
+          <select className="select" value={filters.status} onChange={(e) => updateFilter("status", e.target.value)}>
+            <option value="All">All statuses</option>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}
+          </select>
+          <select className="select" value={filters.horizon} onChange={(e) => updateFilter("horizon", e.target.value)}>
+            <option value="All">All dates</option>{["Overdue", "Due today", "Next 7 days", "Next 30 days", "Later", "No due date", "Complete"].map((s) => <option key={s}>{s}</option>)}
+          </select>
+          <span className="chip">{metrics.open} open</span>
+          <span className="chip">{metrics.hours}h booked</span>
+        </div>
       </div>
     </header>
   );
