@@ -148,7 +148,12 @@ function normalizeStatus(status) {
 function normalizeJob(row) {
   const notes = parseNotes(row.notes || row.updates || row.comments);
   const due = asISO(row.due || row.due_date || row.target_completion || row.target_date);
-  const start = asISO(row.start || row.start_date || row.to_be_done || row.scheduled_start) || (due ? asISO(offsetDate(-Math.max(0, Math.ceil(Number(row.hrs || row.hours || 0) / 8)))) : "");
+  const estimatedHours = Number(row.est_hours ?? row.estimated_hours ?? row.hours_required ?? row.hours ?? 0) || 0;
+  const bookedHours = Number(row.hrs ?? 0) || estimatedHours;
+  const start = asISO(row.start || row.start_date || row.to_be_done || row.scheduled_start) || (due ? asISO(offsetDate(-Math.max(0, Math.ceil(Number(bookedHours || 0) / 8)))) : "");
+  const allocatedTo = String(row.allocated_to || row.employee || row.assignee || "").trim();
+  const allocValue = String(row.alloc || "").trim();
+  const allocation = allocatedTo || (allocValue && allocValue.toLowerCase() !== "unassigned" ? allocValue : "") || "Unassigned";
   return {
     id: row.id || crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
     asm: row.asm || row.assembly_no || row.assembly || row.tag || "",
@@ -156,10 +161,10 @@ function normalizeJob(row) {
     cust: row.cust || row.customer || row.customer_name || "",
     type: row.type || row.job_type || row.classification || JOB_TYPES[0],
     owner: row.owner || row.project_owner || row.contact || "",
-    alloc: row.alloc || row.employee || row.allocated_to || row.assignee || "Unassigned",
+    alloc: allocation,
     start,
     due,
-    hrs: Number(row.hrs ?? row.hours ?? row.estimated_hours ?? row.hours_required ?? 0) || 0,
+    hrs: bookedHours,
     actualHrs: Number(row.actualHrs ?? row.actual_hours ?? 0) || 0,
     status: normalizeStatus(row.status),
     bus: row.bus || row.business_unit || row.business_stream || "Other",
@@ -323,8 +328,8 @@ function useWorkshopData() {
   const [jobs, setJobs] = useState(loadStoredJobs);
   const [staff, setStaff] = useState(loadStoredStaff);
   const [loading, setLoading] = useState(Boolean(supabase));
-  const [syncState, setSyncState] = useState(supabase ? "Connecting to Supabase…" : "Local demo mode");
-  const [staffSyncState, setStaffSyncState] = useState(supabase ? "Staff syncing with Supabase…" : "Staff saved locally");
+  const [syncState, setSyncState] = useState(supabase ? "syncing" : "local");
+  const [staffSyncState, setStaffSyncState] = useState(supabase ? "syncing" : "local");
 
   useEffect(() => {
     let cancelled = false;
@@ -334,12 +339,12 @@ function useWorkshopData() {
       const { data, error } = await supabase.from(SUPABASE_TABLE).select("*");
       if (cancelled) return;
       if (error) {
-        setSyncState(`Local fallback — Supabase read failed: ${error.message}`);
+        setSyncState("error");
       } else if (Array.isArray(data) && data.length) {
         setJobs(data.map(normalizeJob).sort(jobSort));
-        setSyncState(`Live Supabase: ${SUPABASE_TABLE}`);
+        setSyncState("synced");
       } else {
-        setSyncState(`Live Supabase connected — no rows in ${SUPABASE_TABLE}; showing seeded layout`);
+        setSyncState("synced");
       }
       setLoading(false);
     }
@@ -356,12 +361,12 @@ function useWorkshopData() {
       const { data, error } = await supabase.from(SUPABASE_STAFF_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
       if (error) {
-        setStaffSyncState(`Staff local fallback — Supabase read failed: ${error.message}`);
+        setStaffSyncState("error");
       } else if (Array.isArray(data) && data.length) {
         setStaff(mergeStaffLists(DEFAULT_STAFF, data));
-        setStaffSyncState(`Live Supabase: ${SUPABASE_STAFF_TABLE}`);
+        setStaffSyncState("synced");
       } else {
-        setStaffSyncState(`Live Supabase connected — no rows in ${SUPABASE_STAFF_TABLE}; using default staff`);
+        setStaffSyncState("synced");
       }
     }
     fetchStaff();
@@ -388,7 +393,7 @@ function useWorkshopData() {
     }));
     if (supabase && nextJob) {
       const { error } = await supabase.from(SUPABASE_TABLE).update(toDbPayload(nextJob)).eq("id", id);
-      setSyncState(error ? `Local change saved — Supabase update failed: ${error.message}` : "Synced just now");
+      setSyncState(error ? "error" : "synced");
     }
   }, []);
 
@@ -398,11 +403,11 @@ function useWorkshopData() {
     if (supabase) {
       const { data, error } = await supabase.from(SUPABASE_TABLE).insert(toDbPayload(localJob)).select("*").single();
       if (error) {
-        setSyncState(`Local job added — Supabase insert failed: ${error.message}`);
+        setSyncState("error");
       } else if (data) {
         const savedJob = normalizeJob(data);
         setJobs((prev) => prev.map((job) => (job.id === localJob.id ? savedJob : job)));
-        setSyncState("Synced just now");
+        setSyncState("synced");
       }
     }
   }, []);
@@ -411,7 +416,7 @@ function useWorkshopData() {
     setJobs((prev) => prev.filter((job) => job.id !== id));
     if (supabase) {
       const { error } = await supabase.from(SUPABASE_TABLE).delete().eq("id", id);
-      setSyncState(error ? `Local delete complete — Supabase delete failed: ${error.message}` : "Synced just now");
+      setSyncState(error ? "error" : "synced");
     }
   }, []);
 
@@ -448,10 +453,10 @@ function useWorkshopData() {
     if (supabase) {
       const { data, error } = await supabase.from(SUPABASE_STAFF_TABLE).upsert(toStaffDbPayload(localMember)).select("*").single();
       if (error) {
-        setStaffSyncState(`Local staff saved — Supabase staff upsert failed: ${error.message}`);
+        setStaffSyncState("error");
       } else if (data) {
         setStaff((prev) => mergeStaffLists(prev.filter((member) => member.id !== localMember.id), [data]));
-        setStaffSyncState("Staff synced just now");
+        setStaffSyncState("synced");
       }
     }
   }, [staff]);
@@ -465,7 +470,7 @@ function useWorkshopData() {
     })));
     if (supabase && nextMember) {
       const { error } = await supabase.from(SUPABASE_STAFF_TABLE).update(toStaffDbPayload(nextMember)).eq("id", id);
-      setStaffSyncState(error ? `Local staff saved — Supabase staff update failed: ${error.message}` : "Staff synced just now");
+      setStaffSyncState(error ? "error" : "synced");
     }
   }, []);
 
@@ -474,7 +479,7 @@ function useWorkshopData() {
     setStaff((prev) => prev.filter((item) => item.id !== id));
     if (supabase) {
       const { error } = await supabase.from(SUPABASE_STAFF_TABLE).delete().eq("id", id);
-      setStaffSyncState(error ? `Local staff removed — Supabase staff delete failed: ${error.message}` : "Staff synced just now");
+      setStaffSyncState(error ? "error" : "synced");
     }
     if (member) {
       setJobs((prev) => prev.map((job) => (job.alloc === member.name ? normalizeJob({ ...job, alloc: "Unassigned", updatedAt: new Date().toISOString() }) : job)));
@@ -635,11 +640,7 @@ export default function App() {
           </nav>
 
           <div className="sidebar-card">
-            <div className="sidebar-card-label">Data source</div>
-            <div className="sync-pill">{syncState}</div>
-            <div className="sidebar-card-text">Jobs: {syncState}</div>
-            <div className="sidebar-card-text">Staff: {staffSyncState}</div>
-            <div className="sidebar-card-text">Designed for Supabase when VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are present.</div>
+            <DataSyncStatus jobsState={syncState} staffState={staffSyncState} />
           </div>
 
           <div className="profile-card">
@@ -780,6 +781,13 @@ function DesignSystem() {
       .sidebar-card-label { color: #b7c8dc; text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; font-weight: 800; }
       .sync-pill { display: inline-flex; margin-top: 10px; padding: 7px 9px; border-radius: 999px; background: rgba(22,135,95,0.18); color: #bbf7d0; font-size: 11px; max-width: 100%; word-break: break-word; }
       .sidebar-card-text { margin-top: 10px; color: #aec1d8; font-size: 11px; line-height: 1.45; }
+      .data-sync-card { display: flex; align-items: center; gap: 11px; padding: 3px 0; }
+      .data-sync-dot { width: 12px; height: 12px; border-radius: 999px; flex: 0 0 auto; background: #22c55e; box-shadow: 0 0 0 6px rgba(34,197,94,0.14); }
+      .data-sync-card.issue .data-sync-dot { background: #ef4444; box-shadow: 0 0 0 6px rgba(239,68,68,0.15); }
+      .data-sync-card.working .data-sync-dot { background: #f59e0b; box-shadow: 0 0 0 6px rgba(245,158,11,0.16); }
+      .data-sync-card.local .data-sync-dot { background: #94a3b8; box-shadow: 0 0 0 6px rgba(148,163,184,0.15); }
+      .data-sync-label { font-weight: 900; font-size: 14px; color: #fff; letter-spacing: -0.01em; }
+      .data-sync-detail { margin-top: 3px; color: #aec1d8; font-size: 11px; line-height: 1.35; }
       .profile-card { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 20px; background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.10); }
       .avatar { width: 36px; height: 36px; border-radius: 12px; background: #fff; color: var(--navy); display: grid; place-items: center; font-weight: 900; }
       .profile-copy { min-width: 0; display: grid; gap: 2px; flex: 1; }
@@ -944,8 +952,82 @@ function DesignSystem() {
       .login-kpis div { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.16); border-radius: 18px; padding: 14px; }
       .login-kpis strong { display: block; font-size: 22px; }
       .login-kpis span { color: #b7c8dc; font-size: 11px; }
-      @media (max-width: 1180px) { .app-shell { grid-template-columns: 86px minmax(0, 1fr); } .brand-block, .sidebar-card, .profile-copy, .nav-text { display: none; } .sidebar { padding: 18px 12px; } .nav-button { justify-content: center; padding: 12px 8px; } .profile-card { justify-content: center; } .dashboard-grid { grid-template-columns: 1fr; } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-      @media (max-width: 760px) { .app-shell { display: block; height: auto; min-height: 100vh; } .sidebar { position: sticky; top: 0; z-index: 20; flex-direction: row; overflow-x: auto; border-radius: 0 0 24px 24px; } .nav-stack { display: flex; } .profile-card { margin-left: auto; } .workspace { min-height: 100vh; } .topbar-row { align-items: flex-start; flex-direction: column; } .filter-bar { border-radius: 18px; } .metric-grid, .form-grid, .detail-grid { grid-template-columns: 1fr; } .split-panel, .timeline-item, .login-panel { grid-template-columns: 1fr; } .content-scroll { padding: 16px; } .page-title { font-size: 24px; } .staff-add-form, .staff-row { grid-template-columns: 1fr; } .staff-status-block, .staff-actions { justify-content: flex-start; } .login-story, .login-form { padding: 28px; } }
+      @media (max-width: 1180px) {
+        .app-shell { grid-template-columns: 86px minmax(0, 1fr); }
+        .brand-block, .sidebar-card, .profile-copy, .nav-text { display: none; }
+        .sidebar { padding: 18px 12px; }
+        .nav-button { justify-content: center; padding: 12px 8px; }
+        .profile-card { justify-content: center; }
+        .dashboard-grid { grid-template-columns: 1fr; }
+        .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+      @media (max-width: 760px) {
+        html, body, #root { min-height: 100dvh; }
+        body { overflow-x: hidden; }
+        input, select, textarea { font-size: 16px; }
+        .app-shell { display: block; height: auto; min-height: 100dvh; padding-bottom: 84px; overflow: visible; }
+        .sidebar { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 110; height: 76px; padding: 8px max(8px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-right)); flex-direction: row; align-items: center; overflow-x: auto; border-radius: 24px 24px 0 0; box-shadow: 0 -18px 45px rgba(6,24,44,0.28); }
+        .sidebar:before, .brand-block, .sidebar-card, .profile-card { display: none; }
+        .nav-stack { width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(70px, 1fr); gap: 6px; overflow-x: auto; }
+        .nav-button { min-width: 70px; min-height: 58px; padding: 7px 6px; border-radius: 17px; flex-direction: column; justify-content: center; gap: 4px; }
+        .nav-icon { width: 28px; height: 28px; border-radius: 11px; font-size: 12px; }
+        .nav-text { display: block; }
+        .nav-text strong { display: block; font-size: 10px; line-height: 1.1; text-align: center; }
+        .nav-text span { display: none; }
+        .workspace { min-height: 100dvh; display: block; }
+        .topbar { position: sticky; top: 0; z-index: 60; padding: 12px 12px 10px; gap: 10px; box-shadow: 0 8px 30px rgba(6,24,44,0.08); }
+        .topbar-row { align-items: flex-start; flex-direction: column; gap: 10px; }
+        .eyebrow { font-size: 10px; letter-spacing: 0.14em; }
+        .page-title { font-size: 23px; letter-spacing: -0.05em; }
+        .page-subtitle { font-size: 12px; line-height: 1.35; }
+        .top-actions { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .top-actions .ghost-button, .top-actions .secondary-button, .top-actions .primary-button { width: 100%; min-height: 42px; padding: 0 8px; font-size: 12px; border-radius: 14px; }
+        .filter-bar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border-radius: 18px; padding: 8px; box-shadow: none; }
+        .search-box { grid-column: 1 / -1; min-width: 0; }
+        .search-box input { height: 42px; }
+        .select { width: 100%; min-width: 0; height: 42px; }
+        .filter-bar .chip { display: none; }
+        .content-scroll { overflow: visible; padding: 14px 12px 104px; }
+        .dashboard-grid, .split-panel, .timeline-item, .login-panel { grid-template-columns: 1fr; }
+        .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .metric-card, .panel, .lane-card, .due-section { border-radius: 22px; padding: 14px; }
+        .metric-value { font-size: 26px; }
+        .panel-header { align-items: flex-start; flex-direction: column; gap: 8px; }
+        .board { min-width: 0; grid-template-columns: 1fr; gap: 12px; }
+        .column { min-height: auto; border-radius: 22px; }
+        .column-body { min-height: 120px; }
+        .job-card { border-radius: 20px; padding: 14px; }
+        .job-footer, .risk-top, .mini-top, .timeline-top, .due-heading { align-items: flex-start; flex-direction: column; }
+        .status-switch { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .status-button { min-height: 36px; padding: 0 8px; }
+        .lane-grid, .business-grid { grid-template-columns: 1fr; gap: 12px; }
+        .business-grid { min-width: 0; }
+        .bu-hero { flex-direction: column; padding: 16px; }
+        .staff-add-form, .staff-row { grid-template-columns: 1fr; }
+        .staff-row { padding: 12px; border-radius: 20px; }
+        .staff-status-block, .staff-actions { justify-content: flex-start; }
+        .staff-actions .select, .staff-actions button { width: 100%; }
+        .timeline-item { align-items: stretch; }
+        .table-wrap { border-radius: 22px; margin: 0 -2px; }
+        .drawer { inset: 0; width: 100%; border-radius: 0; }
+        .drawer-header { padding: 18px; }
+        .drawer-title { font-size: 26px; }
+        .drawer-body { padding: 14px; }
+        .drawer-footer { padding: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+        .modal-backdrop { padding: 0; align-items: stretch; }
+        .modal-card { width: 100%; min-height: 100dvh; max-height: 100dvh; border-radius: 0; }
+        .modal-header, .modal-body, .modal-footer { padding-left: 16px; padding-right: 16px; }
+        .modal-footer { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+        .form-grid, .detail-grid { grid-template-columns: 1fr; }
+        .login-shell { padding: 12px; }
+        .login-story, .login-form { padding: 24px; }
+        .login-story h1 { font-size: 36px; }
+        .login-kpis { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 420px) {
+        .metric-grid, .filter-bar, .top-actions { grid-template-columns: 1fr; }
+        .nav-stack { grid-auto-columns: minmax(66px, 1fr); }
+      }
     `}</style>
   );
 }
@@ -982,7 +1064,7 @@ function LoginScreen({ onLogin }) {
             <div>
               <div className="eyebrow">Secure workshop entry</div>
               <h2>Continue to the dashboard</h2>
-              <p className="page-subtitle">This keeps note authorship clean. Supabase auth can be wired in later without changing the interface.</p>
+              <p className="page-subtitle">This keeps update authorship clear during testing.</p>
             </div>
             <div className="field">
               <label>Your name</label>
@@ -1006,6 +1088,32 @@ function NavButton({ active, icon, label, hint, onClick }) {
       <span className="nav-icon">{icon}</span>
       <span className="nav-text"><strong>{label}</strong><span>{hint}</span></span>
     </button>
+  );
+}
+
+function DataSyncStatus({ jobsState, staffState }) {
+  const states = [jobsState, staffState];
+  const hasIssue = states.some((state) => state === "error");
+  const isSyncing = states.some((state) => state === "syncing");
+  const localOnly = !supabase || states.every((state) => state === "local");
+  const label = hasIssue ? "Sync Issue" : isSyncing ? "Syncing…" : localOnly ? "Saved Locally" : "Data Synced";
+  const detail = hasIssue
+    ? "Some changes may not be live yet."
+    : isSyncing
+      ? "Checking the latest workshop data."
+      : localOnly
+        ? "Changes are saved on this device."
+        : "Latest workshop data is available.";
+  const tone = hasIssue ? "issue" : isSyncing ? "working" : localOnly ? "local" : "ok";
+
+  return (
+    <div className={`data-sync-card ${tone}`}>
+      <div className="data-sync-dot" />
+      <div>
+        <div className="data-sync-label">{label}</div>
+        <div className="data-sync-detail">{detail}</div>
+      </div>
+    </div>
   );
 }
 
