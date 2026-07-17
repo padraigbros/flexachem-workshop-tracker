@@ -1,0 +1,205 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ *
+ * Brand palette + scale tokens (Tailwind v4 @theme, CSS-first)
+ * ------------------------------------------------------------------ */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --color-navy-950: #06172d;
+  --color-navy-900: #0a1f3d;
+  --color-navy-800: #0d2a52;
+  --color-navy-700: #12345f;
+  --color-navy-600: #1d4373;
+  --color-navy-500: #21578f;
+  --color-navy-100: #dbe6f4;
+
+  --color-brand-700: #c04f18;
+  --color-brand-600: #d8551a;
+  --color-brand-500: #f26a21;
+  --color-brand-400: #ff8a4c;
+  --color-brand-300: #ffb27a;
+
+  --radius-card: 1.25rem;
+  --radius-field: 0.875rem;
+
+  --shadow-card: 0 10px 30px rgb(6 24 44 / 0.08);
+  --shadow-pop: 0 20px 60px rgb(6 24 44 / 0.13);
+  --shadow-float: 0 24px 70px rgb(6 24 44 / 0.24);
+}
+
+/* ------------------------------------------------------------------ *
+ * Semantic theme variables — every component colour flows through these
+ * ------------------------------------------------------------------ */
+:root {
+  --surface-page: #f5f8fc;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f1f5fa;
+  --ink: #071b33;
+  --ink-soft: #33475f;
+  --ink-muted: #667085;
+  --line: rgb(15 36 64 / 0.10);
+  --line-strong: rgb(15 36 64 / 0.16);
+
+  --status-queued: #55617a;
+  --status-queued-bg: #eef2f7;
+  --status-active: #2563eb;
+  --status-active-bg: #ecf4ff;
+  --status-blocked: #b7791f;
+  --status-blocked-bg: #fff7db;
+  --status-done: #16875f;
+  --status-done-bg: #e8fff4;
+
+  --danger: #c2413b;
+  --danger-bg: #fff0ee;
+
+  --prio-critical: #c2413b;
+  --prio-critical-bg: #fff0ee;
+  --prio-high: #d8551a;
+  --prio-high-bg: #fff2e8;
+  --prio-normal: #2563eb;
+  --prio-normal-bg: #ecf4ff;
+  --prio-low: #64748b;
+  --prio-low-bg: #eef2f7;
+
+  --page-glow: radial-gradient(1200px 600px at 12% -10%, rgb(242 106 33 / 0.06), transparent 60%),
+               radial-gradient(1000px 500px at 100% 0%, rgb(33 87 143 / 0.08), transparent 55%);
+}
+
+.dark {
+  --surface-page: #071426;
+  --surface-card: #0e2140;
+  --surface-raised: #132a4e;
+  --surface-sunken: #0a1c36;
+  --ink: #e8eef7;
+  --ink-soft: #c2d1e6;
+  --ink-muted: #8ea3bd;
+  --line: rgb(148 178 214 / 0.12);
+  --line-strong: rgb(148 178 214 / 0.20);
+
+  --status-queued: #a7b6cc;
+  --status-queued-bg: rgb(148 163 184 / 0.16);
+  --status-active: #6fb0ff;
+  --status-active-bg: rgb(96 165 250 / 0.16);
+  --status-blocked: #f7c04a;
+  --status-blocked-bg: rgb(251 191 36 / 0.15);
+  --status-done: #46d6a0;
+  --status-done-bg: rgb(52 211 153 / 0.15);
+
+  --danger: #f98a84;
+  --danger-bg: rgb(248 113 113 / 0.15);
+
+  --prio-critical: #f98a84;
+  --prio-critical-bg: rgb(248 113 113 / 0.15);
+  --prio-high: #ff9f66;
+  --prio-high-bg: rgb(255 138 76 / 0.15);
+  --prio-normal: #6fb0ff;
+  --prio-normal-bg: rgb(96 165 250 / 0.15);
+  --prio-low: #9fb0c8;
+  --prio-low-bg: rgb(148 163 184 / 0.14);
+
+  --page-glow: radial-gradient(1200px 600px at 12% -10%, rgb(242 106 33 / 0.10), transparent 60%),
+               radial-gradient(1000px 500px at 100% 0%, rgb(33 87 143 / 0.18), transparent 55%);
+}
+
+/* ------------------------------------------------------------------ *
+ * Base
+ * ------------------------------------------------------------------ */
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; min-height: 100%; margin: 0; }
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
+
+body {
+  background: var(--page-glow), var(--surface-page);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: color-mix(in srgb, var(--color-brand-500) 30%, transparent); }
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Thin, theme-aware scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+
+/* ------------------------------------------------------------------ *
+ * Reusable component classes (Tailwind @apply)
+ * ------------------------------------------------------------------ */
+@layer components {
+  .card {
+    background: var(--surface-card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .field-input {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 0.75rem;
+    border-radius: var(--radius-field);
+    border: 1px solid var(--line-strong);
+    background: var(--surface-card);
+    color: var(--ink);
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  textarea.field-input { min-height: 96px; padding: 0.7rem 0.75rem; resize: vertical; line-height: 1.5; }
+  .field-input::placeholder { color: var(--ink-muted); }
+  .field-input:focus-visible {
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 22%, transparent);
+  }
+
+  .field-label {
+    display: block;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.625rem;
+    font-weight: 800;
+    margin-bottom: 0.4rem;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    padding: 0.28rem 0.6rem;
+    font-weight: 700;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    background: var(--surface-sunken);
+    color: var(--ink-muted);
+    border: 1px solid var(--line);
+  }
+}
+
+/* Focus ring for keyboard users on interactive elements */
+:where(button, a, [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+/* Respect reduced-motion: kill decorative animation globally */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Sonner toast theming hook */
+[data-sonner-toaster] { font-family: var(--font-sans); }
