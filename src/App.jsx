@@ -1429,6 +1429,10 @@ function DesignSystem() {
       .attachment-row .attachment-copy { flex: 1; display: flex; flex-direction: column; min-width: 0; }
       .attachment-row .attachment-copy strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .attachment-row .attachment-copy span { font-size: 11px; color: #5b6b7c; }
+      .attachment-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+      .download-button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: 0; background: #123a66; color: #fff; font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+      .download-button:hover { background: #0e2d50; }
+      .download-glyph { font-size: 15px; line-height: 1; }
       .mini-toggle { display: inline-flex; gap: 4px; }
       .mini-toggle button { font-size: 11px; padding: 4px 8px; border-radius: 6px; border: 1px solid #d5e1ee; background: #fff; cursor: pointer; color: #5b6b7c; }
       .mini-toggle button.active { background: #eef4fb; border-color: #9db9d8; color: #123a66; }
@@ -1869,7 +1873,7 @@ function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
   const style = { transform: CSS.Transform.toString(transform), transition };
   const latest = parseNotes(job.notes)[0];
   return (
-    <article ref={setNodeRef} style={style} className={`job-card ${overlay ? "overlay" : ""} ${isDragging ? "dragging" : ""}`}>
+    <article ref={setNodeRef} style={style} className={`job-card ${overlay ? "overlay" : ""} ${isDragging ? "dragging" : ""}`} onDoubleClick={() => onSelect(job.id)} title="Double-click to open notes">
       <div className="job-accent" />
       <div className="job-card-header" {...attributes} {...listeners}>
         <div>
@@ -1890,6 +1894,7 @@ function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
       <div className="job-footer">
         <StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} />
         <div className="card-actions">
+          {job.attachment && <button className="icon-button" onClick={(e) => { e.stopPropagation(); openJobAttachment(job.attachment, { download: true }); }} title={`Download ${job.attachment.name}`}>⭳</button>}
           <button className="icon-button" onClick={() => onSelect(job.id)} title="Open notes">↗</button>
           {onEdit && <button className="icon-button" onClick={() => onEdit(job)} title="Edit">✎</button>}
         </div>
@@ -2308,9 +2313,9 @@ function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
                 <strong>{job.attachment.name}</strong>
                 <span>{formatBytes(job.attachment.size)}{job.attachment.by ? ` · uploaded by ${job.attachment.by}` : ""}</span>
               </div>
-              <div className="card-actions">
+              <div className="attachment-actions">
                 <button className="ghost-button compact" type="button" onClick={() => openJobAttachment(job.attachment)}>View</button>
-                <button className="ghost-button compact" type="button" onClick={() => openJobAttachment(job.attachment, { download: true })}>Download</button>
+                <button className="download-button" type="button" onClick={() => openJobAttachment(job.attachment, { download: true })} title={`Download ${job.attachment.name}`}><span className="download-glyph">⭳</span> Download</button>
               </div>
             </div>
           )}
