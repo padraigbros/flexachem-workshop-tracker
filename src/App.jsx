@@ -632,7 +632,7 @@ export default function App() {
 
           <nav className="nav-stack">
             <NavButton active={view === "dashboard"} icon="◆" label="Dashboard" hint="Live command centre" onClick={() => setView("dashboard")} />
-            <NavButton active={view === "board"} icon="▦" label="Kanban" hint="Drag status columns" onClick={() => setView("board")} />
+            <NavButton active={view === "board"} icon="▦" label="Schedule" hint="Drag status columns" onClick={() => setView("board")} />
             <NavButton active={view === "employees"} icon="☷" label="Staff" hint="Manage active staff and workload" onClick={() => setView("employees")} />
             <NavButton active={view === "business"} icon="◫" label="Business Units" hint="Pharma, mining, industrial" onClick={() => setView("business")} />
             <NavButton active={view === "due"} icon="◴" label="Due Dates" hint="Delivery windows" onClick={() => setView("due")} />
@@ -1129,7 +1129,7 @@ function DataSyncStatus({ jobsState, staffState }) {
 function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, resetFilters, onNewJob, onOpenUpdates }) {
   const titles = {
     dashboard: ["Workshop Command Centre", "Live visibility across staff, business units and due-date risk."],
-    board: ["Kanban Production Board", "Drag cards between status lanes or use the quick status controls."],
+    board: ["Schedule Production Board", "Drag cards between status lanes or use the quick status controls."],
     employees: ["Staff Management", "Add staff, deactivate leavers, reassign open jobs and monitor workload."],
     business: ["Business Unit Portfolio", "Roll up jobs by Pharma, Industrial, Engineering, Mining and Other."],
     due: ["Due Date Control", "Understand overdue work, delivery windows and small jobs that span multiple days."],
@@ -1218,7 +1218,7 @@ function DashboardView({ jobs, allJobs, metrics, updates, people, onSelect, onEd
         <div>
           <section className="panel">
             <div className="panel-header">
-              <div><h3 className="panel-title">Completion shape</h3><div className="panel-subtitle">Filtered completion ratio.</div></div>
+              <div><h3 className="panel-title">Job Status</h3><div className="panel-subtitle">Filtered completion ratio.</div></div>
             </div>
             <div className="split-panel">
               <div className="progress-ring" style={{ "--progress": metrics.progress }}><strong>{metrics.progress}%</strong></div>
@@ -1233,7 +1233,7 @@ function DashboardView({ jobs, allJobs, metrics, updates, people, onSelect, onEd
           </section>
           <section className="panel">
             <div className="panel-header">
-              <div><h3 className="panel-title">People capacity</h3><div className="panel-subtitle">Open hours by staff member.</div></div>
+              <div><h3 className="panel-title">Staff Availability</h3><div className="panel-subtitle">Open hours by staff member.</div></div>
             </div>
             <div className="bar-list">
               {people.map((person) => {
