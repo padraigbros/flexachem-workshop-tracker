@@ -20,6 +20,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const SUPABASE_TABLE = import.meta.env.VITE_SUPABASE_JOBS_TABLE || "jobs";
 const SUPABASE_STAFF_TABLE = import.meta.env.VITE_SUPABASE_STAFF_TABLE || "staff";
+const SUPABASE_JOB_TYPES_TABLE = import.meta.env.VITE_SUPABASE_JOB_TYPES_TABLE || "job_types";
 const SUPABASE_START_COLUMN = import.meta.env.VITE_SUPABASE_START_COLUMN || "start_date";
 const SUPABASE_DUE_COLUMN = import.meta.env.VITE_SUPABASE_DUE_COLUMN || "due_date";
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -32,6 +33,11 @@ const STATUS_META = {
   Complete: { label: "Complete", short: "Done", tone: "green", icon: "✓" },
 };
 const JOB_TYPES = ["Valve Assembly", "Pump Assembly", "Valve Overhaul", "Pump Overhaul", "Mechanical Seal Refurb", "Testing", "Site Visit"];
+const DEFAULT_JOB_TYPES = JOB_TYPES.map((name) => ({
+  id: `jobtype-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+  name,
+  active: true,
+}));
 const PEOPLE = ["Darragh", "Shauna", "Cathal", "Ross", "Dave", "Colin"];
 const DEFAULT_STAFF = PEOPLE.map((name) => ({
   id: `staff-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
@@ -46,6 +52,7 @@ const BUSINESS_UNITS = ["Pharma", "Industrial", "Engineering", "Mining", "Other"
 const PRIORITIES = ["Low", "Normal", "High", "Critical"];
 const STORAGE_KEY = "flexachem_workshop_jobs_v2";
 const STAFF_STORAGE_KEY = "flexachem_workshop_staff_v1";
+const JOB_TYPE_STORAGE_KEY = "flexachem_workshop_job_types_v1";
 const USER_KEY = "flexachem_workshop_user_v2";
 
 const today = () => new Date();
@@ -282,6 +289,60 @@ function mergeStaffLists(...lists) {
   });
 }
 
+function jobTypeKey(name) {
+  return String(name || "job-type").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job-type";
+}
+
+function normalizeJobType(row) {
+  const name = String(row?.name || row?.job_type || row?.type || row?.label || "").trim();
+  return {
+    id: row?.id || `jobtype-${jobTypeKey(name || crypto.randomUUID?.() || Date.now())}`,
+    name: name || "Unnamed job type",
+    active: row?.active ?? row?.is_active ?? row?.enabled ?? true,
+    createdAt: row?.createdAt || row?.created_at || new Date().toISOString(),
+    updatedAt: row?.updatedAt || row?.updated_at || new Date().toISOString(),
+  };
+}
+
+function toJobTypeDbPayload(jobType) {
+  return {
+    id: jobType.id,
+    name: jobType.name,
+    active: Boolean(jobType.active),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function mergeJobTypeLists(...lists) {
+  const byName = new Map();
+  lists.flat().filter(Boolean).map(normalizeJobType).forEach((jobType) => {
+    const key = jobTypeKey(jobType.name);
+    byName.set(key, { ...(byName.get(key) || {}), ...jobType });
+  });
+  return Array.from(byName.values()).sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function loadStoredJobTypes() {
+  try {
+    const stored = localStorage.getItem(JOB_TYPE_STORAGE_KEY);
+    const base = stored ? JSON.parse(stored).map(normalizeJobType) : DEFAULT_JOB_TYPES.map(normalizeJobType);
+    return mergeJobTypeLists(DEFAULT_JOB_TYPES.map(normalizeJobType), base);
+  } catch {
+    return DEFAULT_JOB_TYPES.map(normalizeJobType);
+  }
+}
+
+function saveStoredJobTypes(jobTypes) {
+  try {
+    localStorage.setItem(JOB_TYPE_STORAGE_KEY, JSON.stringify(jobTypes));
+  } catch {
+    // Ignore storage quota/privacy errors.
+  }
+}
+
 function getInitialUser() {
   try {
     return JSON.parse(localStorage.getItem(USER_KEY)) || null;
@@ -327,9 +388,11 @@ function dueBucket(job) {
 function useWorkshopData() {
   const [jobs, setJobs] = useState(loadStoredJobs);
   const [staff, setStaff] = useState(loadStoredStaff);
+  const [jobTypes, setJobTypes] = useState(loadStoredJobTypes);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [syncState, setSyncState] = useState(supabase ? "syncing" : "local");
   const [staffSyncState, setStaffSyncState] = useState(supabase ? "syncing" : "local");
+  const [jobTypeSyncState, setJobTypeSyncState] = useState(supabase ? "syncing" : "local");
 
   useEffect(() => {
     let cancelled = false;
@@ -376,12 +439,37 @@ function useWorkshopData() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    async function fetchJobTypes() {
+      if (!supabase) return;
+      const { data, error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).select("*").order("name", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        setJobTypeSyncState("error");
+      } else if (Array.isArray(data) && data.length) {
+        setJobTypes(mergeJobTypeLists(DEFAULT_JOB_TYPES, data));
+        setJobTypeSyncState("synced");
+      } else {
+        setJobTypeSyncState("synced");
+      }
+    }
+    fetchJobTypes();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     saveStoredJobs(jobs);
   }, [jobs]);
 
   useEffect(() => {
     saveStoredStaff(staff);
   }, [staff]);
+
+  useEffect(() => {
+    saveStoredJobTypes(jobTypes);
+  }, [jobTypes]);
 
   const patchJob = useCallback(async (id, patch) => {
     const updatedAt = new Date().toISOString();
@@ -486,13 +574,60 @@ function useWorkshopData() {
     }
   }, [staff]);
 
+  const addJobType = useCallback(async (fields) => {
+    const name = String(fields.name || "").trim();
+    if (!name) return;
+    const existing = jobTypes.find((jobType) => jobTypeKey(jobType.name) === jobTypeKey(name));
+    const localJobType = normalizeJobType({
+      ...(existing || {}),
+      ...fields,
+      id: existing?.id || `jobtype-${jobTypeKey(name)}-${Date.now().toString(36)}`,
+      name,
+      active: fields.active ?? true,
+      updatedAt: new Date().toISOString(),
+    });
+    setJobTypes((prev) => mergeJobTypeLists(prev.filter((jobType) => jobType.id !== localJobType.id), [localJobType]));
+    if (supabase) {
+      const { data, error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).upsert(toJobTypeDbPayload(localJobType)).select("*").single();
+      if (error) {
+        setJobTypeSyncState("error");
+      } else if (data) {
+        setJobTypes((prev) => mergeJobTypeLists(prev.filter((jobType) => jobType.id !== localJobType.id), [data]));
+        setJobTypeSyncState("synced");
+      }
+    }
+  }, [jobTypes]);
+
+  const updateJobType = useCallback(async (id, patch) => {
+    let nextJobType = null;
+    setJobTypes((prev) => mergeJobTypeLists(prev.map((jobType) => {
+      if (jobType.id !== id) return jobType;
+      nextJobType = normalizeJobType({ ...jobType, ...patch, updatedAt: new Date().toISOString() });
+      return nextJobType;
+    })));
+    if (supabase && nextJobType) {
+      const { error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).update(toJobTypeDbPayload(nextJobType)).eq("id", id);
+      setJobTypeSyncState(error ? "error" : "synced");
+    }
+  }, []);
+
+  const deleteJobType = useCallback(async (id) => {
+    setJobTypes((prev) => prev.filter((jobType) => jobType.id !== id));
+    if (supabase) {
+      const { error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).delete().eq("id", id);
+      setJobTypeSyncState(error ? "error" : "synced");
+    }
+  }, []);
+
   return {
     jobs,
     setJobs,
     staff,
+    jobTypes,
     loading,
     syncState,
     staffSyncState,
+    jobTypeSyncState,
     patchJob,
     addNote,
     saveJob,
@@ -500,6 +635,9 @@ function useWorkshopData() {
     addStaffMember,
     updateStaffMember,
     deleteStaffMember,
+    addJobType,
+    updateJobType,
+    deleteJobType,
   };
 }
 
@@ -507,9 +645,11 @@ export default function App() {
   const {
     jobs,
     staff,
+    jobTypes,
     loading,
     syncState,
     staffSyncState,
+    jobTypeSyncState,
     patchJob,
     addNote,
     saveJob,
@@ -517,6 +657,9 @@ export default function App() {
     addStaffMember,
     updateStaffMember,
     deleteStaffMember,
+    addJobType,
+    updateJobType,
+    deleteJobType,
   } = useWorkshopData();
   const [user, setUser] = useState(getInitialUser);
   const [view, setView] = useState("dashboard");
@@ -548,6 +691,12 @@ export default function App() {
     jobs.forEach((job) => job.bus && set.add(job.bus));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [jobs]);
+
+  const activeJobTypes = useMemo(() => (jobTypes.length ? jobTypes : DEFAULT_JOB_TYPES)
+    .filter((jobType) => jobType.active)
+    .map((jobType) => jobType.name)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b)), [jobTypes]);
 
   const filteredJobs = useMemo(() => {
     const term = filters.search.trim().toLowerCase();
@@ -588,6 +737,14 @@ export default function App() {
     const affected = jobs.filter((job) => job.alloc === fromName && job.status !== "Complete");
     for (const job of affected) {
       await patchJob(job.id, { alloc: target });
+    }
+  };
+
+  const reassignJobTypeJobs = async (fromType, toType) => {
+    if (!toType || toType === fromType) return;
+    const affected = jobs.filter((job) => job.type === fromType);
+    for (const job of affected) {
+      await patchJob(job.id, { type: toType });
     }
   };
 
@@ -634,6 +791,7 @@ export default function App() {
             <NavButton active={view === "dashboard"} icon="◆" label="Dashboard" hint="Live command centre" onClick={() => setView("dashboard")} />
             <NavButton active={view === "board"} icon="▦" label="Schedule" hint="Drag status columns" onClick={() => setView("board")} />
             <NavButton active={view === "employees"} icon="☷" label="Staff" hint="Manage active staff and workload" onClick={() => setView("employees")} />
+            <NavButton active={view === "jobtypes"} icon="◵" label="Job Types" hint="Maintain job type catalogue" onClick={() => setView("jobtypes")} />
             <NavButton active={view === "business"} icon="◫" label="Business Units" hint="Pharma, mining, industrial" onClick={() => setView("business")} />
             <NavButton active={view === "due"} icon="◴" label="Due Dates" hint="Delivery windows" onClick={() => setView("due")} />
             <NavButton active={view === "list"} icon="≡" label="Master List" hint="Full job register" onClick={() => setView("list")} />
@@ -691,6 +849,17 @@ export default function App() {
                     onReassignStaff={reassignStaffJobs}
                   />
                 )}
+                {view === "jobtypes" && (
+                  <JobTypesView
+                    allJobs={jobs}
+                    jobTypes={jobTypes}
+                    activeJobTypes={activeJobTypes}
+                    onAddJobType={addJobType}
+                    onUpdateJobType={updateJobType}
+                    onDeleteJobType={deleteJobType}
+                    onReassignJobType={reassignJobTypeJobs}
+                  />
+                )}
                 {view === "business" && <BusinessUnitView jobs={filteredJobs} businessUnits={businessUnits} onSelect={setSelectedJobId} onStatus={patchJob} />}
                 {view === "due" && <DueDateView jobs={filteredJobs} onSelect={setSelectedJobId} onStatus={patchJob} />}
                 {view === "list" && <ListView jobs={filteredJobs} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={patchJob} onDelete={handleDelete} />}
@@ -717,6 +886,7 @@ export default function App() {
         <JobModal
           job={editingJob}
           people={activePeople}
+          jobTypes={activeJobTypes}
           businessUnits={businessUnits}
           onClose={() => setEditingJob(null)}
           onSave={async (fields) => {
@@ -1131,6 +1301,7 @@ function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, r
     dashboard: ["Workshop Command Centre", "Live visibility across staff, business units and due-date risk."],
     board: ["Schedule Production Board", "Drag cards between status lanes or use the quick status controls."],
     employees: ["Staff Management", "Add staff, deactivate leavers, reassign open jobs and monitor workload."],
+    jobtypes: ["Job Type Management", "Add job types, batch-move jobs to another type, deactivate or remove unused types."],
     business: ["Business Unit Portfolio", "Roll up jobs by Pharma, Industrial, Engineering, Mining and Other."],
     due: ["Due Date Control", "Understand overdue work, delivery windows and small jobs that span multiple days."],
     list: ["Master Job Register", "Dense, searchable production list for admin and planning."],
@@ -1456,6 +1627,75 @@ function StaffView({ jobs, allJobs, staff, people, activePeople, onSelect, onSta
   );
 }
 
+function JobTypesView({ allJobs, jobTypes, activeJobTypes, onAddJobType, onUpdateJobType, onDeleteJobType, onReassignJobType }) {
+  const [newTypeName, setNewTypeName] = useState("");
+  const [moveTargets, setMoveTargets] = useState({});
+  const activeCount = jobTypes.filter((jobType) => jobType.active).length;
+  const inactiveCount = jobTypes.filter((jobType) => !jobType.active).length;
+
+  const submit = (e) => {
+    e.preventDefault();
+    const name = newTypeName.trim();
+    if (!name) return;
+    onAddJobType({ name, active: true });
+    setNewTypeName("");
+  };
+
+  return (
+    <div className="staff-page">
+      <section className="panel staff-management-panel">
+        <div className="panel-header">
+          <div>
+            <h3 className="panel-title">Job type management</h3>
+            <div className="panel-subtitle">Add new job types, batch-move existing jobs onto a different type, and deactivate or remove types that are no longer used.</div>
+          </div>
+          <div className="staff-kpi-row">
+            <span className="chip">{activeCount} active</span>
+            <span className="chip">{inactiveCount} inactive</span>
+          </div>
+        </div>
+        <form className="staff-add-form" onSubmit={submit}>
+          <input className="input" value={newTypeName} onChange={(e) => setNewTypeName(e.target.value)} placeholder="New job type name" />
+          <button className="primary-button" type="submit">+ Add job type</button>
+        </form>
+        <div className="staff-table">
+          {jobTypes.map((jobType) => {
+            const typeJobs = allJobs.filter((job) => job.type === jobType.name);
+            const openJobs = typeJobs.filter((job) => job.status !== "Complete");
+            const moveChoices = activeJobTypes.filter((name) => name !== jobType.name);
+            const selectedTarget = moveTargets[jobType.name] || moveChoices[0] || "";
+            const isDefault = JOB_TYPES.includes(jobType.name);
+            const canRemove = !isDefault && openJobs.length === 0;
+            return (
+              <div className={`staff-row ${jobType.active ? "" : "inactive"}`} key={jobType.id}>
+                <div className="staff-main">
+                  <div className="lane-avatar">{jobType.name.slice(0, 1).toUpperCase()}</div>
+                  <div>
+                    <strong>{jobType.name}</strong>
+                    <span>{isDefault ? "Standard job type" : "Custom job type"}</span>
+                  </div>
+                </div>
+                <div className="staff-status-block">
+                  <span className={`status-chip ${jobType.active ? "green" : "neutral"}`}><span>{jobType.active ? "✓" : "–"}</span>{jobType.active ? "Active" : "Inactive"}</span>
+                  <span className="chip">{openJobs.length} open · {typeJobs.length} total</span>
+                </div>
+                <div className="staff-actions">
+                  <select className="select" value={selectedTarget} onChange={(e) => setMoveTargets((prev) => ({ ...prev, [jobType.name]: e.target.value }))} disabled={!moveChoices.length}>
+                    {moveChoices.length ? moveChoices.map((name) => <option key={name}>{name}</option>) : <option value="">No other active type</option>}
+                  </select>
+                  <button className="ghost-button" type="button" disabled={!typeJobs.length || !selectedTarget} onClick={() => onReassignJobType(jobType.name, selectedTarget)}>Move all jobs</button>
+                  <button className="secondary-button" type="button" onClick={() => onUpdateJobType(jobType.id, { active: !jobType.active })}>{jobType.active ? "Deactivate" : "Reactivate"}</button>
+                  {!isDefault && <button className="ghost-button danger" type="button" disabled={!canRemove} title={openJobs.length ? "Move or complete open jobs before removing this type" : undefined} onClick={() => canRemove && window.confirm(`Remove the "${jobType.name}" job type? This cannot be undone.`) && onDeleteJobType(jobType.id)}>Remove</button>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function BusinessUnitView({ jobs, businessUnits, onSelect, onStatus }) {
   const groups = makeGroups(jobs, (job) => job.bus);
   return (
@@ -1634,7 +1874,7 @@ function Detail({ label, value }) {
   return <div className="detail-cell"><span>{label}</span><strong>{value || "—"}</strong></div>;
 }
 
-function JobModal({ job, people, businessUnits, onClose, onSave }) {
+function JobModal({ job, people, jobTypes, businessUnits, onClose, onSave }) {
   const assignablePeople = useMemo(() => {
     const set = new Set(people);
     if (job.alloc) set.add(job.alloc);
@@ -1645,7 +1885,7 @@ function JobModal({ job, people, businessUnits, onClose, onSave }) {
     asm: job.asm || "",
     so: job.so || "",
     cust: job.cust || "",
-    type: job.type || JOB_TYPES[0],
+    type: job.type || jobTypes?.[0] || JOB_TYPES[0],
     owner: job.owner || "",
     alloc: job.alloc || assignablePeople[0] || "Unassigned",
     bus: job.bus || businessUnits[0] || "Other",
@@ -1671,7 +1911,7 @@ function JobModal({ job, people, businessUnits, onClose, onSave }) {
             <Field label="Assembly / Tag"><input className="input" value={fields.asm} onChange={(e) => set("asm", e.target.value)} required /></Field>
             <Field label="Sales Order"><input className="input" value={fields.so} onChange={(e) => set("so", e.target.value)} /></Field>
             <Field label="Customer"><input className="input" value={fields.cust} onChange={(e) => set("cust", e.target.value)} required /></Field>
-            <Field label="Job Type"><select className="select" value={fields.type} onChange={(e) => set("type", e.target.value)}>{JOB_TYPES.map((v) => <option key={v}>{v}</option>)}</select></Field>
+            <Field label="Job Type"><select className="select" value={fields.type} onChange={(e) => set("type", e.target.value)}>{Array.from(new Set([...(jobTypes && jobTypes.length ? jobTypes : JOB_TYPES), fields.type].filter(Boolean))).map((v) => <option key={v}>{v}</option>)}</select></Field>
             <Field label="Project Owner"><input className="input" value={fields.owner} onChange={(e) => set("owner", e.target.value)} /></Field>
             <Field label="Staff / Workshop technician"><select className="select" value={fields.alloc} onChange={(e) => set("alloc", e.target.value)}><option>Unassigned</option>{assignablePeople.map((p) => <option key={p}>{p}</option>)}</select></Field>
             <Field label="Business Unit"><select className="select" value={fields.bus} onChange={(e) => set("bus", e.target.value)}>{businessUnits.map((b) => <option key={b}>{b}</option>)}</select></Field>
