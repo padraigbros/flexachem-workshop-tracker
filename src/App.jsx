@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { parseAssemblyOrderText } from "./assemblyOrderParse";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 import {
   DndContext,
   DragOverlay,
@@ -23,7 +28,30 @@ const SUPABASE_STAFF_TABLE = import.meta.env.VITE_SUPABASE_STAFF_TABLE || "staff
 const SUPABASE_JOB_TYPES_TABLE = import.meta.env.VITE_SUPABASE_JOB_TYPES_TABLE || "job_types";
 const SUPABASE_START_COLUMN = import.meta.env.VITE_SUPABASE_START_COLUMN || "start_date";
 const SUPABASE_DUE_COLUMN = import.meta.env.VITE_SUPABASE_DUE_COLUMN || "due_date";
+const SUPABASE_PROFILES_TABLE = import.meta.env.VITE_SUPABASE_PROFILES_TABLE || "profiles";
+const PDF_BUCKET = import.meta.env.VITE_SUPABASE_PDF_BUCKET || "job-files";
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// Views a non-admin (staff) account may open.
+const STAFF_VIEWS = ["dashboard", "board"];
+// Fields tracked by the audit trail (null = tracked via explicit action label only).
+const AUDIT_LABELS = {
+  status: "Status",
+  alloc: "Staff",
+  due: "Due date",
+  start: "Start date",
+  hrs: "Hours booked",
+  actualHrs: "Actual hours",
+  cust: "Customer",
+  asm: "Assembly",
+  so: "Sales order",
+  type: "Job type",
+  bus: "Business unit",
+  priority: "Priority",
+  owner: "Owner",
+  details: "Details",
+  deleted: null,
+};
 
 const STATUS_ORDER = ["Not Started", "In Progress", "Input Needed", "Complete"];
 const STATUS_META = {
@@ -178,6 +206,8 @@ function normalizeJob(row) {
     priority: row.priority || "Normal",
     details: row.details || row.description || row.work_order || "",
     notes,
+    attachment: row.attachment || null,
+    deleted: Boolean(row.deleted),
     createdAt: row.createdAt || row.created_at || new Date().toISOString(),
     updatedAt: row.updatedAt || row.updated_at || notes[0]?.at || new Date().toISOString(),
   };
@@ -202,6 +232,8 @@ function toDbPayload(job) {
     priority: job.priority,
     details: job.details,
     notes: job.notes,
+    attachment: job.attachment || null,
+    deleted: Boolean(job.deleted),
     updated_at: new Date().toISOString(),
   };
   payload[SUPABASE_START_COLUMN] = job.start || null;
@@ -351,6 +383,141 @@ function getInitialUser() {
   }
 }
 
+async function importAssemblyOrderPdf(file, opts) {
+  const data = await file.arrayBuffer();
+  const loadingTask = pdfjsLib.getDocument({ data });
+  try {
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+    const content = await page.getTextContent();
+    const text = content.items.map((item) => item.str).join(" ");
+    return parseAssemblyOrderText(text, opts);
+  } finally {
+    loadingTask.destroy().catch(() => {});
+  }
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
+async function uploadJobPdf(file, by) {
+  const base = { name: file.name, size: file.size, uploadedAt: new Date().toISOString(), by: by || "" };
+  if (supabase) {
+    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+    const path = `jobs/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}/${safeName}`;
+    const { error } = await supabase.storage.from(PDF_BUCKET).upload(path, file, { upsert: true, contentType: "application/pdf" });
+    if (!error) return { ...base, path };
+    window.alert(`PDF upload to cloud storage failed (${error.message}). The PDF will be kept in this browser only.`);
+  }
+  // Local fallback: base64 data URL stored with the job (large — cloud storage preferred).
+  return { ...base, data: await fileToDataUrl(file) };
+}
+
+async function openJobAttachment(att, { download = false } = {}) {
+  const openUrl = (url) => {
+    if (download) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = att.name || "attachment.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } else {
+      window.open(url, "_blank", "noopener");
+    }
+  };
+  try {
+    if (att.path && supabase) {
+      const options = download ? { download: att.name || true } : undefined;
+      const { data, error } = await supabase.storage.from(PDF_BUCKET).createSignedUrl(att.path, 3600, options);
+      if (error || !data?.signedUrl) throw error || new Error("No signed URL returned");
+      openUrl(data.signedUrl);
+      return;
+    }
+    if (att.data) {
+      const blob = await (await fetch(att.data)).blob();
+      const url = URL.createObjectURL(blob);
+      openUrl(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    }
+    window.alert("Attachment is not available on this device.");
+  } catch (err) {
+    window.alert(`Could not open attachment: ${err?.message || err}`);
+  }
+}
+
+function useAuth() {
+  const [user, setUser] = useState(() => {
+    if (supabase) return null;
+    const stored = getInitialUser();
+    return stored ? { ...stored, role: "admin" } : null;
+  });
+  const [checking, setChecking] = useState(Boolean(supabase));
+  const [recovery, setRecovery] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    async function applySession(session) {
+      if (!session?.user) {
+        if (!cancelled) {
+          setUser(null);
+          setChecking(false);
+        }
+        return;
+      }
+      const { data: profile } = await supabase.from(SUPABASE_PROFILES_TABLE).select("*").eq("id", session.user.id).maybeSingle();
+      if (cancelled) return;
+      if (profile && profile.active === false) {
+        setUser(null);
+        setChecking(false);
+        await supabase.auth.signOut();
+        window.alert("This account has been deactivated. Contact an administrator.");
+        return;
+      }
+      setUser({
+        id: session.user.id,
+        email: session.user.email,
+        name: profile?.name || session.user.user_metadata?.name || session.user.email,
+        role: profile?.role || "staff",
+      });
+      setChecking(false);
+    }
+    supabase.auth.getSession().then(({ data }) => applySession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+      applySession(session);
+    });
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const loginLocal = useCallback((profile) => setUser({ ...profile, role: "admin" }), []);
+  const logout = useCallback(async () => {
+    if (supabase) await supabase.auth.signOut();
+    localStorage.removeItem(USER_KEY);
+    setUser(null);
+  }, []);
+
+  return { user, checking, recovery, setRecovery, loginLocal, logout };
+}
+
 function makeGroups(items, keyGetter) {
   return items.reduce((acc, item) => {
     const key = keyGetter(item) || "Unassigned";
@@ -385,19 +552,22 @@ function dueBucket(job) {
   return "Later";
 }
 
-function useWorkshopData() {
+function useWorkshopData(user) {
   const [jobs, setJobs] = useState(loadStoredJobs);
   const [staff, setStaff] = useState(loadStoredStaff);
   const [jobTypes, setJobTypes] = useState(loadStoredJobTypes);
+  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [syncState, setSyncState] = useState(supabase ? "syncing" : "local");
   const [staffSyncState, setStaffSyncState] = useState(supabase ? "syncing" : "local");
   const [jobTypeSyncState, setJobTypeSyncState] = useState(supabase ? "syncing" : "local");
+  // With RLS enabled, queries only return rows for an authenticated session — wait for login.
+  const userId = user?.id || (user ? "local" : null);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchJobs() {
-      if (!supabase) return;
+      if (!supabase || !userId) return;
       setLoading(true);
       const { data, error } = await supabase.from(SUPABASE_TABLE).select("*");
       if (cancelled) return;
@@ -415,12 +585,12 @@ function useWorkshopData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchStaff() {
-      if (!supabase) return;
+      if (!supabase || !userId) return;
       const { data, error } = await supabase.from(SUPABASE_STAFF_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
       if (error) {
@@ -436,12 +606,12 @@ function useWorkshopData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchJobTypes() {
-      if (!supabase) return;
+      if (!supabase || !userId) return;
       const { data, error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
       if (error) {
@@ -457,7 +627,21 @@ function useWorkshopData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchProfiles() {
+      if (!supabase || !userId || user?.role !== "admin") return;
+      const { data, error } = await supabase.from(SUPABASE_PROFILES_TABLE).select("*").order("name", { ascending: true });
+      if (cancelled) return;
+      if (!error && Array.isArray(data)) setProfiles(data);
+    }
+    fetchProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, user?.role]);
 
   useEffect(() => {
     saveStoredJobs(jobs);
@@ -486,7 +670,7 @@ function useWorkshopData() {
   }, []);
 
   const addJob = useCallback(async (fields) => {
-    const localJob = normalizeJob({ ...fields, id: crypto.randomUUID?.() || `job-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: [] });
+    const localJob = normalizeJob({ ...fields, id: crypto.randomUUID?.() || `job-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: Array.isArray(fields.notes) ? fields.notes : [] });
     setJobs((prev) => [localJob, ...prev]);
     if (supabase) {
       const { data, error } = await supabase.from(SUPABASE_TABLE).insert(toDbPayload(localJob)).select("*").single();
@@ -511,7 +695,7 @@ function useWorkshopData() {
   const addNote = useCallback(async (id, noteText, nextStatus, by) => {
     const current = jobs.find((job) => job.id === id);
     if (!current || !noteText.trim()) return;
-    const note = { at: new Date().toISOString(), by: by || "Workshop", txt: noteText.trim(), status: nextStatus || current.status };
+    const note = { at: new Date().toISOString(), by: by || "Workshop", kind: "note", txt: noteText.trim(), status: nextStatus || current.status };
     const patch = {
       notes: [note, ...parseNotes(current.notes)],
       status: nextStatus || current.status,
@@ -619,17 +803,27 @@ function useWorkshopData() {
     }
   }, []);
 
+  const updateProfile = useCallback(async (id, patch) => {
+    setProfiles((prev) => prev.map((profile) => (profile.id === id ? { ...profile, ...patch } : profile)));
+    if (supabase) {
+      const { error } = await supabase.from(SUPABASE_PROFILES_TABLE).update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) window.alert(`Could not update account: ${error.message}`);
+    }
+  }, []);
+
   return {
     jobs,
     setJobs,
     staff,
     jobTypes,
+    profiles,
     loading,
     syncState,
     staffSyncState,
     jobTypeSyncState,
     patchJob,
     addNote,
+    addJob,
     saveJob,
     deleteJob,
     addStaffMember,
@@ -638,30 +832,32 @@ function useWorkshopData() {
     addJobType,
     updateJobType,
     deleteJobType,
+    updateProfile,
   };
 }
 
 export default function App() {
+  const { user, checking, recovery, setRecovery, loginLocal, logout } = useAuth();
   const {
     jobs,
     staff,
     jobTypes,
+    profiles,
     loading,
     syncState,
     staffSyncState,
     jobTypeSyncState,
     patchJob,
     addNote,
-    saveJob,
-    deleteJob,
+    addJob,
     addStaffMember,
     updateStaffMember,
     deleteStaffMember,
     addJobType,
     updateJobType,
     deleteJobType,
-  } = useWorkshopData();
-  const [user, setUser] = useState(getInitialUser);
+    updateProfile,
+  } = useWorkshopData(user);
   const [view, setView] = useState("dashboard");
   const [filters, setFilters] = useState({ search: "", employee: "All", bus: "All", status: "All", horizon: "All" });
   const [selectedJobId, setSelectedJobId] = useState(null);
@@ -669,16 +865,20 @@ export default function App() {
   const [allUpdatesOpen, setAllUpdatesOpen] = useState(false);
   const [activeId, setActiveId] = useState(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const isAdmin = user?.role === "admin";
 
   useEffect(() => {
-    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    if (!supabase && user) localStorage.setItem(USER_KEY, JSON.stringify({ name: user.name, email: user.email }));
   }, [user]);
+
+  const activeJobs = useMemo(() => jobs.filter((job) => !job.deleted), [jobs]);
+  const deletedJobs = useMemo(() => jobs.filter((job) => job.deleted), [jobs]);
 
   const people = useMemo(() => {
     const set = new Set(staff.map((member) => member.name));
-    jobs.forEach((job) => job.alloc && set.add(job.alloc));
+    activeJobs.forEach((job) => job.alloc && set.add(job.alloc));
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
-  }, [jobs, staff]);
+  }, [activeJobs, staff]);
 
   const activePeople = useMemo(() => (staff.length ? staff : DEFAULT_STAFF)
     .filter((member) => member.active)
@@ -688,9 +888,9 @@ export default function App() {
 
   const businessUnits = useMemo(() => {
     const set = new Set(BUSINESS_UNITS);
-    jobs.forEach((job) => job.bus && set.add(job.bus));
+    activeJobs.forEach((job) => job.bus && set.add(job.bus));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [jobs]);
+  }, [activeJobs]);
 
   const activeJobTypes = useMemo(() => (jobTypes.length ? jobTypes : DEFAULT_JOB_TYPES)
     .filter((jobType) => jobType.active)
@@ -700,7 +900,7 @@ export default function App() {
 
   const filteredJobs = useMemo(() => {
     const term = filters.search.trim().toLowerCase();
-    return jobs.filter((job) => {
+    return activeJobs.filter((job) => {
       const haystack = [job.asm, job.so, job.cust, job.type, job.owner, job.alloc, job.bus, job.details].join(" ").toLowerCase();
       const matchSearch = !term || haystack.includes(term);
       const matchEmployee = filters.employee === "All" || job.alloc === filters.employee;
@@ -709,7 +909,7 @@ export default function App() {
       const matchHorizon = filters.horizon === "All" || dueBucket(job) === filters.horizon;
       return matchSearch && matchEmployee && matchBus && matchStatus && matchHorizon;
     }).sort(jobSort);
-  }, [jobs, filters]);
+  }, [activeJobs, filters]);
 
   const metrics = useMemo(() => {
     const open = filteredJobs.filter((j) => j.status !== "Complete");
@@ -726,17 +926,54 @@ export default function App() {
   const selectedJob = jobs.find((job) => job.id === selectedJobId) || null;
   const activeJob = jobs.find((job) => job.id === activeId) || null;
 
-  const updates = useMemo(() => jobs.flatMap((job) => parseNotes(job.notes).map((note) => ({ ...note, job })))
-    .sort((a, b) => (parseISODate(b.at)?.getTime() || 0) - (parseISODate(a.at)?.getTime() || 0)), [jobs]);
+  const updates = useMemo(() => activeJobs.flatMap((job) => parseNotes(job.notes).map((note) => ({ ...note, job })))
+    .sort((a, b) => (parseISODate(b.at)?.getTime() || 0) - (parseISODate(a.at)?.getTime() || 0)), [activeJobs]);
 
   const updateFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
   const resetFilters = () => setFilters({ search: "", employee: "All", bus: "All", status: "All", horizon: "All" });
+
+  const auditBy = user?.name || user?.email || "Workshop";
+
+  // Central audited mutation: computes field diffs and prepends an audit entry to the job's notes.
+  const auditPatch = useCallback(async (id, patch, actionLabel) => {
+    const job = jobs.find((j) => j.id === id);
+    if (!job) return;
+    const changes = [];
+    Object.entries(patch).forEach(([key, after]) => {
+      if (!(key in AUDIT_LABELS) || AUDIT_LABELS[key] === null) return;
+      const before = job[key];
+      if (String(before ?? "") === String(after ?? "")) return;
+      if (key === "details") {
+        changes.push("Details updated");
+        return;
+      }
+      const fmt = (v) => (key === "due" || key === "start"
+        ? (v ? formatDate(v, { year: "numeric" }) : "—")
+        : (v === "" || v == null ? "—" : String(v)));
+      changes.push(`${AUDIT_LABELS[key]}: ${fmt(before)} → ${fmt(after)}`);
+    });
+    const parts = [actionLabel, ...changes].filter(Boolean);
+    if (!parts.length) return patchJob(id, patch);
+    const entry = { at: new Date().toISOString(), by: auditBy, kind: "audit", txt: parts.join(" · "), status: patch.status || job.status };
+    return patchJob(id, { ...patch, notes: [entry, ...parseNotes(job.notes)] });
+  }, [jobs, patchJob, auditBy]);
+
+  const createJob = useCallback(async (fields, sourcePdfName) => {
+    const entry = {
+      at: new Date().toISOString(),
+      by: auditBy,
+      kind: "audit",
+      txt: sourcePdfName ? `Job created · imported from ${sourcePdfName}` : "Job created",
+      status: fields.status || "Not Started",
+    };
+    await addJob({ ...fields, notes: [entry] });
+  }, [addJob, auditBy]);
 
   const reassignStaffJobs = async (fromName, toName) => {
     const target = toName || "Unassigned";
     const affected = jobs.filter((job) => job.alloc === fromName && job.status !== "Complete");
     for (const job of affected) {
-      await patchJob(job.id, { alloc: target });
+      await auditPatch(job.id, { alloc: target }, "Batch reassignment");
     }
   };
 
@@ -744,14 +981,8 @@ export default function App() {
     if (!toType || toType === fromType) return;
     const affected = jobs.filter((job) => job.type === fromType);
     for (const job of affected) {
-      await patchJob(job.id, { type: toType });
+      await auditPatch(job.id, { type: toType }, "Batch job-type move");
     }
-  };
-
-  const handleLogin = (profile) => setUser(profile);
-  const handleLogout = () => {
-    localStorage.removeItem(USER_KEY);
-    setUser(null);
   };
 
   const handleDragEnd = async ({ active, over }) => {
@@ -761,18 +992,31 @@ export default function App() {
     if (!job) return;
     const targetStatus = over.data?.current?.status || (String(over.id).startsWith("status:") ? String(over.id).replace("status:", "") : null);
     if (targetStatus && targetStatus !== job.status) {
-      await patchJob(job.id, { status: targetStatus });
+      await auditPatch(job.id, { status: targetStatus });
     }
   };
 
   const handleDelete = async (job) => {
-    if (window.confirm(`Delete ${job.asm || job.cust}?`)) {
-      await deleteJob(job.id);
+    if (window.confirm(`Delete ${job.asm || job.cust}? It will be archived with its history and can be restored from the Master List.`)) {
+      await auditPatch(job.id, { deleted: true }, "Job deleted");
       if (selectedJobId === job.id) setSelectedJobId(null);
     }
   };
 
-  if (!user) return <LoginScreen onLogin={handleLogin} />;
+  const handleRestore = (job) => auditPatch(job.id, { deleted: false }, "Job restored");
+
+  if (checking) {
+    return (
+      <>
+        <DesignSystem />
+        <div className="login-shell"><div className="panel" style={{ padding: 28 }}><div className="panel-title">Checking session…</div><div className="panel-subtitle">Restoring your workshop login.</div></div></div>
+      </>
+    );
+  }
+
+  if (!user) return <LoginScreen onLocalLogin={loginLocal} />;
+
+  const effectiveView = isAdmin || STAFF_VIEWS.includes(view) ? view : "dashboard";
 
   return (
     <>
@@ -788,13 +1032,17 @@ export default function App() {
           </div>
 
           <nav className="nav-stack">
-            <NavButton active={view === "dashboard"} icon="◆" label="Dashboard" hint="Live command centre" onClick={() => setView("dashboard")} />
-            <NavButton active={view === "board"} icon="▦" label="Schedule" hint="Drag status columns" onClick={() => setView("board")} />
-            <NavButton active={view === "employees"} icon="☷" label="Staff" hint="Manage active staff and workload" onClick={() => setView("employees")} />
-            <NavButton active={view === "jobtypes"} icon="◵" label="Job Types" hint="Maintain job type catalogue" onClick={() => setView("jobtypes")} />
-            <NavButton active={view === "business"} icon="◫" label="Business Units" hint="Pharma, mining, industrial" onClick={() => setView("business")} />
-            <NavButton active={view === "due"} icon="◴" label="Due Dates" hint="Delivery windows" onClick={() => setView("due")} />
-            <NavButton active={view === "list"} icon="≡" label="Master List" hint="Full job register" onClick={() => setView("list")} />
+            <NavButton active={effectiveView === "dashboard"} icon="◆" label="Dashboard" hint="Live command centre" onClick={() => setView("dashboard")} />
+            <NavButton active={effectiveView === "board"} icon="▦" label="Schedule" hint="Drag status columns" onClick={() => setView("board")} />
+            {isAdmin && (
+              <>
+                <NavButton active={effectiveView === "employees"} icon="☷" label="Staff" hint="Manage active staff and workload" onClick={() => setView("employees")} />
+                <NavButton active={effectiveView === "jobtypes"} icon="◵" label="Job Types" hint="Maintain job type catalogue" onClick={() => setView("jobtypes")} />
+                <NavButton active={effectiveView === "business"} icon="◫" label="Business Units" hint="Pharma, mining, industrial" onClick={() => setView("business")} />
+                <NavButton active={effectiveView === "due"} icon="◴" label="Due Dates" hint="Delivery windows" onClick={() => setView("due")} />
+                <NavButton active={effectiveView === "list"} icon="≡" label="Master List" hint="Full job register" onClick={() => setView("list")} />
+              </>
+            )}
           </nav>
 
           <div className="sidebar-card">
@@ -806,52 +1054,56 @@ export default function App() {
             <div className="profile-copy">
               <strong>{user.name || "Workshop user"}</strong>
               <span>{user.email}</span>
+              <span className={`role-chip ${isAdmin ? "admin" : ""}`}>{isAdmin ? "Admin" : "Staff"}</span>
             </div>
-            <button className="ghost-button compact" onClick={handleLogout}>Exit</button>
+            <button className="ghost-button compact" onClick={logout}>Exit</button>
           </div>
         </aside>
 
         <main className="workspace">
           <Topbar
-            view={view}
+            view={effectiveView}
             filters={filters}
             people={people}
             businessUnits={businessUnits}
             metrics={metrics}
             updateFilter={updateFilter}
             resetFilters={resetFilters}
-            onNewJob={() => setEditingJob({})}
+            onNewJob={isAdmin ? () => setEditingJob({}) : null}
             onOpenUpdates={() => setAllUpdatesOpen(true)}
           />
 
           <section className="content-scroll">
             {loading ? <LoadingState /> : (
               <>
-                {view === "dashboard" && <DashboardView jobs={filteredJobs} allJobs={jobs} metrics={metrics} updates={updates} people={people} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={patchJob} onOpenUpdates={() => setAllUpdatesOpen(true)} />}
-                {view === "board" && (
+                {effectiveView === "dashboard" && <DashboardView jobs={filteredJobs} allJobs={activeJobs} metrics={metrics} updates={updates} people={people} onSelect={setSelectedJobId} onEdit={isAdmin ? setEditingJob : null} onStatus={auditPatch} onOpenUpdates={() => setAllUpdatesOpen(true)} />}
+                {effectiveView === "board" && (
                   <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={({ active }) => setActiveId(active.id)} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
-                    <BoardView jobs={filteredJobs} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={patchJob} />
-                    <DragOverlay>{activeJob ? <JobCard job={activeJob} overlay onSelect={() => {}} onEdit={() => {}} onStatus={() => {}} /> : null}</DragOverlay>
+                    <BoardView jobs={filteredJobs} onSelect={setSelectedJobId} onEdit={isAdmin ? setEditingJob : null} onStatus={auditPatch} />
+                    <DragOverlay>{activeJob ? <JobCard job={activeJob} overlay onSelect={() => {}} onEdit={null} onStatus={() => {}} /> : null}</DragOverlay>
                   </DndContext>
                 )}
-                {view === "employees" && (
+                {effectiveView === "employees" && isAdmin && (
                   <StaffView
                     jobs={filteredJobs}
-                    allJobs={jobs}
+                    allJobs={activeJobs}
                     staff={staff}
                     people={people}
                     activePeople={activePeople}
+                    profiles={profiles}
+                    currentUserId={user.id}
                     onSelect={setSelectedJobId}
-                    onStatus={patchJob}
+                    onStatus={auditPatch}
                     onAddStaff={addStaffMember}
                     onUpdateStaff={updateStaffMember}
                     onDeleteStaff={deleteStaffMember}
                     onReassignStaff={reassignStaffJobs}
+                    onUpdateProfile={updateProfile}
                   />
                 )}
-                {view === "jobtypes" && (
+                {effectiveView === "jobtypes" && isAdmin && (
                   <JobTypesView
-                    allJobs={jobs}
+                    allJobs={activeJobs}
                     jobTypes={jobTypes}
                     activeJobTypes={activeJobTypes}
                     onAddJobType={addJobType}
@@ -860,9 +1112,9 @@ export default function App() {
                     onReassignJobType={reassignJobTypeJobs}
                   />
                 )}
-                {view === "business" && <BusinessUnitView jobs={filteredJobs} businessUnits={businessUnits} onSelect={setSelectedJobId} onStatus={patchJob} />}
-                {view === "due" && <DueDateView jobs={filteredJobs} onSelect={setSelectedJobId} onStatus={patchJob} />}
-                {view === "list" && <ListView jobs={filteredJobs} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={patchJob} onDelete={handleDelete} />}
+                {effectiveView === "business" && isAdmin && <BusinessUnitView jobs={filteredJobs} businessUnits={businessUnits} onSelect={setSelectedJobId} onStatus={auditPatch} />}
+                {effectiveView === "due" && isAdmin && <DueDateView jobs={filteredJobs} onSelect={setSelectedJobId} onStatus={auditPatch} />}
+                {effectiveView === "list" && isAdmin && <ListView jobs={filteredJobs} deletedJobs={deletedJobs} onSelect={setSelectedJobId} onEdit={setEditingJob} onStatus={auditPatch} onDelete={handleDelete} onRestore={handleRestore} />}
               </>
             )}
           </section>
@@ -874,26 +1126,59 @@ export default function App() {
           job={selectedJob}
           user={user}
           onClose={() => setSelectedJobId(null)}
-          onEdit={() => setEditingJob(selectedJob)}
-          onStatus={patchJob}
+          onEdit={isAdmin ? () => setEditingJob(selectedJob) : null}
+          onStatus={auditPatch}
           onAddNote={addNote}
         />
       )}
 
       {allUpdatesOpen && <UpdatesDrawer updates={updates} onClose={() => setAllUpdatesOpen(false)} onSelect={(id) => { setAllUpdatesOpen(false); setSelectedJobId(id); }} />}
 
-      {editingJob && (
+      {editingJob && isAdmin && (
         <JobModal
           job={editingJob}
           people={activePeople}
           jobTypes={activeJobTypes}
           businessUnits={businessUnits}
           onClose={() => setEditingJob(null)}
-          onSave={async (fields) => {
-            await saveJob(editingJob.id, fields);
+          onSave={async (fieldsIn) => {
+            const { attachmentFile, attachment: keptAttachment, ...rest } = fieldsIn;
+            let attachment = keptAttachment || null;
+            let label;
+            if (attachmentFile) {
+              attachment = await uploadJobPdf(attachmentFile, auditBy);
+              label = `Attached ${attachmentFile.name}`;
+            } else if (editingJob.id && editingJob.attachment && !attachment) {
+              label = "Attachment removed";
+            }
+            if (editingJob.id) await auditPatch(editingJob.id, { ...rest, attachment }, label);
+            else await createJob({ ...rest, attachment }, attachmentFile?.name);
             setEditingJob(null);
           }}
         />
+      )}
+
+      {recovery && user && supabase && (
+        <div className="modal-backdrop">
+          <form
+            className="modal-card"
+            style={{ maxWidth: 440 }}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const pw = e.target.elements.newpw.value;
+              const { error } = await supabase.auth.updateUser({ password: pw });
+              if (error) window.alert(error.message);
+              else {
+                window.alert("Password updated. You are signed in.");
+                setRecovery(false);
+              }
+            }}
+          >
+            <div className="modal-header"><div><div className="eyebrow">Password recovery</div><h2>Set a new password</h2></div><button className="icon-button" type="button" onClick={() => setRecovery(false)}>×</button></div>
+            <div className="modal-body"><Field label="New password (min 8 characters)"><input name="newpw" type="password" className="input" minLength={8} required /></Field></div>
+            <div className="modal-footer"><button className="ghost-button" type="button" onClick={() => setRecovery(false)}>Cancel</button><button className="primary-button" type="submit">Update password</button></div>
+          </form>
+        </div>
       )}
     </>
   );
@@ -1124,6 +1409,29 @@ function DesignSystem() {
       .login-kpis div { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.16); border-radius: 18px; padding: 14px; }
       .login-kpis strong { display: block; font-size: 22px; }
       .login-kpis span { color: #b7c8dc; font-size: 11px; }
+      .auth-tabs { display: flex; gap: 6px; }
+      .auth-tabs button { flex: 1; padding: 9px 10px; border-radius: 9px; border: 1px solid #d5e1ee; background: #fff; cursor: pointer; font-weight: 600; color: #5b6b7c; font-size: 13px; }
+      .auth-tabs button.active { background: #123a66; border-color: #123a66; color: #fff; }
+      .auth-message { font-size: 12.5px; padding: 8px 10px; border-radius: 8px; }
+      .auth-message.error { background: #fdeeee; color: #a33a3a; border: 1px solid #f2c8c8; }
+      .auth-message.info { background: #ebf4fd; color: #1c4d8f; border: 1px solid #c9def5; }
+      .link-button { background: none; border: 0; color: #2f80ed; cursor: pointer; font-size: 12.5px; padding: 0; text-decoration: underline; align-self: flex-start; }
+      .role-chip { display: inline-block; margin-top: 3px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #5b6b7c; background: #eef2f7; border-radius: 5px; padding: 2px 7px; width: fit-content; }
+      .role-chip.admin { color: #1c4d8f; background: #e3eefc; }
+      .dropzone { border: 1.5px dashed #b9cbdf; border-radius: 12px; padding: 14px 16px; background: #f8fbff; color: #5b6b7c; font-size: 13px; cursor: pointer; text-align: center; transition: border-color .15s ease, background .15s ease; margin-bottom: 14px; }
+      .dropzone.drag { border-color: #2f80ed; background: #eaf3ff; color: #1c4d8f; }
+      .dropzone strong { color: #22384f; }
+      .import-summary { margin: -6px 0 14px; font-size: 12px; color: #1f7a43; background: #ebf8f0; border: 1px solid #bfe8cf; border-radius: 8px; padding: 6px 10px; }
+      .note-card.audit { padding: 8px 12px; background: #f6f8fb; border-style: dashed; }
+      .update-item.audit { background: #f6f8fb; border-style: dashed; }
+      .audit-tag { font-size: 9px; letter-spacing: .08em; font-weight: 700; color: #7a8aa0; border: 1px solid #cbd6e4; border-radius: 4px; padding: 1px 5px; }
+      .attachment-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #dbe5f0; border-radius: 10px; background: #f8fbff; margin-top: 14px; }
+      .attachment-row .attachment-copy { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+      .attachment-row .attachment-copy strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .attachment-row .attachment-copy span { font-size: 11px; color: #5b6b7c; }
+      .mini-toggle { display: inline-flex; gap: 4px; }
+      .mini-toggle button { font-size: 11px; padding: 4px 8px; border-radius: 6px; border: 1px solid #d5e1ee; background: #fff; cursor: pointer; color: #5b6b7c; }
+      .mini-toggle button.active { background: #eef4fb; border-color: #9db9d8; color: #123a66; }
       @media (max-width: 1180px) {
         .app-shell { grid-template-columns: 86px minmax(0, 1fr); }
         .brand-block, .sidebar-card, .profile-copy, .nav-text { display: none; }
@@ -1211,13 +1519,59 @@ function DesignSystem() {
   );
 }
 
-function LoginScreen({ onLogin }) {
-  const [email, setEmail] = useState("workshop@flexachem.com");
-  const [name, setName] = useState("Workshop Lead");
-  const submit = (e) => {
+function LoginScreen({ onLocalLogin }) {
+  const cloud = Boolean(supabase);
+  const [mode, setMode] = useState("signin");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState(null);
+  const [localName, setLocalName] = useState("Workshop Lead");
+  const [localEmail, setLocalEmail] = useState("workshop@flexachem.com");
+
+  const submit = async (e) => {
     e.preventDefault();
-    onLogin({ email: email.trim() || "workshop@flexachem.com", name: name.trim() || "Workshop Lead" });
+    if (!cloud) {
+      onLocalLogin({ email: localEmail.trim() || "workshop@flexachem.com", name: localName.trim() || "Workshop Lead" });
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { name: name.trim() } } });
+        if (error) throw error;
+        if (!data.session) setMessage({ tone: "info", text: "Account created. Check your email to confirm, then sign in." });
+      }
+    } catch (err) {
+      setMessage({ tone: "error", text: err?.message || String(err) });
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const resetPassword = async () => {
+    if (!email.trim()) {
+      setMessage({ tone: "error", text: "Enter your email above first, then press “Forgot password?”." });
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+      if (error) throw error;
+      setMessage({ tone: "info", text: "Password reset link sent — check your email." });
+    } catch (err) {
+      setMessage({ tone: "error", text: err?.message || String(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <>
       <DesignSystem />
@@ -1239,22 +1593,53 @@ function LoginScreen({ onLogin }) {
               <div><strong>Live</strong><span>notes from workshop technicians</span></div>
             </div>
           </div>
-          <form className="login-form" onSubmit={submit}>
-            <div>
-              <div className="eyebrow">Secure workshop entry</div>
-              <h2>Continue to the dashboard</h2>
-              <p className="page-subtitle">This keeps update authorship clear during testing.</p>
-            </div>
-            <div className="field">
-              <label>Your name</label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Email</label>
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <button className="primary-button" type="submit">Enter workshop dashboard →</button>
-          </form>
+          {cloud ? (
+            <form className="login-form" onSubmit={submit}>
+              <div>
+                <div className="eyebrow">Secure workshop entry</div>
+                <h2>{mode === "signin" ? "Sign in" : "Create your account"}</h2>
+                <p className="page-subtitle">{mode === "signin" ? "Use your workshop email and password." : "New accounts start with staff access — an admin can upgrade you."}</p>
+              </div>
+              <div className="auth-tabs">
+                <button type="button" className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setMessage(null); }}>Sign in</button>
+                <button type="button" className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setMessage(null); }}>Create account</button>
+              </div>
+              {mode === "signup" && (
+                <div className="field">
+                  <label>Your name</label>
+                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Darragh" />
+                </div>
+              )}
+              <div className="field">
+                <label>Email</label>
+                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+              </div>
+              <div className="field">
+                <label>Password</label>
+                <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete={mode === "signin" ? "current-password" : "new-password"} />
+              </div>
+              {message && <div className={`auth-message ${message.tone}`}>{message.text}</div>}
+              <button className="primary-button" type="submit" disabled={busy}>{busy ? "Working…" : mode === "signin" ? "Sign in →" : "Create account →"}</button>
+              {mode === "signin" && <button type="button" className="link-button" onClick={resetPassword} disabled={busy}>Forgot password?</button>}
+            </form>
+          ) : (
+            <form className="login-form" onSubmit={submit}>
+              <div>
+                <div className="eyebrow">Local demo mode</div>
+                <h2>Continue to the dashboard</h2>
+                <p className="page-subtitle">No Supabase configured — data stays in this browser and you get full admin access.</p>
+              </div>
+              <div className="field">
+                <label>Your name</label>
+                <input className="input" value={localName} onChange={(e) => setLocalName(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Email</label>
+                <input className="input" type="email" value={localEmail} onChange={(e) => setLocalEmail(e.target.value)} />
+              </div>
+              <button className="primary-button" type="submit">Enter workshop dashboard →</button>
+            </form>
+          )}
         </div>
       </div>
     </>
@@ -1326,7 +1711,7 @@ function Topbar({ view, filters, people, businessUnits, metrics, updateFilter, r
         <div className="top-actions">
           <button className="ghost-button" onClick={onOpenUpdates}>Recent updates</button>
           <button className="secondary-button" onClick={resetFilters}>Reset filters</button>
-          <button className="primary-button" onClick={onNewJob}>+ Log new job</button>
+          {onNewJob && <button className="primary-button" onClick={onNewJob}>+ Log new job</button>}
         </div>
       </div>
       <div className={`filter-bar ${filterOpen ? "open" : ""}`}>
@@ -1379,7 +1764,7 @@ function DashboardView({ jobs, allJobs, metrics, updates, people, onSelect, onEd
           <section className="panel" style={{ marginTop: 20 }}>
             <div className="panel-header">
               <div><h3 className="panel-title">High-risk queue</h3><div className="panel-subtitle">Sorted by due date, blocker status and priority.</div></div>
-              <button className="ghost-button" onClick={() => onEdit({})}>Add job</button>
+              {onEdit && <button className="ghost-button" onClick={() => onEdit({})}>Add job</button>}
             </div>
             <div className="risk-list">
               {risky.length ? risky.map((job) => <RiskItem key={job.id} job={job} onSelect={onSelect} onStatus={onStatus} />) : <EmptyState text="No risk items in the current filter." />}
@@ -1489,7 +1874,7 @@ function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
       <div className="job-card-header" {...attributes} {...listeners}>
         <div>
           <StatusChip status={job.status} />
-          <h3 className="job-title">{job.asm || "No assembly"}</h3>
+          <h3 className="job-title">{job.asm || "No assembly"}{job.attachment && <span title={job.attachment.name} style={{ marginLeft: 6, fontSize: 13 }}>📎</span>}</h3>
           <div className="job-subline">SO {job.so || "TBA"} · {job.cust || "No customer"}</div>
         </div>
         <span className={`priority-chip ${job.priority}`}>{job.priority}</span>
@@ -1506,7 +1891,7 @@ function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
         <StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} />
         <div className="card-actions">
           <button className="icon-button" onClick={() => onSelect(job.id)} title="Open notes">↗</button>
-          <button className="icon-button" onClick={() => onEdit(job)} title="Edit">✎</button>
+          {onEdit && <button className="icon-button" onClick={() => onEdit(job)} title="Edit">✎</button>}
         </div>
       </div>
     </article>
@@ -1528,7 +1913,7 @@ function StatusSwitch({ value, onChange }) {
   );
 }
 
-function StaffView({ jobs, allJobs, staff, people, activePeople, onSelect, onStatus, onAddStaff, onUpdateStaff, onDeleteStaff, onReassignStaff }) {
+function StaffView({ jobs, allJobs, staff, people, activePeople, profiles = [], currentUserId, onSelect, onStatus, onAddStaff, onUpdateStaff, onDeleteStaff, onReassignStaff, onUpdateProfile }) {
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffRole, setNewStaffRole] = useState("Workshop technician");
   const [reassignTargets, setReassignTargets] = useState({});
@@ -1596,6 +1981,53 @@ function StaffView({ jobs, allJobs, staff, people, activePeople, onSelect, onSta
           })}
         </div>
       </section>
+
+      {supabase && (
+        <section className="panel staff-management-panel">
+          <div className="panel-header">
+            <div>
+              <h3 className="panel-title">Login accounts</h3>
+              <div className="panel-subtitle">Admins get every section; staff see the Dashboard and Schedule and can post progress updates. New signups start as staff.</div>
+            </div>
+            <span className="chip">{profiles.length} account{profiles.length === 1 ? "" : "s"}</span>
+          </div>
+          <div className="staff-table">
+            {profiles.length ? profiles.map((profile) => (
+              <div className={`staff-row ${profile.active === false ? "inactive" : ""}`} key={profile.id}>
+                <div className="staff-main">
+                  <div className="lane-avatar">{(profile.name || profile.email || "?").slice(0, 1).toUpperCase()}</div>
+                  <div><strong>{profile.name || "—"}</strong><span>{profile.email}</span></div>
+                </div>
+                <div className="staff-status-block">
+                  <span className={`status-chip ${profile.role === "admin" ? "blue" : "neutral"}`}><span>{profile.role === "admin" ? "★" : "–"}</span>{profile.role === "admin" ? "Admin" : "Staff"}</span>
+                  <span className={`status-chip ${profile.active === false ? "neutral" : "green"}`}><span>{profile.active === false ? "–" : "✓"}</span>{profile.active === false ? "Disabled" : "Active"}</span>
+                </div>
+                <div className="staff-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => {
+                      if (profile.id === currentUserId && !window.confirm("Change your own role? You will lose admin access immediately.")) return;
+                      onUpdateProfile(profile.id, { role: profile.role === "admin" ? "staff" : "admin" });
+                    }}
+                  >
+                    {profile.role === "admin" ? "Make staff" : "Make admin"}
+                  </button>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    disabled={profile.id === currentUserId}
+                    title={profile.id === currentUserId ? "You cannot disable your own account" : undefined}
+                    onClick={() => onUpdateProfile(profile.id, { active: profile.active === false })}
+                  >
+                    {profile.active === false ? "Enable" : "Disable"}
+                  </button>
+                </div>
+              </div>
+            )) : <EmptyState text="No login accounts found yet. Accounts appear here after people sign up." />}
+          </div>
+        </section>
+      )}
 
       <div className="lane-grid">
         {people.map((person) => {
@@ -1755,30 +2187,59 @@ function TimelineJob({ job, onSelect, onStatus }) {
   );
 }
 
-function ListView({ jobs, onSelect, onEdit, onStatus, onDelete }) {
+function ListView({ jobs, deletedJobs = [], onSelect, onEdit, onStatus, onDelete, onRestore }) {
+  const [showDeleted, setShowDeleted] = useState(false);
   return (
-    <div className="table-wrap">
-      <table>
-        <thead><tr><th>Assembly</th><th>Customer / SO</th><th>BU</th><th>Staff</th><th>Work window</th><th>Hours</th><th>Status</th><th>Updates</th><th>Actions</th></tr></thead>
-        <tbody>
-          {jobs.map((job) => {
-            const notes = parseNotes(job.notes);
-            return (
-              <tr key={job.id}>
-                <td><button style={{ background: "transparent", border: 0, padding: 0, textAlign: "left" }} onClick={() => onSelect(job.id)}><div className="job-code">{job.asm || "No assembly"}</div><div className="job-subline">{job.type}</div></button></td>
-                <td><strong>{job.cust}</strong><div className="job-subline">SO {job.so || "TBA"}</div></td>
-                <td>{job.bus}</td>
-                <td>{job.alloc}</td>
-                <td>{formatDate(job.start)} → {formatDate(job.due)}<div className="job-subline">{jobCalendarSpan(job)} calendar days</div></td>
-                <td>{job.hrs}h<div className="job-subline">Actual {job.actualHrs || 0}h</div></td>
-                <td><StatusChip status={job.status} /><div style={{ marginTop: 8 }}><StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} /></div></td>
-                <td>{notes[0] ? <div><strong>{notes[0].by}</strong><div className="job-subline">{notes[0].txt}</div></div> : <span className="job-subline">No notes</span>}</td>
-                <td><div className="card-actions"><button className="icon-button" onClick={() => onSelect(job.id)}>↗</button><button className="icon-button" onClick={() => onEdit(job)}>✎</button><button className="icon-button" onClick={() => onDelete(job)}>×</button></div></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Assembly</th><th>Customer / SO</th><th>BU</th><th>Staff</th><th>Work window</th><th>Hours</th><th>Status</th><th>Updates</th><th>Actions</th></tr></thead>
+          <tbody>
+            {jobs.map((job) => {
+              const notes = parseNotes(job.notes);
+              return (
+                <tr key={job.id}>
+                  <td><button style={{ background: "transparent", border: 0, padding: 0, textAlign: "left" }} onClick={() => onSelect(job.id)}><div className="job-code">{job.asm || "No assembly"}{job.attachment && <span title={job.attachment.name} style={{ marginLeft: 5 }}>📎</span>}</div><div className="job-subline">{job.type}</div></button></td>
+                  <td><strong>{job.cust}</strong><div className="job-subline">SO {job.so || "TBA"}</div></td>
+                  <td>{job.bus}</td>
+                  <td>{job.alloc}</td>
+                  <td>{formatDate(job.start)} → {formatDate(job.due)}<div className="job-subline">{jobCalendarSpan(job)} calendar days</div></td>
+                  <td>{job.hrs}h<div className="job-subline">Actual {job.actualHrs || 0}h</div></td>
+                  <td><StatusChip status={job.status} /><div style={{ marginTop: 8 }}><StatusSwitch value={job.status} onChange={(status) => onStatus(job.id, { status })} /></div></td>
+                  <td>{notes[0] ? <div><strong>{notes[0].by}</strong><div className="job-subline">{notes[0].txt}</div></div> : <span className="job-subline">No notes</span>}</td>
+                  <td><div className="card-actions"><button className="icon-button" onClick={() => onSelect(job.id)}>↗</button><button className="icon-button" onClick={() => onEdit(job)}>✎</button><button className="icon-button" onClick={() => onDelete(job)}>×</button></div></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {onRestore && deletedJobs.length > 0 && (
+        <section className="panel" style={{ marginTop: 20 }}>
+          <div className="panel-header">
+            <div><h3 className="panel-title">Deleted jobs</h3><div className="panel-subtitle">Archived with full history — restore to bring a job back to the register.</div></div>
+            <button className="ghost-button" type="button" onClick={() => setShowDeleted((v) => !v)}>{showDeleted ? "Hide" : `Show deleted (${deletedJobs.length})`}</button>
+          </div>
+          {showDeleted && (
+            <div className="staff-table">
+              {deletedJobs.map((job) => {
+                const audit = parseNotes(job.notes).find((n) => n.kind === "audit" && /deleted/i.test(n.txt));
+                return (
+                  <div className="staff-row inactive" key={job.id}>
+                    <div className="staff-main">
+                      <div className="lane-avatar">{(job.asm || "?").slice(0, 1).toUpperCase()}</div>
+                      <div><strong>{job.asm || "No assembly"} · {job.cust}</strong><span>{job.type} · {audit ? `Deleted by ${audit.by} · ${formatDateTime(audit.at)}` : "Deleted"}</span></div>
+                    </div>
+                    <div className="staff-actions">
+                      <button className="secondary-button" type="button" onClick={() => onRestore(job)}>Restore</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -1800,7 +2261,7 @@ function MiniJob({ job, onSelect, onStatus }) {
 
 function UpdatesList({ updates, onSelect }) {
   if (!updates.length) return <EmptyState text="No service updates have been recorded yet." />;
-  return <div className="updates-list">{updates.map((u, idx) => <button key={`${u.job.id}-${u.at}-${idx}`} className="update-item" style={{ textAlign: "left" }} onClick={() => onSelect(u.job.id)}><div className="note-meta"><strong>{u.by}</strong><span>{formatDateTime(u.at)}</span></div><div className="job-code">{u.job.asm} · {u.job.cust}</div><div className="job-subline">{u.txt}</div></button>)}</div>;
+  return <div className="updates-list">{updates.map((u, idx) => <button key={`${u.job.id}-${u.at}-${idx}`} className={`update-item ${u.kind === "audit" ? "audit" : ""}`} style={{ textAlign: "left" }} onClick={() => onSelect(u.job.id)}><div className="note-meta"><strong>{u.by}</strong>{u.kind === "audit" && <span className="audit-tag">AUDIT</span>}<span>{formatDateTime(u.at)}</span></div><div className="job-code">{u.job.asm} · {u.job.cust}</div><div className="job-subline">{u.txt}</div></button>)}</div>;
 }
 
 function EmptyState({ text }) {
@@ -1810,8 +2271,10 @@ function EmptyState({ text }) {
 function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
   const [text, setText] = useState("");
   const [nextStatus, setNextStatus] = useState(job.status);
+  const [activityFilter, setActivityFilter] = useState("all");
   useEffect(() => { setNextStatus(job.status); setText(""); }, [job.id, job.status]);
-  const notes = parseNotes(job.notes);
+  const allNotes = parseNotes(job.notes);
+  const notes = activityFilter === "all" ? allNotes : allNotes.filter((note) => note.kind !== "audit");
   const submit = async (e) => {
     e.preventDefault();
     await onAddNote(job.id, text, nextStatus, user.name || user.email);
@@ -1838,10 +2301,45 @@ function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
             <Detail label="Start" value={formatDate(job.start, { year: "numeric" })} />
             <Detail label="Due" value={formatDate(job.due, { year: "numeric" })} />
           </div>
+          {job.attachment && (
+            <div className="attachment-row">
+              <span style={{ fontSize: 18 }}>📎</span>
+              <div className="attachment-copy">
+                <strong>{job.attachment.name}</strong>
+                <span>{formatBytes(job.attachment.size)}{job.attachment.by ? ` · uploaded by ${job.attachment.by}` : ""}</span>
+              </div>
+              <div className="card-actions">
+                <button className="ghost-button compact" type="button" onClick={() => openJobAttachment(job.attachment)}>View</button>
+                <button className="ghost-button compact" type="button" onClick={() => openJobAttachment(job.attachment, { download: true })}>Download</button>
+              </div>
+            </div>
+          )}
           <section className="panel" style={{ boxShadow: "none" }}>
-            <div className="panel-header"><div><h3 className="panel-title">Service notes</h3><div className="panel-subtitle">Updates from the floor, newest first.</div></div><button className="ghost-button" onClick={onEdit}>Edit job</button></div>
+            <div className="panel-header">
+              <div><h3 className="panel-title">Activity & audit trail</h3><div className="panel-subtitle">Notes and automatic change history, newest first.</div></div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="mini-toggle">
+                  <button type="button" className={activityFilter === "all" ? "active" : ""} onClick={() => setActivityFilter("all")}>All activity</button>
+                  <button type="button" className={activityFilter === "notes" ? "active" : ""} onClick={() => setActivityFilter("notes")}>Notes only</button>
+                </div>
+                {onEdit && <button className="ghost-button" onClick={onEdit}>Edit job</button>}
+              </div>
+            </div>
             <div className="updates-list">
-              {notes.length ? notes.map((note, i) => <div className="note-card" key={`${note.at}-${i}`}><div className="note-meta"><strong>{note.by}</strong><span>{formatDateTime(note.at)}</span></div><div>{note.txt}</div>{note.status && <div style={{ marginTop: 8 }}><StatusChip status={note.status} /></div>}</div>) : <EmptyState text="No updates yet. Add the first workshop note below." />}
+              {notes.length ? notes.map((note, i) => (
+                note.kind === "audit" ? (
+                  <div className="note-card audit" key={`${note.at}-${i}`}>
+                    <div className="note-meta"><strong>{note.by}</strong><span className="audit-tag">AUDIT</span><span>{formatDateTime(note.at)}</span></div>
+                    <div style={{ fontSize: 12.5 }}>{note.txt}</div>
+                  </div>
+                ) : (
+                  <div className="note-card" key={`${note.at}-${i}`}>
+                    <div className="note-meta"><strong>{note.by}</strong><span>{formatDateTime(note.at)}</span></div>
+                    <div>{note.txt}</div>
+                    {note.status && <div style={{ marginTop: 8 }}><StatusChip status={note.status} /></div>}
+                  </div>
+                )
+              )) : <EmptyState text="No activity yet. Add the first workshop note below." />}
             </div>
           </section>
         </div>
@@ -1858,12 +2356,20 @@ function JobDrawer({ job, user, onClose, onEdit, onStatus, onAddNote }) {
 }
 
 function UpdatesDrawer({ updates, onClose, onSelect }) {
+  const [activityFilter, setActivityFilter] = useState("all");
+  const shown = activityFilter === "all" ? updates : updates.filter((u) => u.kind !== "audit");
   return (
     <>
       <div className="drawer-backdrop" onClick={onClose} />
       <aside className="drawer">
-        <div className="drawer-header"><div className="drawer-header-row"><div><div className="eyebrow">Complete audit trail</div><h2 className="drawer-title">Recent updates</h2><div style={{ color: "#c8daee" }}>All service notes across filtered and unfiltered jobs.</div></div><button className="icon-button" onClick={onClose}>×</button></div></div>
-        <div className="drawer-body"><UpdatesList updates={updates} onSelect={onSelect} /></div>
+        <div className="drawer-header"><div className="drawer-header-row"><div><div className="eyebrow">Complete audit trail</div><h2 className="drawer-title">Recent updates</h2><div style={{ color: "#c8daee" }}>Notes and automatic change history across all jobs.</div></div><button className="icon-button" onClick={onClose}>×</button></div></div>
+        <div className="drawer-body">
+          <div className="mini-toggle" style={{ marginBottom: 12 }}>
+            <button type="button" className={activityFilter === "all" ? "active" : ""} onClick={() => setActivityFilter("all")}>All activity</button>
+            <button type="button" className={activityFilter === "notes" ? "active" : ""} onClick={() => setActivityFilter("notes")}>Notes only</button>
+          </div>
+          <UpdatesList updates={shown} onSelect={onSelect} />
+        </div>
         <div className="drawer-footer"><button className="secondary-button" onClick={onClose}>Close</button></div>
       </aside>
     </>
@@ -1897,16 +2403,79 @@ function JobModal({ job, people, jobTypes, businessUnits, onClose, onSave }) {
     priority: job.priority || "Normal",
     details: job.details || "",
   }));
-  const set = (key, value) => setFields((prev) => ({ ...prev, [key]: value }));
+  const touchedRef = useRef(new Set());
+  const fileInputRef = useRef(null);
+  const [attachment, setAttachment] = useState(job.attachment || null);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [importSummary, setImportSummary] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const set = (key, value) => {
+    touchedRef.current.add(key);
+    setFields((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handlePdfFile = async (file) => {
+    if (!file) return;
+    if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) {
+      window.alert("Please choose a PDF file.");
+      return;
+    }
+    setImportBusy(true);
+    try {
+      const { fields: parsed, found } = await importAssemblyOrderPdf(file, { staffNames: people, jobTypes });
+      // Only prefill defaults on brand-new jobs; on edit, only genuinely empty fields.
+      const allowDefaults = !job.id;
+      setFields((prev) => {
+        const next = { ...prev };
+        Object.entries(parsed).forEach(([key, value]) => {
+          if (!value || touchedRef.current.has(key)) return;
+          const isEmpty = next[key] === "" || next[key] == null;
+          const hasDefault = ["type", "start", "due"].includes(key);
+          if (isEmpty || (allowDefaults && hasDefault)) next[key] = value;
+        });
+        return next;
+      });
+      setPdfFile(file);
+      setImportSummary(found.length ? `Auto-filled from ${file.name}: ${found.join(", ")}` : `No recognisable fields in ${file.name} — it will be attached without auto-fill.`);
+    } catch (err) {
+      window.alert(`Could not read PDF: ${err?.message || err}`);
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   const submit = (e) => {
     e.preventDefault();
-    onSave({ ...fields, hrs: Number(fields.hrs) || 0, actualHrs: Number(fields.actualHrs) || 0 });
+    onSave({ ...fields, hrs: Number(fields.hrs) || 0, actualHrs: Number(fields.actualHrs) || 0, attachment, attachmentFile: pdfFile });
   };
   return (
     <div className="modal-backdrop">
       <form className="modal-card" onSubmit={submit}>
         <div className="modal-header"><div><div className="eyebrow">{job.id ? "Edit workshop job" : "New workshop job"}</div><h2>{job.id ? `${job.asm} · ${job.cust}` : "Create a production record"}</h2><div className="page-subtitle">Capture hours booked hours separately from the calendar start and due dates.</div></div><button className="icon-button" type="button" onClick={onClose}>×</button></div>
         <div className="modal-body">
+          <div
+            className={`dropzone ${dragActive ? "drag" : ""}`}
+            role="button"
+            tabIndex={0}
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={(e) => { e.preventDefault(); setDragActive(false); handlePdfFile(e.dataTransfer.files?.[0]); }}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
+          >
+            <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }} onChange={(e) => { handlePdfFile(e.target.files?.[0]); e.target.value = ""; }} />
+            {importBusy ? (
+              <span>Reading PDF…</span>
+            ) : pdfFile ? (
+              <span><strong>📎 {pdfFile.name}</strong> will be attached on save · drop another PDF to replace <button type="button" className="ghost-button compact" onClick={(e) => { e.stopPropagation(); setPdfFile(null); setImportSummary(null); }}>Remove</button></span>
+            ) : attachment ? (
+              <span><strong>📎 {attachment.name}</strong> attached · drop a new PDF to replace <button type="button" className="ghost-button compact" onClick={(e) => { e.stopPropagation(); setAttachment(null); }}>Remove</button></span>
+            ) : (
+              <span><strong>Drag & drop an Assembly Order PDF here</strong> — or click to browse. Job details auto-fill and the PDF is saved on the job.</span>
+            )}
+          </div>
+          {importSummary && <div className="import-summary">{importSummary}</div>}
           <div className="form-grid">
             <Field label="Assembly / Tag"><input className="input" value={fields.asm} onChange={(e) => set("asm", e.target.value)} required /></Field>
             <Field label="Sales Order"><input className="input" value={fields.so} onChange={(e) => set("so", e.target.value)} /></Field>
