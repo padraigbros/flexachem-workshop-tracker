@@ -211,3 +211,11 @@ $$;
 
 revoke all on function public.set_my_theme(text) from public;
 grant execute on function public.set_my_theme(text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7. Realtime for the board (live sync across devices).
+--    If the supabase_realtime publication already exists (it does by default),
+--    this adds the jobs table to it. You can also toggle Realtime for `jobs`
+--    from the dashboard: Database → Replication.
+-- ---------------------------------------------------------------------------
+alter publication supabase_realtime add table public.jobs;

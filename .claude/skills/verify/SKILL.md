@@ -63,6 +63,9 @@ code reading. `npx vite build` must pass at the end.
   click opens drawer (was double-click in the pre-overhaul app).
 - 2026-07-18: Board collision detection closestCorners → pointerWithin (drops land under
   the pointer; the old behaviour biased toward short columns).
+- 2026-07-18: Cloud mode gained realtime sync + refetch-on-resume. Notes are now
+  merge-on-write (union by at|by|txt) so concurrent note-adds don't overwrite each other;
+  other scalar fields remain last-write-wins (newer updated_at wins). Demo mode unchanged.
 - 2026-07-18: Dark theme WAS the default (dark-first "control room"); superseded below.
 - 2026-07-18: LIGHT is now the default for new visitors (key bumped to flexachem_theme_v3).
   Signed-in users' choice is saved to their account (`profiles.theme` + `set_my_theme` RPC)
