@@ -13,12 +13,11 @@
       "showSpinner": false
     },
     "StatusBar": {
-      "overlaysWebView": false,
-      "style": "DARK",
-      "backgroundColor": "#0a1f3d"
+      "overlaysWebView": true,
+      "style": "LIGHT"
     },
     "Keyboard": {
-      "resize": "body"
+      "resize": "native"
     }
   }
 }

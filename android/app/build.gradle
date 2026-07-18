@@ -22,6 +22,12 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    // Name the packaged APK "Flexachem.apk" instead of the default "app-debug.apk".
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "Flexachem.apk"
+        }
+    }
 }
 
 repositories {

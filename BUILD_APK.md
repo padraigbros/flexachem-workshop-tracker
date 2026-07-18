@@ -28,8 +28,9 @@ npm run apk
 This runs `vite build` → `cap sync android` → `gradlew assembleDebug`. The APK lands at:
 
 ```
-android\app\build\outputs\apk\debug\app-debug.apk
+android\app\build\outputs\apk\debug\Flexachem.apk
 ```
+(A signed release build lands at `android\app\build\outputs\apk\release\Flexachem.apk`.)
 
 Install it on a device with `adb install -r <path>` or drag it onto an emulator.
 

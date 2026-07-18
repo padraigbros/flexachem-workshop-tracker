@@ -59,7 +59,7 @@ export function StaffView() {
             const choices = activePeople.filter((n) => n !== member.name);
             const target = reassignTargets[member.name] || "Unassigned";
             return (
-              <div key={member.id} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 sm:grid-cols-[minmax(200px,1fr)_auto_minmax(340px,1.2fr)] sm:items-center", !member.active && "opacity-70")}>
+              <div key={member.id} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.2fr)] lg:items-center", !member.active && "opacity-70")}>
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar name={member.name} size={40} />
                   <div className="min-w-0">
@@ -67,11 +67,11 @@ export function StaffView() {
                     <span className="text-[0.75rem] text-[var(--ink-muted)]">{member.role || "Workshop technician"}</span>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                   <StatusChip status={member.active ? "Complete" : "Not Started"} size="sm" />
                   <Chip>{openJobs.length} open</Chip>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                   <Select className="w-auto min-w-[130px]" value={target} onChange={(e) => setReassignTargets((p) => ({ ...p, [member.name]: e.target.value }))}>
                     <option>Unassigned</option>{choices.map((n) => <option key={n}>{n}</option>)}
                   </Select>
@@ -94,18 +94,18 @@ export function StaffView() {
           />
           <div className="grid gap-2.5">
             {profiles.length ? profiles.map((profile) => (
-              <div key={profile.id} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 sm:grid-cols-[minmax(200px,1fr)_auto_auto] sm:items-center", profile.active === false && "opacity-70")}>
+              <div key={profile.id} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center", profile.active === false && "opacity-70")}>
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar name={profile.name || profile.email} size={40} />
                   <div className="min-w-0"><strong className="block truncate text-[0.9rem] text-[var(--ink)]">{profile.name || "—"}</strong><span className="truncate text-[0.75rem] text-[var(--ink-muted)]">{profile.email}</span></div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                   <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.66rem] font-bold", profile.role === "admin" ? "bg-[var(--status-active-bg)] text-[var(--status-active)]" : "bg-[var(--surface-sunken)] text-[var(--ink-muted)]")}>
                     {profile.role === "admin" && <Star size={10} />}{profile.role === "admin" ? "Admin" : "Staff"}
                   </span>
                   <StatusChip status={profile.active === false ? "Not Started" : "Complete"} size="sm" />
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                   <Button size="sm" variant="secondary" onClick={() => {
                     if (profile.id === user.id && !window.confirm("Change your own role? You will lose admin access immediately.")) return;
                     updateProfile(profile.id, { role: profile.role === "admin" ? "staff" : "admin" });

@@ -183,3 +183,39 @@ create policy "job files delete admin" on storage.objects for delete to authenti
 --    Replace the email if needed, then run:
 -- ---------------------------------------------------------------------------
 -- update public.profiles set role = 'admin' where email = 'padraigbrosnan@gmail.com';
+
+-- ---------------------------------------------------------------------------
+-- 6. Per-account theme preference.
+--    profiles UPDATE stays admin-only (users must not change their own role).
+--    Non-admins persist their theme through a SECURITY DEFINER RPC that can only
+--    touch auth.uid()'s own theme column. Run this whole block in the SQL editor.
+-- ---------------------------------------------------------------------------
+alter table public.profiles
+  add column if not exists theme text not null default 'light'
+  check (theme in ('light', 'dark', 'system'));
+
+create or replace function public.set_my_theme(new_theme text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new_theme is null or new_theme not in ('light', 'dark', 'system') then
+    raise exception 'invalid theme: %', new_theme;
+  end if;
+  update public.profiles
+     set theme = new_theme, updated_at = now()
+   where id = auth.uid();
+end;
+$$;
+
+revoke all on function public.set_my_theme(text) from public;
+grant execute on function public.set_my_theme(text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7. Realtime for the board (live sync across devices).
+--    If the supabase_realtime publication already exists (it does by default),
+--    this adds the jobs table to it. You can also toggle Realtime for `jobs`
+--    from the dashboard: Database → Replication.
+-- ---------------------------------------------------------------------------
+alter publication supabase_realtime add table public.jobs;

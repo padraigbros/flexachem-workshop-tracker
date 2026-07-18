@@ -40,7 +40,7 @@ export function Drawer({ open, onClose, children, header, footer, mobileSheet = 
               "sm:inset-y-4 sm:right-4 sm:w-[min(520px,calc(100vw-2rem))] sm:rounded-[1.6rem]",
               mobileSheet
                 ? "inset-x-0 bottom-0 top-[12vh] rounded-t-[1.6rem] sm:top-4"
-                : "inset-0",
+                : "inset-0 pt-safe sm:pt-0",
             )}
             initial={reduce ? { opacity: 0 } : { x: "8%", opacity: 0, y: 0 }}
             animate={{ x: 0, y: 0, opacity: 1 }}
@@ -83,7 +83,7 @@ export function Modal({ open, onClose, children, className, size = "lg" }) {
           <Backdrop onClick={onClose} />
           <motion.div
             className={cx(
-              "relative z-[96] flex max-h-[100dvh] w-full flex-col overflow-hidden bg-[var(--surface-page)] shadow-[var(--shadow-float)]",
+              "relative z-[96] flex max-h-[100dvh] w-full flex-col overflow-hidden bg-[var(--surface-page)] shadow-[var(--shadow-float)] pt-safe sm:pt-0",
               "sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-[1.6rem]",
               widths[size], className,
             )}

@@ -93,6 +93,20 @@ export function toDbPayload(job) {
   return payload;
 }
 
+// Union two note arrays, de-duped by (at|by|txt), newest-first. Used so concurrent
+// note-adds from different devices don't overwrite each other (last-write-wins loss).
+export function mergeNotes(a, b) {
+  const seen = new Set();
+  const out = [];
+  for (const note of [...parseNotes(a), ...parseNotes(b)]) {
+    const key = `${note.at}|${note.by}|${note.txt}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(note);
+  }
+  return out.sort((x, y) => (parseISODate(y.at)?.getTime() || 0) - (parseISODate(x.at)?.getTime() || 0));
+}
+
 export function makeGroups(items, keyGetter) {
   return items.reduce((acc, item) => {
     const key = keyGetter(item) || "Unassigned";

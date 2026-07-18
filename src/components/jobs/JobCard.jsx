@@ -39,7 +39,7 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
       className={cx(
         "group card relative cursor-pointer touch-manipulation p-3.5 transition-shadow hover:shadow-[var(--shadow-pop)]",
         isDragging && "opacity-30",
-        overlay && "w-72 rotate-2 scale-[1.03] cursor-grabbing shadow-[var(--shadow-float)]",
+        overlay && "w-[min(18rem,calc(100vw-2rem))] rotate-2 scale-[1.03] cursor-grabbing shadow-[var(--shadow-float)]",
       )}
       onClick={() => { if (!wasRecentDrag()) onSelect(job.id); }}
     >
@@ -61,9 +61,9 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
             <StatusChip status={job.status} size="sm" />
             <PriorityChip priority={job.priority} />
           </div>
-          <h3 className="code mt-2 flex items-center gap-1.5 text-[1rem] font-bold text-[var(--ink)]">
-            {job.asm || "No assembly"}
-            {job.attachment && <Paperclip size={13} className="text-[var(--ink-muted)]" />}
+          <h3 className="code mt-2 flex min-w-0 items-center gap-1.5 text-[1rem] font-bold text-[var(--ink)]">
+            <span className="truncate">{job.asm || "No assembly"}</span>
+            {job.attachment && <Paperclip size={13} className="shrink-0 text-[var(--ink-muted)]" />}
           </h3>
           <div className="mt-0.5 truncate text-[0.75rem] text-[var(--ink-muted)]"><span className="code">SO {job.so || "TBA"}</span> · {job.cust || "No customer"}</div>
         </div>
@@ -91,12 +91,12 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
         <span className="code text-[0.7rem] font-semibold text-[var(--ink-muted)]">{job.hrs}h / {jobCalendarSpan(job)}d</span>
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           {job.attachment && (
-            <IconButton label={`Download ${job.attachment.name}`} className="h-8 w-8" onClick={() => openJobAttachment(job.attachment, { download: true })}>
+            <IconButton label={`Download ${job.attachment.name}`} className="h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => openJobAttachment(job.attachment, { download: true })}>
               <Download size={14} />
             </IconButton>
           )}
-          <IconButton label="Open notes" className="h-8 w-8" onClick={() => onSelect(job.id)}><ArrowUpRight size={14} /></IconButton>
-          {onEdit && <IconButton label="Edit job" className="h-8 w-8" onClick={() => onEdit(job)}><Pencil size={14} /></IconButton>}
+          <IconButton label="Open notes" className="h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => onSelect(job.id)}><ArrowUpRight size={14} /></IconButton>
+          {onEdit && <IconButton label="Edit job" className="h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => onEdit(job)}><Pencil size={14} /></IconButton>}
         </div>
       </div>
     </article>

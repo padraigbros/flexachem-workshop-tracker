@@ -5,14 +5,16 @@ import { PAGE_META } from "./nav";
 import { useWorkshop } from "../../state/WorkshopProvider";
 import { useAuthCtx } from "../../state/AuthProvider";
 import { useJobDrawer } from "../../state/useJobDrawer";
-import { STATUS_ORDER, DUE_BUCKETS } from "../../lib/constants";
-import { Button, Select, cx } from "../ui/primitives";
+import { useIsDesktop } from "../../lib/useMediaQuery";
+import { Button } from "../ui/primitives";
 import { ThemeToggle } from "./ThemeToggle";
+import { FilterControls, FilterSheet } from "./FilterSheet";
 
 export function Topbar({ onNewJob, onOpenPalette }) {
   const location = useLocation();
+  const isDesktop = useIsDesktop();
   const { isAdmin } = useAuthCtx();
-  const { filters, updateFilter, resetFilters, people, businessUnits, metrics } = useWorkshop();
+  const { filters, updateFilter, resetFilters } = useWorkshop();
   const { openUpdates } = useJobDrawer();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [title, subtitle] = PAGE_META[location.pathname] || PAGE_META["/"];
@@ -23,11 +25,11 @@ export function Topbar({ onNewJob, onOpenPalette }) {
   ].filter(Boolean).length;
 
   return (
-    <header className="sticky top-0 z-[60] border-b border-[var(--line)] bg-[var(--surface-page)]/80 px-4 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
+    <header className="sticky top-0 z-[60] border-b border-[var(--line)] bg-[var(--surface-page)]/80 px-[var(--spacing-gutter)] pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl sm:pb-4 sm:pt-[calc(1rem+env(safe-area-inset-top))]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-[var(--color-brand-500)]">Flexachem workshop</div>
-          <h1 className="mt-0.5 text-xl font-bold tracking-tight text-[var(--ink)] sm:text-2xl">{title}</h1>
+          <div className="hidden text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-[var(--color-brand-500)] sm:block">Flexachem workshop</div>
+          <h1 className="text-[length:var(--text-title)] font-bold leading-tight tracking-tight text-[var(--ink)] sm:mt-0.5">{title}</h1>
           <p className="mt-1 hidden text-[0.8rem] text-[var(--ink-muted)] sm:block">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -78,28 +80,13 @@ export function Topbar({ onNewJob, onOpenPalette }) {
         )}
       </div>
 
-      <div className={cx("grid gap-2 overflow-hidden transition-all", filtersOpen ? "mt-2 grid-cols-2 sm:grid-cols-4" : "h-0")}>
-        {filtersOpen && (
-          <>
-            <Select value={filters.employee} onChange={(e) => updateFilter("employee", e.target.value)}>
-              <option value="All">All staff</option>{people.map((p) => <option key={p}>{p}</option>)}
-            </Select>
-            <Select value={filters.bus} onChange={(e) => updateFilter("bus", e.target.value)}>
-              <option value="All">All units</option>{businessUnits.map((b) => <option key={b}>{b}</option>)}
-            </Select>
-            <Select value={filters.status} onChange={(e) => updateFilter("status", e.target.value)}>
-              <option value="All">All statuses</option>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}
-            </Select>
-            <Select value={filters.horizon} onChange={(e) => updateFilter("horizon", e.target.value)}>
-              <option value="All">All dates</option>{DUE_BUCKETS.map((s) => <option key={s}>{s}</option>)}
-            </Select>
-            <div className="col-span-2 flex items-center gap-2 sm:col-span-4">
-              <span className="chip">{metrics.open} open</span>
-              <span className="chip tnum">{metrics.hours}h booked</span>
-            </div>
-          </>
-        )}
-      </div>
+      {/* Desktop: inline expandable grid. Mobile: the same controls in a bottom sheet. */}
+      {isDesktop && filtersOpen && (
+        <div className="mt-3">
+          <FilterControls layout="grid" />
+        </div>
+      )}
+      <FilterSheet open={!isDesktop && filtersOpen} onClose={() => setFiltersOpen(false)} />
     </header>
   );
 }

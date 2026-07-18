@@ -7,7 +7,7 @@ import {
   AUDIT_LABELS, BUSINESS_UNITS, DEFAULT_STAFF, DEFAULT_JOB_TYPES,
 } from "../lib/constants";
 import {
-  normalizeJob, jobSort, toDbPayload, parseNotes, dueBucket, jobCalendarSpan, riskScore,
+  normalizeJob, jobSort, toDbPayload, parseNotes, dueBucket, jobCalendarSpan, riskScore, mergeNotes,
 } from "../lib/jobs";
 import {
   normalizeStaff, mergeStaffLists, staffKey,
@@ -19,6 +19,7 @@ import {
   loadStoredJobs, saveStoredJobs, loadStoredStaff, saveStoredStaff,
   loadStoredJobTypes, saveStoredJobTypes,
 } from "../lib/storage";
+import { isNative } from "../lib/native";
 import { useAuthCtx } from "./AuthProvider";
 
 const WorkshopContext = createContext(null);
@@ -112,7 +113,51 @@ export function WorkshopProvider({ children }) {
   useEffect(() => { saveStoredStaff(staff); }, [staff]);
   useEffect(() => { saveStoredJobTypes(jobTypes); }, [jobTypes]);
 
-  // ---- Mutations (moved verbatim) --------------------------------------
+  // Realtime: keep the board live across devices. Incoming rows win for scalar fields
+  // only if newer (updated_at); notes are always unioned so no note is dropped.
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    const channel = supabase
+      .channel("jobs-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: SUPABASE_TABLE }, (payload) => {
+        if (payload.eventType === "DELETE") {
+          setJobs((prev) => prev.filter((j) => j.id !== payload.old.id));
+          return;
+        }
+        const incoming = normalizeJob(payload.new);
+        setJobs((prev) => {
+          const existing = prev.find((j) => j.id === incoming.id);
+          if (!existing) return [incoming, ...prev].sort(jobSort);
+          const incomingNewer = (parseISODate(incoming.updatedAt)?.getTime() || 0) >= (parseISODate(existing.updatedAt)?.getTime() || 0);
+          const base = incomingNewer ? incoming : existing;
+          const merged = { ...base, notes: mergeNotes(existing.notes, incoming.notes) };
+          return prev.map((j) => (j.id === incoming.id ? merged : j));
+        });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+
+  // Refetch when the app returns to the foreground (tab re-shown, or native resume),
+  // rate-limited so we don't hammer on every focus.
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    let lastFetch = Date.now();
+    let removeResume = () => {};
+    const doRefetch = () => { lastFetch = Date.now(); fetchJobs(); };
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastFetch > 60000) doRefetch();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    if (isNative) {
+      import("@capacitor/app")
+        .then(({ App }) => { const p = App.addListener("resume", doRefetch); removeResume = () => p.then((h) => h.remove()); })
+        .catch(() => {});
+    }
+    return () => { document.removeEventListener("visibilitychange", onVisible); removeResume(); };
+  }, [userId, fetchJobs]);
+
+  // ---- Mutations -------------------------------------------------------
   const patchJob = useCallback(async (id, patch) => {
     const updatedAt = new Date().toISOString();
     let nextJob = null;
@@ -122,7 +167,18 @@ export function WorkshopProvider({ children }) {
       return nextJob;
     }));
     if (supabase && nextJob) {
-      const { error } = await supabase.from(SUPABASE_TABLE).update(toDbPayload(nextJob)).eq("id", id);
+      let payload = toDbPayload(nextJob);
+      // Notes are an array column written whole-row. Before overwriting, union with
+      // the row's current notes so a note another device added concurrently isn't lost.
+      if ("notes" in patch) {
+        const { data: current } = await supabase.from(SUPABASE_TABLE).select("notes").eq("id", id).maybeSingle();
+        if (current) {
+          const merged = mergeNotes(nextJob.notes, current.notes);
+          payload = { ...payload, notes: merged };
+          setJobs((prev) => prev.map((job) => (job.id === id ? normalizeJob({ ...job, notes: merged, updatedAt }) : job)));
+        }
+      }
+      const { error } = await supabase.from(SUPABASE_TABLE).update(payload).eq("id", id);
       setSyncState(error ? "error" : "synced");
     }
   }, []);

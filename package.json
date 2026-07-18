@@ -5,8 +5,13 @@
      "type": "module",
      "scripts": {
           "dev": "vite",
+          "dev:test": "vite --mode test",
           "build": "vite build",
+          "build:test": "vite build --mode test",
           "preview": "vite preview",
+          "preview:test": "vite preview --mode test --port 5173 --strictPort",
+          "test": "playwright test",
+          "test:ui": "playwright test --ui",
           "build:android": "vite build && cap sync android",
           "apk": "npm run build:android && cd android && gradlew assembleDebug",
           "open:android": "cap open android"
@@ -38,6 +43,7 @@
      "devDependencies": {
           "@capacitor/assets": "^3.0.5",
           "@capacitor/cli": "^8.4.2",
+          "@playwright/test": "^1.61.1",
           "@tailwindcss/vite": "^4.3.3",
           "@vitejs/plugin-react": "^4.0.0",
           "tailwindcss": "^4.3.3",

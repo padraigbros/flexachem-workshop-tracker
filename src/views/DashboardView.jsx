@@ -34,17 +34,17 @@ const STAT_COLOR = {
 function StatCard({ tone, label, value, decimals, suffix, detail, series }) {
   const Icon = STAT_ICON[tone];
   return (
-    <Card className="relative overflow-hidden p-4">
+    <Card className="relative overflow-hidden !p-3 sm:!p-4">
       <div className="flex items-start justify-between">
         <span className="text-[0.62rem] font-extrabold uppercase tracking-[0.11em] text-[var(--ink-muted)]">{label}</span>
-        <Icon size={16} className="glow-svg" style={{ color: STAT_COLOR[tone] }} />
+        <Icon size={16} className="glow-svg shrink-0" style={{ color: STAT_COLOR[tone] }} />
       </div>
-      <div className="code mt-2 text-[2.5rem] font-extrabold leading-none text-[var(--ink)]">
+      <div className="code mt-2 text-[length:var(--text-display)] font-extrabold leading-none text-[var(--ink)]">
         <CountUp value={value} decimals={decimals} suffix={suffix} />
       </div>
       <div className="mt-1.5 flex items-end justify-between gap-2">
         <span className="text-[0.72rem] text-[var(--ink-muted)]">{detail}</span>
-        {series && <span className="glow-svg" style={{ color: STAT_COLOR[tone] }}><Sparkline data={series} width={80} height={26} stroke="currentColor" /></span>}
+        {series && <span className="hidden min-[380px]:inline glow-svg" style={{ color: STAT_COLOR[tone] }}><Sparkline data={series} width={80} height={26} stroke="currentColor" /></span>}
       </div>
     </Card>
   );

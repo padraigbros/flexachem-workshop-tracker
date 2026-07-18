@@ -12,6 +12,7 @@ export function MobileNav() {
 
   return (
     <nav
+      data-mobile-nav
       className="fixed inset-x-0 bottom-0 z-[70] flex items-stretch gap-1 border-t border-[var(--line)] bg-[var(--surface-card)]/85 px-2 pt-1.5 backdrop-blur-xl lg:hidden"
       style={{ paddingBottom: "calc(0.375rem + env(safe-area-inset-bottom))", boxShadow: "0 -12px 40px rgb(6 24 44 / 0.14)" }}
     >

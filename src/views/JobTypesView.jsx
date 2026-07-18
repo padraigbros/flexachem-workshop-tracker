@@ -59,7 +59,7 @@ export function JobTypesView() {
           const isDefault = JOB_TYPES.includes(jobType.name);
           const canRemove = !isDefault && openJobs.length === 0;
           return (
-            <div key={jobType.id} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 sm:grid-cols-[minmax(220px,1fr)_auto_minmax(320px,1.1fr)] sm:items-center", !jobType.active && "opacity-70")}>
+            <div key={jobType.id} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.1fr)] lg:items-center", !jobType.active && "opacity-70")}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <strong className="truncate text-[0.9rem] text-[var(--ink)]">{jobType.name}</strong>
@@ -68,8 +68,8 @@ export function JobTypesView() {
                 <div className="mt-1 text-[0.72rem] text-[var(--ink-muted)]">{isDefault ? "Standard type" : "Custom type"} · {openJobs.length} open · {typeJobs.length} total</div>
                 <div className="mt-2 max-w-[220px]"><StatusBar jobs={typeJobs} /></div>
               </div>
-              <div className="hidden sm:block" />
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <div className="hidden lg:block" />
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                 <Select className="w-auto min-w-[140px]" value={target} onChange={(e) => setMoveTargets((p) => ({ ...p, [jobType.name]: e.target.value }))} disabled={!choices.length}>
                   {choices.length ? choices.map((n) => <option key={n}>{n}</option>) : <option value="">No other type</option>}
                 </Select>

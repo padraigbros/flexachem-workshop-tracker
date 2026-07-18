@@ -32,7 +32,9 @@ code reading. `npx vite build` must pass at the end.
 ### Shell
 - [ ] Ctrl/Cmd+K opens the palette: fuzzy job search opens drawer; Go-to navigates; actions run.
 - [ ] Filters (staff/unit/status/horizon + search) narrow every view; Reset appears when active.
-- [ ] Dark-mode toggle flips instantly, persists across reload, updates `<meta theme-color>`.
+- [ ] Theme toggle flips instantly, persists across reload (key `flexachem_theme_v3`),
+      updates `<meta theme-color>`. New visitors default to LIGHT. Signed-in users:
+      toggle mirrors to `profiles.theme` via the `set_my_theme` RPC and follows the account.
 - [ ] Auth: staff-role users are redirected from admin routes (`/staff` → `/`); demo mode
       auto-grants admin; logout returns to `/login`.
 - [ ] Demo-mode data survives a hard refresh (localStorage).
@@ -40,6 +42,16 @@ code reading. `npx vite build` must pass at the end.
 ### Responsive (resize_window 375×812)
 - [ ] Bottom tab bar with animated active pill; FAB visible (admin); drawers become
       bottom-sheets with drag-to-dismiss; board columns snap-scroll horizontally.
+- [ ] **No-horizontal-scroll invariant**: on EVERY route (and with a drawer/modal open),
+      `document.documentElement.scrollWidth <= window.innerWidth`. Only the board's internal
+      scroller and the master-list table's own `overflow-x` container may scroll sideways.
+- [ ] Topbar clears the status bar (safe-area top inset); bottom nav visible.
+- [ ] Filters open as a **bottom sheet** on mobile (Reset + Show results) and inline on `sm+`.
+- [ ] Board columns have a bounded height with **sticky headers** (header stays, cards scroll
+      inside); the next column peeks (~88vw). Drag-drop still lands in the correct column.
+- [ ] Status controls + card icon buttons are ≥44px on touch (`pointer-coarse` variants).
+- [ ] Page gutter, display numerals and page title use the fluid tokens
+      (`--spacing-gutter`, `--text-display`, `--text-title`) — no fixed px gutters left.
 
 ### Build gates
 - [ ] `npx vite build` succeeds; pdfjs + admin views remain separate chunks.
@@ -51,6 +63,10 @@ code reading. `npx vite build` must pass at the end.
   click opens drawer (was double-click in the pre-overhaul app).
 - 2026-07-18: Board collision detection closestCorners → pointerWithin (drops land under
   the pointer; the old behaviour biased toward short columns).
-- 2026-07-18: Dark theme is the default for new visitors (dark-first "control room"
-  identity; theme storage key bumped to flexachem_theme_v2 so pre-existing auto-persisted
-  "system" values re-default to dark once). Light mode remains available via the toggle.
+- 2026-07-18: Cloud mode gained realtime sync + refetch-on-resume. Notes are now
+  merge-on-write (union by at|by|txt) so concurrent note-adds don't overwrite each other;
+  other scalar fields remain last-write-wins (newer updated_at wins). Demo mode unchanged.
+- 2026-07-18: Dark theme WAS the default (dark-first "control room"); superseded below.
+- 2026-07-18: LIGHT is now the default for new visitors (key bumped to flexachem_theme_v3).
+  Signed-in users' choice is saved to their account (`profiles.theme` + `set_my_theme` RPC)
+  and applied on next login across devices. Dark remains available via the toggle.
