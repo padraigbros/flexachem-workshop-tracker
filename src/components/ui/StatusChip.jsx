@@ -74,7 +74,7 @@ export function StatusSwitch({ value, onChange, className }) {
             type="button"
             onClick={() => onChange(status)}
             className={cx(
-              "flex-1 rounded-full px-2.5 py-1 text-[0.68rem] font-bold transition-colors",
+              "flex-1 rounded-full px-2.5 py-1 text-[0.68rem] font-bold transition-colors pointer-coarse:min-h-11 pointer-coarse:text-[0.75rem]",
               active ? "text-white shadow-sm" : "text-[var(--ink-muted)] hover:text-[var(--ink)]",
             )}
             style={active ? { background: STATUS_ACTIVE_BG[status], color: "#fff" } : undefined}

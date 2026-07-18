@@ -46,6 +46,12 @@ code reading. `npx vite build` must pass at the end.
       `document.documentElement.scrollWidth <= window.innerWidth`. Only the board's internal
       scroller and the master-list table's own `overflow-x` container may scroll sideways.
 - [ ] Topbar clears the status bar (safe-area top inset); bottom nav visible.
+- [ ] Filters open as a **bottom sheet** on mobile (Reset + Show results) and inline on `sm+`.
+- [ ] Board columns have a bounded height with **sticky headers** (header stays, cards scroll
+      inside); the next column peeks (~88vw). Drag-drop still lands in the correct column.
+- [ ] Status controls + card icon buttons are ≥44px on touch (`pointer-coarse` variants).
+- [ ] Page gutter, display numerals and page title use the fluid tokens
+      (`--spacing-gutter`, `--text-display`, `--text-title`) — no fixed px gutters left.
 
 ### Build gates
 - [ ] `npx vite build` succeeds; pdfjs + admin views remain separate chunks.

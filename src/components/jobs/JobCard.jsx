@@ -91,12 +91,12 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
         <span className="code text-[0.7rem] font-semibold text-[var(--ink-muted)]">{job.hrs}h / {jobCalendarSpan(job)}d</span>
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           {job.attachment && (
-            <IconButton label={`Download ${job.attachment.name}`} className="h-8 w-8" onClick={() => openJobAttachment(job.attachment, { download: true })}>
+            <IconButton label={`Download ${job.attachment.name}`} className="h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => openJobAttachment(job.attachment, { download: true })}>
               <Download size={14} />
             </IconButton>
           )}
-          <IconButton label="Open notes" className="h-8 w-8" onClick={() => onSelect(job.id)}><ArrowUpRight size={14} /></IconButton>
-          {onEdit && <IconButton label="Edit job" className="h-8 w-8" onClick={() => onEdit(job)}><Pencil size={14} /></IconButton>}
+          <IconButton label="Open notes" className="h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => onSelect(job.id)}><ArrowUpRight size={14} /></IconButton>
+          {onEdit && <IconButton label="Edit job" className="h-8 w-8 pointer-coarse:h-10 pointer-coarse:w-10" onClick={() => onEdit(job)}><Pencil size={14} /></IconButton>}
         </div>
       </div>
     </article>

@@ -57,7 +57,7 @@ export function AppShell() {
         <Sidebar />
         <div className="flex min-w-0 flex-col">
           <Topbar onNewJob={newJob} onOpenPalette={() => setPaletteOpen(true)} />
-          <main className="flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-8">
+          <main className="flex-1 px-[var(--spacing-gutter)] pb-28 pt-5 lg:pb-8">
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}

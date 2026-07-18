@@ -31,6 +31,12 @@
   --shadow-card: 0 10px 30px rgb(6 24 44 / 0.08);
   --shadow-pop: 0 20px 60px rgb(6 24 44 / 0.13);
   --shadow-float: 0 24px 70px rgb(6 24 44 / 0.24);
+
+  /* Fluid scale — one source of truth for the page gutter and display type so the
+     UI shrinks gracefully on phones instead of using fixed rem everywhere. */
+  --spacing-gutter: clamp(1rem, 4vw, 1.5rem);
+  --text-display: clamp(1.75rem, 8vw, 2.5rem);
+  --text-title: clamp(1.15rem, 5vw, 1.5rem);
 }
 
 /* ------------------------------------------------------------------ *

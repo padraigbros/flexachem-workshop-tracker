@@ -60,8 +60,10 @@ export const Select = forwardRef(function Select({ className, children, ...props
   return <select ref={ref} className={cx("field-input pr-8 cursor-pointer", className)} {...props}>{children}</select>;
 });
 
+// Padding tiers: default cards use p-4/sm:p-5; compact surfaces (JobCard, list rows)
+// set their own p-3/p-3.5 via className.
 export function Card({ className, children, ...props }) {
-  return <section className={cx("card p-5", className)} {...props}>{children}</section>;
+  return <section className={cx("card p-4 sm:p-5", className)} {...props}>{children}</section>;
 }
 
 export function PanelHeader({ title, subtitle, action }) {
