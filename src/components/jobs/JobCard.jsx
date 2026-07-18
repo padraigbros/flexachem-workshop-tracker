@@ -4,6 +4,7 @@ import { GripVertical, Paperclip, Pencil, Download, ArrowUpRight } from "lucide-
 import { parseNotes, jobCalendarSpan } from "../../lib/jobs";
 import { formatDate, daysUntil, formatRelative } from "../../lib/dates";
 import { openJobAttachment } from "../../lib/files";
+import { wasRecentDrag } from "../../lib/dnd";
 import { StatusChip, PriorityChip } from "../ui/StatusChip";
 import { Avatar } from "../ui/dataviz";
 import { IconButton, cx } from "../ui/primitives";
@@ -17,7 +18,9 @@ function dueTone(job) {
   return "text-[var(--ink-muted)]";
 }
 
-// A single kanban card. Only the grip handle drags; the body opens the drawer.
+// A single kanban card. The whole card drags (8px pointer threshold / 200ms touch
+// hold distinguishes drag from tap); a plain click opens the drawer. The grip icon
+// is a visual affordance signalling draggability.
 export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id, data: { type: "job", status: job.status } });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -27,23 +30,22 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
     <article
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
       className={cx(
-        "group card relative cursor-pointer p-3.5 transition-shadow hover:shadow-[var(--shadow-pop)]",
+        "group card relative cursor-pointer touch-manipulation p-3.5 transition-shadow hover:shadow-[var(--shadow-pop)]",
         isDragging && "opacity-30",
-        overlay && "w-72 rotate-2 scale-[1.03] shadow-[var(--shadow-float)]",
+        overlay && "w-72 rotate-2 scale-[1.03] cursor-grabbing shadow-[var(--shadow-float)]",
       )}
-      onClick={() => onSelect(job.id)}
+      onClick={() => { if (!wasRecentDrag()) onSelect(job.id); }}
     >
       <div className="flex items-start gap-2">
-        <button
-          {...attributes}
-          {...listeners}
-          onClick={(e) => e.stopPropagation()}
-          aria-label="Drag to reorder"
-          className="-ml-1 mt-0.5 shrink-0 cursor-grab touch-none rounded-md p-0.5 text-[var(--ink-muted)] opacity-40 transition-opacity hover:opacity-100 active:cursor-grabbing"
+        <span
+          aria-hidden="true"
+          className="-ml-1 mt-0.5 shrink-0 rounded-md p-0.5 text-[var(--ink-muted)] opacity-40 transition-opacity group-hover:opacity-100"
         >
           <GripVertical size={16} />
-        </button>
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <StatusChip status={job.status} size="sm" />

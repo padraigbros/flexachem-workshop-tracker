@@ -44,26 +44,22 @@ export function Topbar({ onNewJob, onOpenPalette }) {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onOpenPalette}
-          className="flex h-10 flex-1 items-center gap-2 rounded-[var(--radius-field)] border border-[var(--line-strong)] bg-[var(--surface-card)] px-3 text-left text-[var(--ink-muted)] transition-colors hover:border-[var(--color-brand-500)] sm:min-w-[280px] sm:flex-none"
-        >
-          <Search size={16} />
-          <span className="flex-1 truncate text-[0.85rem]">Search jobs, staff, actions…</span>
-          <span className="hidden items-center gap-0.5 rounded-md border border-[var(--line)] px-1.5 py-0.5 text-[0.62rem] font-bold sm:inline-flex">
-            <Command size={10} />K
-          </span>
-        </button>
-
-        <label className="relative flex h-10 flex-1 items-center sm:min-w-[220px]">
+        <label className="relative flex h-10 min-w-[220px] flex-1 items-center">
           <Search size={15} className="absolute left-3 text-[var(--ink-muted)]" />
           <input
-            className="field-input h-10 pl-9"
+            className="field-input h-10 pl-9 pr-14"
             value={filters.search}
             onChange={(e) => updateFilter("search", e.target.value)}
-            placeholder="Quick filter…"
+            placeholder="Filter jobs by assembly, customer, staff…"
           />
+          <button
+            type="button"
+            onClick={onOpenPalette}
+            title="Search jobs, navigate & run actions (Ctrl+K)"
+            className="absolute right-2 inline-flex items-center gap-0.5 rounded-md border border-[var(--line)] bg-[var(--surface-sunken)] px-1.5 py-1 text-[0.62rem] font-bold text-[var(--ink-muted)] transition-colors hover:border-[var(--color-brand-500)] hover:text-[var(--ink)]"
+          >
+            <Command size={10} />K
+          </button>
         </label>
 
         <Button

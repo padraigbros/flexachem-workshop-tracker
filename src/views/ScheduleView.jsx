@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  DndContext, DragOverlay, PointerSensor, TouchSensor, closestCorners, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, PointerSensor, TouchSensor, closestCorners, pointerWithin, useDroppable, useSensor, useSensors,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useWorkshop } from "../state/WorkshopProvider";
@@ -9,6 +9,7 @@ import { useJobDrawer } from "../state/useJobDrawer";
 import { useShell } from "../components/layout/AppShell";
 import { STATUS_ORDER, STATUS_META } from "../lib/constants";
 import { impact } from "../lib/native";
+import { markDragEnd } from "../lib/dnd";
 import { JobCard } from "../components/jobs/JobCard";
 import { StatusChip } from "../components/ui/StatusChip";
 import { EmptyState } from "../components/ui/primitives";
@@ -16,6 +17,15 @@ import { EmptyState } from "../components/ui/primitives";
 const TONE_COLOR = {
   queued: "var(--status-queued)", active: "var(--status-active)", blocked: "var(--status-blocked)", done: "var(--status-done)",
 };
+
+// Drop resolves to whatever the pointer is actually inside. closestCorners (the old
+// default) biases toward SHORT columns — its corner distances penalise tall columns —
+// so a drop centred over "In Progress" could land one column over. Fall back to
+// closestCorners only when the pointer is outside every droppable (e.g. keyboard).
+function collisionDetection(args) {
+  const within = pointerWithin(args);
+  return within.length ? within : closestCorners(args);
+}
 
 function Column({ status, jobs, onSelect, onEdit, onStatus }) {
   const { setNodeRef, isOver } = useDroppable({ id: `status:${status}`, data: { type: "column", status } });
@@ -57,6 +67,7 @@ export function ScheduleView() {
 
   const handleDragEnd = async ({ active, over }) => {
     setActiveId(null);
+    markDragEnd();
     if (!over) return;
     const job = getJob(active.id);
     if (!job) return;
@@ -73,10 +84,10 @@ export function ScheduleView() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={({ active }) => setActiveId(active.id)}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => { setActiveId(null); markDragEnd(); }}
     >
       <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
         {columns.map((col) => (
