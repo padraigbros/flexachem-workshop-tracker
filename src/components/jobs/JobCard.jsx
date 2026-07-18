@@ -5,9 +5,13 @@ import { parseNotes, jobCalendarSpan } from "../../lib/jobs";
 import { formatDate, daysUntil, formatRelative } from "../../lib/dates";
 import { openJobAttachment } from "../../lib/files";
 import { wasRecentDrag } from "../../lib/dnd";
-import { StatusChip, PriorityChip } from "../ui/StatusChip";
+import { StatusChip, PriorityChip, statusTone } from "../ui/StatusChip";
 import { Avatar } from "../ui/dataviz";
 import { IconButton, cx } from "../ui/primitives";
+
+const EDGE_COLOR = {
+  queued: "var(--status-queued)", active: "var(--status-active)", blocked: "var(--status-blocked)", done: "var(--status-done)",
+};
 
 function dueTone(job) {
   if (job.status === "Complete") return "text-[var(--ink-muted)]";
@@ -39,6 +43,12 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
       )}
       onClick={() => { if (!wasRecentDrag()) onSelect(job.id); }}
     >
+      {/* Status-coloured luminous edge */}
+      <span
+        aria-hidden="true"
+        className="glow-current absolute bottom-4 left-0 top-4 w-[3px] rounded-r-full"
+        style={{ background: EDGE_COLOR[statusTone(job.status)], color: EDGE_COLOR[statusTone(job.status)] }}
+      />
       <div className="flex items-start gap-2">
         <span
           aria-hidden="true"
@@ -51,11 +61,11 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
             <StatusChip status={job.status} size="sm" />
             <PriorityChip priority={job.priority} />
           </div>
-          <h3 className="mt-2 flex items-center gap-1.5 text-[1.05rem] font-bold tracking-tight text-[var(--ink)]">
+          <h3 className="code mt-2 flex items-center gap-1.5 text-[1rem] font-bold text-[var(--ink)]">
             {job.asm || "No assembly"}
             {job.attachment && <Paperclip size={13} className="text-[var(--ink-muted)]" />}
           </h3>
-          <div className="mt-0.5 truncate text-[0.75rem] text-[var(--ink-muted)]">SO {job.so || "TBA"} · {job.cust || "No customer"}</div>
+          <div className="mt-0.5 truncate text-[0.75rem] text-[var(--ink-muted)]"><span className="code">SO {job.so || "TBA"}</span> · {job.cust || "No customer"}</div>
         </div>
       </div>
 
@@ -78,7 +88,7 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
       )}
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--line)] pt-3">
-        <span className="text-[0.7rem] font-semibold text-[var(--ink-muted)] tnum">{job.hrs}h / {jobCalendarSpan(job)}d</span>
+        <span className="code text-[0.7rem] font-semibold text-[var(--ink-muted)]">{job.hrs}h / {jobCalendarSpan(job)}d</span>
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           {job.attachment && (
             <IconButton label={`Download ${job.attachment.name}`} className="h-8 w-8" onClick={() => openJobAttachment(job.attachment, { download: true })}>

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { THEME_KEY } from "../lib/constants";
 
 const ThemeContext = createContext(null);
-const THEME_COLORS = { light: "#f5f8fc", dark: "#071426" };
+const THEME_COLORS = { light: "#f5f8fc", dark: "#050d1c" };
 
 function systemPrefersDark() {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
@@ -14,8 +14,10 @@ function resolve(theme) {
 }
 
 export function ThemeProvider({ children }) {
+  // Dark-first identity: new visitors get the control-room dark theme; an explicit
+  // choice (or "system") persists once made.
   const [theme, setThemeState] = useState(() => {
-    try { return localStorage.getItem(THEME_KEY) || "system"; } catch { return "system"; }
+    try { return localStorage.getItem(THEME_KEY) || "dark"; } catch { return "dark"; }
   });
   const [resolved, setResolved] = useState(() => resolve(theme));
 

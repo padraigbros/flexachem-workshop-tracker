@@ -33,14 +33,20 @@ function Column({ status, jobs, onSelect, onEdit, onStatus }) {
   return (
     <section
       ref={setNodeRef}
-      className={`flex snap-center flex-col rounded-[1.4rem] border p-3 transition-colors ${isOver ? "border-[var(--color-brand-500)] bg-[var(--color-brand-500)]/6" : "border-[var(--line)] bg-[var(--surface-sunken)]/60"}`}
+      className={`relative flex snap-center flex-col overflow-hidden rounded-[1.4rem] border p-3 pt-4 transition-colors ${isOver ? "border-[var(--color-brand-500)] bg-[var(--color-brand-500)]/6" : "border-[var(--line)] bg-[var(--surface-sunken)]/60"}`}
     >
+      {/* Luminous status hairline across the column top */}
+      <span
+        aria-hidden="true"
+        className="glow-current absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${TONE_COLOR[meta.tone]}, transparent 85%)`, color: TONE_COLOR[meta.tone] }}
+      />
       <div className="mb-3 flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: TONE_COLOR[meta.tone] }} />
+          <span className="glow-current h-2.5 w-2.5 rounded-full" style={{ background: TONE_COLOR[meta.tone], color: TONE_COLOR[meta.tone] }} />
           <span className="text-[0.85rem] font-bold text-[var(--ink)]">{meta.label}</span>
         </div>
-        <span className="rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[0.7rem] font-bold text-[var(--ink-muted)] tnum">{jobs.length}</span>
+        <span className="code rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[0.7rem] font-bold text-[var(--ink-muted)]">{jobs.length}</span>
       </div>
       <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
         <div className="grid content-start gap-2.5">

@@ -40,8 +40,8 @@ export function Sidebar() {
             {({ isActive }) => (
               <>
                 <span className={cx(
-                  "grid h-8 w-8 place-items-center rounded-xl bg-white/[0.09] transition-colors",
-                  isActive && "bg-[linear-gradient(135deg,var(--color-brand-500),var(--color-brand-300))]",
+                  "grid h-8 w-8 place-items-center rounded-xl bg-white/[0.09] transition-all",
+                  isActive && "bg-[linear-gradient(135deg,var(--color-brand-500),var(--color-brand-300))] shadow-[0_0_20px_-2px_rgb(242_106_33/0.65)]",
                 )}>
                   <item.icon size={17} strokeWidth={2.25} />
                 </span>

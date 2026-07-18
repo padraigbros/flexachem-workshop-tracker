@@ -54,13 +54,14 @@ export function ProgressRing({ value, size = 118, stroke = 11, label }) {
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--surface-sunken)" strokeWidth={stroke} />
         <circle
+          className="glow-svg" style={{ color: "var(--color-brand-500)" }}
           cx={size / 2} cy={size / 2} r={radius} fill="none"
           stroke="var(--color-brand-500)" strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ}
         />
       </svg>
       <div className="absolute grid place-items-center text-center">
-        <strong className="tnum text-2xl font-extrabold tracking-tight text-[var(--ink)]">{Math.round(pct)}%</strong>
+        <strong className="code text-2xl font-extrabold text-[var(--ink)]">{Math.round(pct)}%</strong>
         {label && <span className="text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">{label}</span>}
       </div>
     </div>

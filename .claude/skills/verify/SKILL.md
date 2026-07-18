@@ -49,3 +49,8 @@ code reading. `npx vite build` must pass at the end.
 ## Known intentional behaviour changes (log them here)
 - 2026-07-18: Card drag restored to whole-card surface (was briefly grip-handle-only);
   click opens drawer (was double-click in the pre-overhaul app).
+- 2026-07-18: Board collision detection closestCorners → pointerWithin (drops land under
+  the pointer; the old behaviour biased toward short columns).
+- 2026-07-18: Dark theme is the default for new visitors (dark-first "control room"
+  identity; theme storage key bumped to flexachem_theme_v2 so pre-existing auto-persisted
+  "system" values re-default to dark once). Light mode remains available via the toggle.

@@ -25,7 +25,7 @@ export function StatusChip({ status, className, size = "md" }) {
   const Icon = ICONS[meta.icon];
   return (
     <span
-      className={cx("inline-flex items-center gap-1.5 rounded-full font-bold whitespace-nowrap",
+      className={cx("glow-current inline-flex items-center gap-1.5 rounded-full font-bold whitespace-nowrap",
         size === "sm" ? "px-2 py-0.5 text-[0.66rem]" : "px-2.5 py-1 text-[0.7rem]", className)}
       style={TONE_STYLE[meta.tone]}
     >
