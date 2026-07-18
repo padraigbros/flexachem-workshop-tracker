@@ -1,0 +1,99 @@
+import { useState } from "react";
+import {
+  DndContext, DragOverlay, PointerSensor, TouchSensor, closestCorners, useDroppable, useSensor, useSensors,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { useWorkshop } from "../state/WorkshopProvider";
+import { useAuthCtx } from "../state/AuthProvider";
+import { useJobDrawer } from "../state/useJobDrawer";
+import { useShell } from "../components/layout/AppShell";
+import { STATUS_ORDER, STATUS_META } from "../lib/constants";
+import { impact } from "../lib/native";
+import { JobCard } from "../components/jobs/JobCard";
+import { StatusChip } from "../components/ui/StatusChip";
+import { EmptyState } from "../components/ui/primitives";
+
+const TONE_COLOR = {
+  queued: "var(--status-queued)", active: "var(--status-active)", blocked: "var(--status-blocked)", done: "var(--status-done)",
+};
+
+function Column({ status, jobs, onSelect, onEdit, onStatus }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `status:${status}`, data: { type: "column", status } });
+  const meta = STATUS_META[status];
+  return (
+    <section
+      ref={setNodeRef}
+      className={`flex snap-center flex-col rounded-[1.4rem] border p-3 transition-colors ${isOver ? "border-[var(--color-brand-500)] bg-[var(--color-brand-500)]/6" : "border-[var(--line)] bg-[var(--surface-sunken)]/60"}`}
+    >
+      <div className="mb-3 flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: TONE_COLOR[meta.tone] }} />
+          <span className="text-[0.85rem] font-bold text-[var(--ink)]">{meta.label}</span>
+        </div>
+        <span className="rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[0.7rem] font-bold text-[var(--ink-muted)] tnum">{jobs.length}</span>
+      </div>
+      <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
+        <div className="grid content-start gap-2.5">
+          {jobs.length
+            ? jobs.map((job) => <JobCard key={job.id} job={job} onSelect={onSelect} onEdit={onEdit} onStatus={onStatus} />)
+            : <EmptyState text={`Drop jobs here to mark them ${status.toLowerCase()}.`} />}
+        </div>
+      </SortableContext>
+    </section>
+  );
+}
+
+export function ScheduleView() {
+  const { filteredJobs, auditPatch, getJob } = useWorkshop();
+  const { isAdmin } = useAuthCtx();
+  const { openJob } = useJobDrawer();
+  const shell = useShell();
+  const [activeId, setActiveId] = useState(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
+
+  const handleDragEnd = async ({ active, over }) => {
+    setActiveId(null);
+    if (!over) return;
+    const job = getJob(active.id);
+    if (!job) return;
+    const targetStatus = over.data?.current?.status || (String(over.id).startsWith("status:") ? String(over.id).replace("status:", "") : null);
+    if (targetStatus && targetStatus !== job.status) {
+      impact("medium");
+      await auditPatch(job.id, { status: targetStatus });
+    }
+  };
+
+  const activeJob = activeId ? getJob(activeId) : null;
+  const columns = STATUS_ORDER.map((status) => ({ status, jobs: filteredJobs.filter((j) => j.status === status) }));
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={({ active }) => setActiveId(active.id)}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveId(null)}
+    >
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+        {columns.map((col) => (
+          <div key={col.status} className="w-[82vw] shrink-0 sm:w-auto">
+            <Column
+              status={col.status}
+              jobs={col.jobs}
+              onSelect={openJob}
+              onEdit={isAdmin ? shell.editJob : null}
+              onStatus={auditPatch}
+            />
+          </div>
+        ))}
+      </div>
+      <DragOverlay>
+        {activeJob ? <JobCard job={activeJob} overlay onSelect={() => {}} onEdit={null} onStatus={() => {}} /> : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}

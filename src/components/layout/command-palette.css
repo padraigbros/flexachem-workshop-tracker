@@ -1,0 +1,24 @@
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+}
+.cmd-item[data-selected="true"] {
+  background: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
+  color: var(--ink);
+}
+[cmdk-group-heading] {
+  padding: 0.6rem 0.7rem 0.3rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+}
+[cmdk-group]:not(:first-child) [cmdk-group-heading] { margin-top: 0.3rem; }

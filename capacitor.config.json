@@ -1,0 +1,24 @@
+{
+  "appId": "com.flexachem.workshop",
+  "appName": "Flexachem Workshop",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#0a1f3d",
+      "launchAutoHide": true,
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "DARK",
+      "backgroundColor": "#0a1f3d"
+    },
+    "Keyboard": {
+      "resize": "body"
+    }
+  }
+}

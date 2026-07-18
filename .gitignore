@@ -1,3 +1,13 @@
 node_modules/
 dist/
 .env.local
+dev-dist/
+
+# Android / Capacitor build artifacts & signing secrets
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/keystore.properties
+*.keystore
+*.jks
