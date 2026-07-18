@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
-import { THEME_KEY } from "../lib/constants";
+import { THEME_KEY, THEMES } from "../lib/constants";
+import { supabase } from "../lib/supabase";
 
 const ThemeContext = createContext(null);
 const THEME_COLORS = { light: "#f5f8fc", dark: "#050d1c" };
@@ -13,12 +14,19 @@ function resolve(theme) {
   return theme;
 }
 
+function readStored() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    return THEMES.includes(stored) ? stored : "light";
+  } catch {
+    return "light";
+  }
+}
+
 export function ThemeProvider({ children }) {
-  // Dark-first identity: new visitors get the control-room dark theme; an explicit
-  // choice (or "system") persists once made.
-  const [theme, setThemeState] = useState(() => {
-    try { return localStorage.getItem(THEME_KEY) || "dark"; } catch { return "dark"; }
-  });
+  // Light is the default identity; an explicit choice (light/dark/system) persists,
+  // and for signed-in users is mirrored to their account (see setTheme persist path).
+  const [theme, setThemeState] = useState(readStored);
   const [resolved, setResolved] = useState(() => resolve(theme));
 
   useEffect(() => {
@@ -49,11 +57,21 @@ export function ThemeProvider({ children }) {
     return () => mq.removeEventListener("change", onChange);
   }, [theme]);
 
-  const setTheme = useCallback((next) => setThemeState(next), []);
-  const toggle = useCallback(() => setThemeState((prev) => {
-    const current = resolve(prev);
-    return current === "dark" ? "light" : "dark";
-  }), []);
+  // persist: also mirror to the signed-in account (fire-and-forget). Pass false when
+  // applying a value that CAME from the account, to avoid an echo write.
+  const setTheme = useCallback((next, { persist = true } = {}) => {
+    if (!THEMES.includes(next)) return;
+    setThemeState(next);
+    if (persist && supabase) {
+      supabase.auth.getSession()
+        .then(({ data }) => { if (data?.session) supabase.rpc("set_my_theme", { new_theme: next }).catch(() => {}); })
+        .catch(() => {});
+    }
+  }, []);
+
+  const toggle = useCallback(() => {
+    setTheme(resolve(theme) === "dark" ? "light" : "dark");
+  }, [theme, setTheme]);
 
   const value = useMemo(() => ({ theme, resolved, setTheme, toggle }), [theme, resolved, setTheme, toggle]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -14,13 +14,16 @@ export async function impact(style = "light") {
   } catch { /* haptics unavailable */ }
 }
 
-// Set the native status-bar colour to match the current theme.
+// Match the status-bar icon colour to the current theme. Under edge-to-edge
+// (API 35+) the WebView paints the area, so only the icon style matters:
+// Style.Dark = light icons (for the dark theme), Style.Light = dark icons.
 export async function setStatusBarTheme(resolved) {
   if (!isNative) return;
   try {
     const { StatusBar, Style } = await import("@capacitor/status-bar");
-    await StatusBar.setStyle({ style: Style.Dark });
-    await StatusBar.setBackgroundColor({ color: resolved === "dark" ? "#071426" : "#0a1f3d" });
+    await StatusBar.setStyle({ style: resolved === "dark" ? Style.Dark : Style.Light });
+    // Best-effort background for pre-edge-to-edge devices; ignored on API 35+.
+    try { await StatusBar.setBackgroundColor({ color: resolved === "dark" ? "#050d1c" : "#f5f8fc" }); } catch { /* newer API */ }
   } catch { /* status bar unavailable */ }
 }
 

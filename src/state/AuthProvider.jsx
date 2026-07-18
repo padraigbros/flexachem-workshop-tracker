@@ -1,13 +1,18 @@
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { supabase, SUPABASE_PROFILES_TABLE } from "../lib/supabase";
-import { USER_KEY } from "../lib/constants";
+import { USER_KEY, THEMES } from "../lib/constants";
 import { getInitialUser } from "../lib/storage";
+import { useTheme } from "./ThemeProvider";
 
 const AuthContext = createContext(null);
 
 // Auth state — logic moved verbatim from the original useAuth hook, wrapped in a provider.
 export function AuthProvider({ children }) {
+  const { setTheme } = useTheme();
+  // The account whose stored theme we've already applied — prevents repeat
+  // onAuthStateChange events (TOKEN_REFRESHED) from overriding a mid-session toggle.
+  const themedForUser = useRef(null);
   const [user, setUser] = useState(() => {
     if (supabase) return null;
     const stored = getInitialUser();
@@ -42,6 +47,11 @@ export function AuthProvider({ children }) {
         name: profile?.name || session.user.user_metadata?.name || session.user.email,
         role: profile?.role || "staff",
       });
+      // Apply the account's saved theme once per sign-in (persist:false = no echo write).
+      if (THEMES.includes(profile?.theme) && themedForUser.current !== session.user.id) {
+        themedForUser.current = session.user.id;
+        setTheme(profile.theme, { persist: false });
+      }
       setChecking(false);
     }
     supabase.auth.getSession().then(({ data }) => applySession(data.session));
@@ -64,6 +74,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
     localStorage.removeItem(USER_KEY);
+    themedForUser.current = null;
     setUser(null);
   }, []);
 

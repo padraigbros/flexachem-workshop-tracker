@@ -13,12 +13,12 @@
   </head>
   <body>
     <script>
-      // Apply the persisted (or default dark) theme before first paint — no flash.
+      // Apply the persisted (or default light) theme before first paint — no flash.
       try {
-        var t = localStorage.getItem("flexachem_theme_v2") || "dark";
+        var t = localStorage.getItem("flexachem_theme_v3") || "light";
         var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
         if (dark) document.documentElement.classList.add("dark");
-      } catch (e) { document.documentElement.classList.add("dark"); }
+      } catch (e) { /* light default on storage failure */ }
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

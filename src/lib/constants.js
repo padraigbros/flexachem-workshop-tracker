@@ -59,4 +59,5 @@ export const STORAGE_KEY = "flexachem_workshop_jobs_v2";
 export const STAFF_STORAGE_KEY = "flexachem_workshop_staff_v1";
 export const JOB_TYPE_STORAGE_KEY = "flexachem_workshop_job_types_v1";
 export const USER_KEY = "flexachem_workshop_user_v2";
-export const THEME_KEY = "flexachem_theme_v2";
+export const THEME_KEY = "flexachem_theme_v3";
+export const THEMES = ["light", "dark", "system"];
