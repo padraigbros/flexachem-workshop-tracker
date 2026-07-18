@@ -126,8 +126,19 @@
  * ------------------------------------------------------------------ */
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; min-height: 100%; margin: 0; }
+/* Guard against any single element widening the page. `clip` (not `hidden`) so it
+   creates no scroll container and `position: sticky` descendants keep working. */
+html, body { overflow-x: clip; }
 html { color-scheme: light; }
 html.dark { color-scheme: dark; }
+
+/* Top safe-area inset (Android edge-to-edge / notches). */
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+
+/* While the on-screen keyboard is open (native), hide the fixed bottom nav + FAB
+   so they don't jump above the keyboard. Web/PWA never sets this class. */
+html.kb-open [data-mobile-nav],
+html.kb-open [data-fab] { display: none !important; }
 
 body {
   background: var(--page-glow), var(--surface-page);

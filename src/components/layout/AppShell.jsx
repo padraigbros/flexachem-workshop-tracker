@@ -79,6 +79,7 @@ export function AppShell() {
           <button
             onClick={newJob}
             aria-label="Log new job"
+            data-fab
             className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-[75] grid h-14 w-14 place-items-center rounded-2xl text-white shadow-[0_16px_36px_rgb(242_106_33/0.42)] transition-transform active:scale-90 lg:hidden"
             style={{ background: "linear-gradient(135deg, var(--color-brand-500), var(--color-brand-400))" }}
           >

@@ -23,7 +23,7 @@ export function Topbar({ onNewJob, onOpenPalette }) {
   ].filter(Boolean).length;
 
   return (
-    <header className="sticky top-0 z-[60] border-b border-[var(--line)] bg-[var(--surface-page)]/80 px-4 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
+    <header className="sticky top-0 z-[60] border-b border-[var(--line)] bg-[var(--surface-page)]/80 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl sm:px-6 sm:pb-4 sm:pt-[calc(1rem+env(safe-area-inset-top))]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-[var(--color-brand-500)]">Flexachem workshop</div>

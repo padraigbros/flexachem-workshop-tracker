@@ -97,7 +97,7 @@ export function ScheduleView() {
     >
       <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
         {columns.map((col) => (
-          <div key={col.status} className="w-[82vw] shrink-0 sm:w-auto">
+          <div key={col.status} className="w-[88vw] max-w-[21rem] shrink-0 sm:w-auto sm:max-w-none">
             <Column
               status={col.status}
               jobs={col.jobs}

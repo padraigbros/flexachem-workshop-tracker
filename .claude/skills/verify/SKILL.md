@@ -42,6 +42,10 @@ code reading. `npx vite build` must pass at the end.
 ### Responsive (resize_window 375×812)
 - [ ] Bottom tab bar with animated active pill; FAB visible (admin); drawers become
       bottom-sheets with drag-to-dismiss; board columns snap-scroll horizontally.
+- [ ] **No-horizontal-scroll invariant**: on EVERY route (and with a drawer/modal open),
+      `document.documentElement.scrollWidth <= window.innerWidth`. Only the board's internal
+      scroller and the master-list table's own `overflow-x` container may scroll sideways.
+- [ ] Topbar clears the status bar (safe-area top inset); bottom nav visible.
 
 ### Build gates
 - [ ] `npx vite build` succeeds; pdfjs + admin views remain separate chunks.

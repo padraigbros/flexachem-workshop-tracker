@@ -42,6 +42,12 @@ export async function initNativeShell(navigate) {
       if (canGoBack || (window.history.state?.idx ?? 0) > 0) navigate(-1);
       else App.exitApp();
     });
+
+    // Hide the fixed bottom nav + FAB while the keyboard is open (see .kb-open in app.css).
+    const { Keyboard } = await import("@capacitor/keyboard");
+    Keyboard.addListener("keyboardWillShow", () => document.documentElement.classList.add("kb-open"));
+    Keyboard.addListener("keyboardWillHide", () => document.documentElement.classList.remove("kb-open"));
+
     const { SplashScreen } = await import("@capacitor/splash-screen");
     await SplashScreen.hide();
   } catch { /* native APIs unavailable */ }
