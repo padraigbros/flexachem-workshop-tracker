@@ -10,11 +10,20 @@ test.describe("mobile layout invariants", () => {
   });
 
   for (const route of ROUTES) {
-    test(`no horizontal scroll and bottom nav visible on ${route}`, async ({ page }) => {
+    test(`content fits the viewport and bottom nav visible on ${route}`, async ({ page }) => {
       await page.goto(route);
       await expect(page.locator("[data-mobile-nav]")).toBeVisible();
-      const noHScroll = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
-      expect(noHScroll, `page scrolls horizontally on ${route}`).toBe(true);
+      const m = await page.evaluate(() => {
+        const main = document.querySelector("main");
+        return {
+          pageScroll: document.documentElement.scrollWidth <= window.innerWidth,
+          // `overflow-x: clip` hides page scroll but content can still be clipped — catch it
+          // by checking that <main>'s content doesn't overflow its box.
+          mainOverflow: main.scrollWidth - main.clientWidth,
+        };
+      });
+      expect(m.pageScroll, `page scrolls horizontally on ${route}`).toBe(true);
+      expect(m.mainOverflow, `content overflows the viewport (clipped) on ${route}`).toBeLessThanOrEqual(1);
     });
   }
 

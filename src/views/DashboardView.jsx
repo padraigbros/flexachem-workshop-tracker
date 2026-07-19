@@ -63,7 +63,7 @@ export function DashboardView() {
   const maxStaffHours = Math.max(1, ...people.map((p) => jobs.filter((j) => j.alloc === p && j.status !== "Complete").reduce((s, j) => s + Number(j.hrs || 0), 0)));
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1.4fr_0.9fr]">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_0.9fr]">
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard tone="red" label="Overdue" value={metrics.overdue} detail="Needs attention" />

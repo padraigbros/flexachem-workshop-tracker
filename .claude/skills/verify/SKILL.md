@@ -20,6 +20,9 @@ code reading. `npx vite build` must pass at the end.
       column or its list). Nested scrollbars break touch drag and are unusable on mobile.
 - [ ] **Single click opens the JobDrawer**; **double-click opens the edit modal** (admins).
       Click is suppressed right after a drop (`src/lib/dnd.js`).
+- [ ] Every card has an **Active/Blocked/Done status control** (tap to change status —
+      the reliable path on touch; drag is a bonus). Sensors: MouseSensor (8px) +
+      TouchSensor (250ms long-press). Do NOT use PointerSensor — it hijacks touch scroll.
 
 ### Jobs
 - [ ] `?job=<id>` deep link opens the drawer; browser Back closes it. IDs are strings —
@@ -46,9 +49,11 @@ code reading. `npx vite build` must pass at the end.
 ### Responsive (resize_window 375×812)
 - [ ] Bottom tab bar with animated active pill; FAB visible (admin); drawers become
       bottom-sheets with drag-to-dismiss; board columns snap-scroll horizontally.
-- [ ] **No-horizontal-scroll invariant**: on EVERY route (and with a drawer/modal open),
-      `document.documentElement.scrollWidth <= window.innerWidth`. Only the board's internal
-      scroller and the master-list table's own `overflow-x` container may scroll sideways.
+- [ ] **No-overflow invariant**: on EVERY route, `scrollWidth <= innerWidth` AND
+      `main.scrollWidth <= main.clientWidth` (the second catches content clipped by the
+      `overflow-x: clip` guard). Any `grid gap-*` used as a single-column stack MUST have a
+      base `grid-cols-1` OR rely on the `:where(.grid){grid-auto-columns:minmax(0,1fr)}` rule
+      in app.css — a bare grid sizes its column to max-content and overflows narrow screens.
 - [ ] Topbar clears the status bar (safe-area top inset); bottom nav visible.
 - [ ] Filters open as a **bottom sheet** on mobile (Reset + Show results) and inline on `sm+`.
 - [ ] Board columns have a bounded height with **sticky headers** (header stays, cards scroll
