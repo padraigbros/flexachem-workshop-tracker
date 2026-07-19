@@ -33,7 +33,10 @@ export function normalizeJob(row) {
   const allocValue = String(row.alloc || "").trim();
   const allocation = allocatedTo || (allocValue && allocValue.toLowerCase() !== "unassigned" ? allocValue : "") || "Unassigned";
   return {
-    id: row.id || crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+    // Always a string: URL params (?job=) and dnd-kit ids are strings, so a numeric
+    // DB id (bigint) must be coerced or `job.id === jobId` silently fails and the
+    // drawer/edit never opens with real data.
+    id: String(row.id ?? crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`),
     asm: row.asm || row.assembly_no || row.assembly || row.tag || "",
     so: row.so || row.sales_order || row.sales_order_no || "",
     cust: row.cust || row.customer || row.customer_name || "",

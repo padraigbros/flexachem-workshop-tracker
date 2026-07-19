@@ -22,9 +22,9 @@ function dueTone(job) {
   return "text-[var(--ink-muted)]";
 }
 
-// A single kanban card. The whole card drags (8px pointer threshold / 200ms touch
-// hold distinguishes drag from tap); a plain click opens the drawer. The grip icon
-// is a visual affordance signalling draggability.
+// A single kanban card. The whole card is draggable: PointerSensor (8px) drives mouse
+// drags on desktop; TouchSensor (200ms hold) drives touch drags on mobile without
+// blocking scroll. A plain click opens the drawer; double-click edits (admins).
 export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id, data: { type: "job", status: job.status } });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -37,11 +37,12 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
       {...attributes}
       {...listeners}
       className={cx(
-        "group card relative cursor-pointer touch-manipulation p-3.5 transition-shadow hover:shadow-[var(--shadow-pop)]",
+        "group card relative cursor-pointer p-3.5 transition-shadow hover:shadow-[var(--shadow-pop)]",
         isDragging && "opacity-30",
         overlay && "w-[min(18rem,calc(100vw-2rem))] rotate-2 scale-[1.03] cursor-grabbing shadow-[var(--shadow-float)]",
       )}
       onClick={() => { if (!wasRecentDrag()) onSelect(job.id); }}
+      onDoubleClick={() => { if (onEdit) onEdit(job); }}
     >
       {/* Status-coloured luminous edge */}
       <span
@@ -50,10 +51,8 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
         style={{ background: EDGE_COLOR[statusTone(job.status)], color: EDGE_COLOR[statusTone(job.status)] }}
       />
       <div className="flex items-start gap-2">
-        <span
-          aria-hidden="true"
-          className="-ml-1 mt-0.5 shrink-0 rounded-md p-0.5 text-[var(--ink-muted)] opacity-40 transition-opacity group-hover:opacity-100"
-        >
+        {/* Drag affordance (visual only — the whole card drags). */}
+        <span aria-hidden="true" className="-ml-1 mt-0.5 shrink-0 text-[var(--ink-muted)] opacity-40 transition-opacity group-hover:opacity-100">
           <GripVertical size={16} />
         </span>
         <div className="min-w-0 flex-1">

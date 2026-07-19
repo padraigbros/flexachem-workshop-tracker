@@ -33,7 +33,10 @@ function Column({ status, jobs, onSelect, onEdit, onStatus }) {
   return (
     <section
       ref={setNodeRef}
-      className={`relative flex max-h-[calc(100dvh-13rem)] snap-center flex-col overflow-hidden rounded-[1.4rem] border p-3 pt-4 transition-colors sm:max-h-[calc(100dvh-11rem)] ${isOver ? "border-[var(--color-brand-500)] bg-[var(--color-brand-500)]/6" : "border-[var(--line)] bg-[var(--surface-sunken)]/60"}`}
+      /* Simple auto-height column — the PAGE scrolls vertically and the board scrolls
+         horizontally. No internal per-column scroll (nested scrollbars break touch drag
+         and are barely usable on mobile). */
+      className={`relative flex snap-center flex-col rounded-[1.4rem] border p-3 pt-4 transition-colors ${isOver ? "border-[var(--color-brand-500)] bg-[var(--color-brand-500)]/6" : "border-[var(--line)] bg-[var(--surface-sunken)]/60"}`}
     >
       {/* Luminous status hairline across the column top */}
       <span
@@ -41,8 +44,7 @@ function Column({ status, jobs, onSelect, onEdit, onStatus }) {
         className="glow-current absolute inset-x-0 top-0 h-[3px]"
         style={{ background: `linear-gradient(90deg, ${TONE_COLOR[meta.tone]}, transparent 85%)`, color: TONE_COLOR[meta.tone] }}
       />
-      {/* Header stays put while the card list below scrolls (Trello-style). */}
-      <div className="mb-3 flex shrink-0 items-center justify-between px-1">
+      <div className="mb-3 flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span className="glow-current h-2.5 w-2.5 rounded-full" style={{ background: TONE_COLOR[meta.tone], color: TONE_COLOR[meta.tone] }} />
           <span className="text-[0.85rem] font-bold text-[var(--ink)]">{meta.label}</span>
@@ -50,7 +52,7 @@ function Column({ status, jobs, onSelect, onEdit, onStatus }) {
         <span className="code rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[0.7rem] font-bold text-[var(--ink-muted)]">{jobs.length}</span>
       </div>
       <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
-        <div className="grid min-h-0 flex-1 content-start gap-2.5 overflow-y-auto pr-0.5">
+        <div className="grid content-start gap-2.5">
           {jobs.length
             ? jobs.map((job) => <JobCard key={job.id} job={job} onSelect={onSelect} onEdit={onEdit} onStatus={onStatus} />)
             : <EmptyState text={`Drop jobs here to mark them ${status.toLowerCase()}.`} />}

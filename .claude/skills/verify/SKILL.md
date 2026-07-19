@@ -13,14 +13,18 @@ code reading. `npx vite build` must pass at the end.
 
 ### Schedule board (dnd-kit)
 - [ ] **Drag a card from anywhere on its surface** to another column → status changes,
-      an audit entry ("Status: X → Y") appears in the job's activity feed.
-      Mouse: press + move ≥8px. Touch: hold 200ms then move.
-- [ ] **Plain click on a card opens the JobDrawer** — and does NOT open it right after a drop
-      (click-suppression in `src/lib/dnd.js`).
-- [ ] Drop-target column highlights; DragOverlay ghost follows the pointer.
+      an audit entry ("Status: X → Y") appears. Mouse: press + move ≥8px. Touch: hold 200ms.
+      NOTE: the whole card is the drag target (listeners on the `<article>`, NOT a handle
+      button — a nested-button handle breaks dnd-kit). The grip icon is decorative only.
+- [ ] **Columns must NOT have an internal scroll** (no `overflow-y-auto`/`max-h` on the
+      column or its list). Nested scrollbars break touch drag and are unusable on mobile.
+- [ ] **Single click opens the JobDrawer**; **double-click opens the edit modal** (admins).
+      Click is suppressed right after a drop (`src/lib/dnd.js`).
 
 ### Jobs
-- [ ] `?job=<id>` deep link (e.g. `/schedule?job=demo-1`) opens the drawer; browser Back closes it.
+- [ ] `?job=<id>` deep link opens the drawer; browser Back closes it. IDs are strings —
+      `normalizeJob` MUST `String()` the id or numeric DB ids fail `job.id === jobId` and the
+      drawer/edit silently no-op with real Supabase data (demo ids are strings, so demo hides it).
 - [ ] Create job (topbar button / mobile FAB / palette): Assembly + Customer required inline,
       job appears on board, "Job created" audit entry exists.
 - [ ] Edit job → changed fields produce an audit diff entry.
@@ -66,6 +70,12 @@ code reading. `npx vite build` must pass at the end.
 - 2026-07-18: Cloud mode gained realtime sync + refetch-on-resume. Notes are now
   merge-on-write (union by at|by|txt) so concurrent note-adds don't overwrite each other;
   other scalar fields remain last-write-wins (newer updated_at wins). Demo mode unchanged.
+- 2026-07-18: Reverted to whole-card drag (the grip-handle-button broke dnd-kit drop
+  resolution); removed the per-column internal scroll (P4 sticky headers) — it broke touch
+  drag and caused nested scrollbars. Added double-click-to-edit. normalizeJob now String()s
+  the id (fixes drawer/edit dead on real numeric-id data). Android: targetSdk 34 +
+  StatusBar.overlaysWebView false (env(safe-area-inset) is 0 in the Android WebView, so the
+  CSS-only approach never worked — the WebView is now natively inset below the system bars).
 - 2026-07-18: Dark theme WAS the default (dark-first "control room"); superseded below.
 - 2026-07-18: LIGHT is now the default for new visitors (key bumped to flexachem_theme_v3).
   Signed-in users' choice is saved to their account (`profiles.theme` + `set_my_theme` RPC)
