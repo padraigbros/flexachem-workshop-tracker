@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  DndContext, DragOverlay, MouseSensor, TouchSensor, closestCorners, pointerWithin, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, MeasuringStrategy, MouseSensor, TouchSensor, closestCorners, pointerWithin, useDroppable, useSensor, useSensors,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useWorkshop } from "../state/WorkshopProvider";
@@ -12,7 +12,7 @@ import { impact } from "../lib/native";
 import { markDragEnd } from "../lib/dnd";
 import { JobCard } from "../components/jobs/JobCard";
 import { StatusChip } from "../components/ui/StatusChip";
-import { EmptyState } from "../components/ui/primitives";
+import { EmptyState, cx } from "../components/ui/primitives";
 
 const TONE_COLOR = {
   queued: "var(--status-queued)", active: "var(--status-active)", blocked: "var(--status-blocked)", done: "var(--status-done)",
@@ -97,11 +97,17 @@ export function ScheduleView() {
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetection}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={({ active }) => setActiveId(active.id)}
       onDragEnd={handleDragEnd}
       onDragCancel={() => { setActiveId(null); markDragEnd(); }}
     >
-      <div className="-mx-[var(--spacing-gutter)] flex snap-x snap-mandatory gap-3 overflow-x-auto px-[var(--spacing-gutter)] pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+      {/* Scroll-snap is suspended while dragging: snap-mandatory fights dnd-kit auto-scroll,
+          pinning drops to the first/last column. Quick swipes still snap when not dragging. */}
+      <div className={cx(
+        "-mx-[var(--spacing-gutter)] flex gap-3 overflow-x-auto px-[var(--spacing-gutter)] pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4",
+        !activeId && "snap-x snap-mandatory",
+      )}>
         {columns.map((col) => (
           <div key={col.status} className="w-[88vw] max-w-[21rem] shrink-0 sm:w-auto sm:max-w-none">
             <Column

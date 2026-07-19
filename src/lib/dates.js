@@ -59,8 +59,17 @@ export function formatDate(value, options = {}) {
   return parsed.toLocaleDateString("en-IE", { day: "2-digit", month: "short", ...options });
 }
 
+// Full ISO timestamps carry a real time-of-day; date-only values stay noon-anchored via parseISODate.
+function parseInstant(value) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value.trim())) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return parseISODate(value);
+}
+
 export function formatDateTime(value) {
-  const parsed = parseISODate(value);
+  const parsed = parseInstant(value);
   if (!parsed) return "Just now";
   return parsed.toLocaleString("en-IE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
@@ -77,7 +86,7 @@ const RELATIVE_UNITS = [
 
 // "2 h ago" style relative timestamp for the activity feeds.
 export function formatRelative(value) {
-  const parsed = parseISODate(value);
+  const parsed = parseInstant(value);
   if (!parsed) return "just now";
   const diff = parsed.getTime() - Date.now();
   const abs = Math.abs(diff);

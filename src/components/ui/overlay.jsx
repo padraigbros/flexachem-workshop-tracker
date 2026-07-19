@@ -26,7 +26,7 @@ function Backdrop({ onClick }) {
 const SPRING = { type: "spring", stiffness: 400, damping: 34 };
 
 // Right-side drawer on desktop; bottom-sheet with drag-to-dismiss on mobile.
-export function Drawer({ open, onClose, children, header, footer, mobileSheet = true }) {
+export function Drawer({ open, onClose, children, header, footer, mobileSheet = true, desktopCentered = false }) {
   useEscape(onClose);
   const reduce = useReducedMotion();
   return createPortal(
@@ -37,14 +37,16 @@ export function Drawer({ open, onClose, children, header, footer, mobileSheet = 
           <motion.aside
             className={cx(
               "fixed z-[90] flex flex-col overflow-hidden bg-[var(--surface-page)] shadow-[var(--shadow-float)]",
-              "sm:inset-y-4 sm:right-4 sm:w-[min(520px,calc(100vw-2rem))] sm:rounded-[1.6rem]",
+              desktopCentered
+                ? "sm:inset-0 sm:m-auto sm:h-fit sm:max-h-[calc(100dvh-2.5rem)] sm:w-[min(560px,calc(100vw-2rem))] sm:rounded-[1.6rem]"
+                : "sm:inset-y-4 sm:right-4 sm:left-auto sm:w-[min(520px,calc(100vw-2rem))] sm:rounded-[1.6rem]",
               mobileSheet
-                ? "inset-x-0 bottom-0 top-[12vh] rounded-t-[1.6rem] sm:top-4"
+                ? "inset-x-0 bottom-0 top-[12vh] rounded-t-[1.6rem]"
                 : "inset-0 pt-safe sm:pt-0",
             )}
-            initial={reduce ? { opacity: 0 } : { x: "8%", opacity: 0, y: 0 }}
-            animate={{ x: 0, y: 0, opacity: 1 }}
-            exit={reduce ? { opacity: 0 } : { x: "8%", opacity: 0 }}
+            initial={reduce ? { opacity: 0 } : desktopCentered ? { opacity: 0, scale: 0.96, y: 12 } : { x: "8%", opacity: 0, y: 0 }}
+            animate={{ x: 0, y: 0, scale: 1, opacity: 1 }}
+            exit={reduce ? { opacity: 0 } : desktopCentered ? { opacity: 0, scale: 0.97, y: 8 } : { x: "8%", opacity: 0 }}
             transition={SPRING}
             drag={mobileSheet ? "y" : false}
             dragConstraints={{ top: 0, bottom: 0 }}

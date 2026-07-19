@@ -41,6 +41,7 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
     <DrawerHeader>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
+          <div className="mb-1.5 text-[0.66rem] font-extrabold uppercase tracking-[0.16em] text-[var(--color-brand-300)]">Workshop job status</div>
           <StatusChip status={job.status} size="sm" />
           <h2 className="mt-2 truncate text-2xl font-extrabold tracking-tight">{job.asm || "No assembly"}</h2>
           <div className="mt-0.5 truncate text-[0.82rem] text-[#c8daee]">{job.cust} · SO {job.so || "TBA"}</div>
@@ -70,7 +71,7 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
   );
 
   return (
-    <Drawer open={open} onClose={onClose} header={header} footer={footer}>
+    <Drawer open={open} onClose={onClose} header={header} footer={footer} desktopCentered>
       <div className="grid gap-4 p-4">
         <div className="grid grid-cols-2 gap-2.5">
           <Detail label="Staff" value={job.alloc} />

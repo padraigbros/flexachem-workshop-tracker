@@ -22,8 +22,8 @@ function dueTone(job) {
   return "text-[var(--ink-muted)]";
 }
 
-// A single kanban card. The whole card is draggable: PointerSensor (8px) drives mouse
-// drags on desktop; TouchSensor (200ms hold) drives touch drags on mobile without
+// A single kanban card. The whole card is draggable: MouseSensor (8px) drives mouse
+// drags on desktop; TouchSensor (250ms hold) drives touch drags on mobile without
 // blocking scroll. A plain click opens the drawer; double-click edits (admins).
 export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.id, data: { type: "job", status: job.status } });

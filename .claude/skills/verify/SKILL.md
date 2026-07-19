@@ -34,6 +34,13 @@ code reading. `npx vite build` must pass at the end.
 - [ ] PDF import: drop an Assembly Order PDF in the JobModal → fields autofill, chips list
       what was found, PDF attaches (pdfjs loads lazily — no pdfjs in initial network log).
 - [ ] Post a note from the drawer (with status change) → appears in feed + Recent updates.
+      Its timestamp reads a present/past relative time ("just now", "4 minutes ago") — NEVER
+      "in N hours". Note `at` is a full ISO instant; `formatRelative`/`formatDateTime` parse it
+      via `parseInstant` (NOT `parseISODate`, which noon-anchors date-only start/due fields).
+- [ ] JobDrawer is **centered** on desktop (modal-style, like "Edit workshop job") via the
+      `desktopCentered` prop; header shows the "Workshop job status" eyebrow. The Recent-updates
+      drawer and Filters sheet stay **right-anchored** (they don't pass the prop). All three
+      remain mobile bottom-sheets with drag-to-dismiss.
 - [ ] Delete (Master List) → ConfirmDialog → job moves to Archive → Restore brings it back.
 
 ### Shell
@@ -56,8 +63,11 @@ code reading. `npx vite build` must pass at the end.
       in app.css — a bare grid sizes its column to max-content and overflows narrow screens.
 - [ ] Topbar clears the status bar (safe-area top inset); bottom nav visible.
 - [ ] Filters open as a **bottom sheet** on mobile (Reset + Show results) and inline on `sm+`.
-- [ ] Board columns have a bounded height with **sticky headers** (header stays, cards scroll
-      inside); the next column peeks (~88vw). Drag-drop still lands in the correct column.
+- [ ] Board columns: the next column peeks (~88vw) and the board snap-scrolls horizontally
+      **when not dragging**. Scroll-snap is suspended while a drag is active (`!activeId`) so
+      auto-scroll can reach middle columns; drag-drop lands in the correct column (incl. In
+      Progress / Input Needed). `DndContext` uses `MeasuringStrategy.Always` so column rects
+      stay fresh as the board scrolls mid-drag.
 - [ ] Status controls + card icon buttons are ≥44px on touch (`pointer-coarse` variants).
 - [ ] Page gutter, display numerals and page title use the fluid tokens
       (`--spacing-gutter`, `--text-display`, `--text-title`) — no fixed px gutters left.
@@ -82,6 +92,16 @@ code reading. `npx vite build` must pass at the end.
   StatusBar.overlaysWebView false (env(safe-area-inset) is 0 in the Android WebView, so the
   CSS-only approach never worked — the WebView is now natively inset below the system bars).
 - 2026-07-18: Dark theme WAS the default (dark-first "control room"); superseded below.
+- 2026-07-19: JobDrawer is now CENTERED on desktop (was a right-side panel) via a new
+  `desktopCentered` prop on the shared `Drawer`; added a "Workshop job status" header eyebrow.
+  UpdatesDrawer + FilterSheet keep right-anchored/side-panel behaviour (opt-in prop). Mobile
+  bottom-sheet behaviour unchanged for all.
+- 2026-07-19: Fixed note timestamps rendering "in N hours". `formatRelative`/`formatDateTime`
+  now parse full ISO instants with `parseInstant` instead of the noon-anchored `parseISODate`
+  (which is still used for date-only start/due fields).
+- 2026-07-19: Mobile touch-drag can now reach middle columns. Scroll-snap on the board is
+  suspended while dragging (snap-mandatory fought dnd-kit auto-scroll, pinning drops to the
+  first/last column) and `MeasuringStrategy.Always` keeps droppable rects fresh mid-scroll.
 - 2026-07-18: LIGHT is now the default for new visitors (key bumped to flexachem_theme_v3).
   Signed-in users' choice is saved to their account (`profiles.theme` + `set_my_theme` RPC)
   and applied on next login across devices. Dark remains available via the toggle.
