@@ -135,6 +135,12 @@ html, body, #root { width: 100%; min-height: 100%; margin: 0; }
 /* Guard against any single element widening the page. `clip` (not `hidden`) so it
    creates no scroll container and `position: sticky` descendants keep working. */
 html, body { overflow-x: clip; }
+
+/* Grids used as single-column stacks (`grid gap-*` with no / only-responsive columns)
+   otherwise size their implicit column to max-content and overflow narrow screens.
+   Default the implicit column to minmax(0,1fr) so it shrinks to fit. Explicit
+   grid-template-columns (grid-cols-*) are unaffected — this only sizes implicit tracks. */
+:where(.grid) { grid-auto-columns: minmax(0, 1fr); }
 html { color-scheme: light; }
 html.dark { color-scheme: dark; }
 

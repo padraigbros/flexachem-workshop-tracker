@@ -5,7 +5,7 @@ import { parseNotes, jobCalendarSpan } from "../../lib/jobs";
 import { formatDate, daysUntil, formatRelative } from "../../lib/dates";
 import { openJobAttachment } from "../../lib/files";
 import { wasRecentDrag } from "../../lib/dnd";
-import { StatusChip, PriorityChip, statusTone } from "../ui/StatusChip";
+import { StatusChip, PriorityChip, StatusSwitch, statusTone } from "../ui/StatusChip";
 import { Avatar } from "../ui/dataviz";
 import { IconButton, cx } from "../ui/primitives";
 
@@ -83,6 +83,13 @@ export function JobCard({ job, overlay, onSelect, onEdit, onStatus }) {
             <span>{formatRelative(latest.at)}</span>
           </div>
           <div className="mt-1 line-clamp-2 text-[0.75rem] text-[var(--ink-soft)]">{latest.txt}</div>
+        </div>
+      )}
+
+      {/* Tap-to-change status — the reliable way to move a job on touch (drag is a bonus). */}
+      {!overlay && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <StatusSwitch className="mt-3 w-full" value={job.status} onChange={(status) => onStatus(job.id, { status })} />
         </div>
       )}
 

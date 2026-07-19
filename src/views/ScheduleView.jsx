@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  DndContext, DragOverlay, PointerSensor, TouchSensor, closestCorners, pointerWithin, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, MouseSensor, TouchSensor, closestCorners, pointerWithin, useDroppable, useSensor, useSensors,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useWorkshop } from "../state/WorkshopProvider";
@@ -69,9 +69,12 @@ export function ScheduleView() {
   const shell = useShell();
   const [activeId, setActiveId] = useState(null);
 
+  // MouseSensor (not PointerSensor) so touch is handled solely by TouchSensor — a
+  // long-press (250ms) starts a drag while quick swipes still scroll the board/page.
+  // PointerSensor fires on touch too and fights the scroll containers (drag never starts).
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
   );
 
   const handleDragEnd = async ({ active, over }) => {
