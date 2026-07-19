@@ -1,7 +1,10 @@
 ext {
     minSdkVersion = 24
     compileSdkVersion = 36
-    targetSdkVersion = 36
+    // targetSdk 34 opts out of Android 15+ forced edge-to-edge, so StatusBar
+    // overlaysWebView:false actually insets the WebView below the system bars.
+    // (App is sideloaded, so Play Store's targetSdk-35 requirement doesn't apply.)
+    targetSdkVersion = 34
     androidxActivityVersion = '1.11.0'
     androidxAppCompatVersion = '1.7.1'
     androidxCoordinatorLayoutVersion = '1.3.0'
