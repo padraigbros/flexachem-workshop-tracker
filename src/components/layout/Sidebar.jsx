@@ -7,6 +7,7 @@ import { SyncBadge } from "./SyncBadge";
 import { ThemeToggle } from "./ThemeToggle";
 import { Avatar } from "../ui/dataviz";
 import { cx } from "../ui/primitives";
+import logoUrl from "../../assets/flexachem-logo.png";
 
 // Desktop sidebar (hidden < lg — the mobile tab bar takes over).
 export function Sidebar() {
@@ -18,12 +19,9 @@ export function Sidebar() {
     <aside className="relative hidden h-full flex-col gap-4 overflow-hidden bg-[linear-gradient(165deg,var(--color-navy-950),var(--color-navy-800)_55%,var(--color-navy-700))] px-4 py-5 text-white lg:flex">
       <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[rgb(242_106_33/0.20)] blur-md" />
 
-      <div className="relative flex items-center gap-3 border-b border-white/10 px-2 pb-4">
+      <div className="relative grid gap-2.5 border-b border-white/10 px-2 pb-4">
         <BrandMark />
-        <div>
-          <div className="text-sm font-black uppercase tracking-[0.12em]">Flexachem</div>
-          <div className="mt-0.5 text-[0.7rem] text-[#b7c8dc]">Workshop Control Tower</div>
-        </div>
+        <div className="text-[0.7rem] text-[#b7c8dc]">Workshop Control Tower</div>
       </div>
 
       <nav className="relative grid gap-1.5">
@@ -82,13 +80,12 @@ export function Sidebar() {
   );
 }
 
-export function BrandMark({ size = 46 }) {
+// The real Flexachem wordmark is navy-on-transparent, so it needs a light tile to
+// stay legible on the navy sidebar and login panel.
+export function BrandMark({ className }) {
   return (
-    <div
-      className="grid shrink-0 place-items-center rounded-2xl font-black text-white shadow-[0_18px_40px_rgb(242_106_33/0.34)]"
-      style={{ width: size, height: size, fontSize: size * 0.5, background: "linear-gradient(135deg, var(--color-brand-500), var(--color-brand-300))" }}
-    >
-      F
+    <div className={cx("grid w-[190px] shrink-0 place-items-center rounded-2xl bg-white p-2.5 shadow-[0_18px_40px_rgb(242_106_33/0.34)]", className)}>
+      <img src={logoUrl} alt="Flexachem" className="h-auto w-full" />
     </div>
   );
 }

@@ -34,6 +34,15 @@ export function useJobDrawer() {
     });
   }, [setParams]);
 
+  const openNotifications = useCallback(() => {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("panel", "notifications");
+      next.delete("job");
+      return next;
+    });
+  }, [setParams]);
+
   const closePanel = useCallback(() => {
     setParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -42,5 +51,5 @@ export function useJobDrawer() {
     });
   }, [setParams]);
 
-  return { jobId, panel, openJob, closeJob, openUpdates, closePanel };
+  return { jobId, panel, openJob, closeJob, openUpdates, openNotifications, closePanel };
 }

@@ -50,6 +50,16 @@ export const DEFAULT_STAFF = PEOPLE.map((name) => ({
   notes: "",
 }));
 
+export const CUSTOMERS = [
+  "GE Whitegate", "ITW Performance Polymers", "BMS", "Shannon Bridge", "HA O Neil",
+  "Eli Lilly", "PM Group", "Radleys", "Regeneron", "MSD Ballydine", "Paciv / Eli Lilly",
+];
+export const DEFAULT_CUSTOMERS = CUSTOMERS.map((name) => ({
+  id: `customer-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+  name,
+  active: true,
+}));
+
 export const BUSINESS_UNITS = ["Pharma", "Industrial", "Engineering", "Mining", "Other"];
 export const PRIORITIES = ["Low", "Normal", "High", "Critical"];
 
@@ -58,6 +68,8 @@ export const DUE_BUCKETS = ["Overdue", "Due today", "Next 7 days", "Next 30 days
 export const STORAGE_KEY = "flexachem_workshop_jobs_v2";
 export const STAFF_STORAGE_KEY = "flexachem_workshop_staff_v1";
 export const JOB_TYPE_STORAGE_KEY = "flexachem_workshop_job_types_v1";
+export const CUSTOMER_STORAGE_KEY = "flexachem_workshop_customers_v1";
+export const NOTIFICATIONS_STORAGE_KEY = "flexachem_workshop_notifications_v1";
 export const USER_KEY = "flexachem_workshop_user_v2";
 export const THEME_KEY = "flexachem_theme_v3";
 export const THEMES = ["light", "dark", "system"];

@@ -120,6 +120,32 @@ create table if not exists public.job_types (
 );
 
 -- ---------------------------------------------------------------------------
+-- 2c. Customers catalogue (mirrors job_types). Ids are text slugs
+--     (e.g. 'customer-ge-whitegate'). Seeded with this week's schedule.
+-- ---------------------------------------------------------------------------
+create table if not exists public.customers (
+  id text primary key,
+  name text not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+insert into public.customers (id, name) values
+  ('customer-ge-whitegate', 'GE Whitegate'),
+  ('customer-itw-performance-polymers', 'ITW Performance Polymers'),
+  ('customer-bms', 'BMS'),
+  ('customer-shannon-bridge', 'Shannon Bridge'),
+  ('customer-ha-o-neil', 'HA O Neil'),
+  ('customer-eli-lilly', 'Eli Lilly'),
+  ('customer-pm-group', 'PM Group'),
+  ('customer-radleys', 'Radleys'),
+  ('customer-regeneron', 'Regeneron'),
+  ('customer-msd-ballydine', 'MSD Ballydine'),
+  ('customer-paciv-eli-lilly', 'Paciv / Eli Lilly')
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
 -- 3. Storage bucket for job PDFs (private; the app uses signed URLs).
 -- ---------------------------------------------------------------------------
 insert into storage.buckets (id, name, public)
@@ -138,6 +164,7 @@ on conflict (id) do nothing;
 alter table public.jobs enable row level security;
 alter table public.staff enable row level security;
 alter table public.job_types enable row level security;
+alter table public.customers enable row level security;
 alter table public.profiles enable row level security;
 
 -- jobs
@@ -161,6 +188,12 @@ drop policy if exists "job_types select authenticated" on public.job_types;
 create policy "job_types select authenticated" on public.job_types for select to authenticated using (true);
 drop policy if exists "job_types write admin" on public.job_types;
 create policy "job_types write admin" on public.job_types for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- customers
+drop policy if exists "customers select authenticated" on public.customers;
+create policy "customers select authenticated" on public.customers for select to authenticated using (true);
+drop policy if exists "customers write admin" on public.customers;
+create policy "customers write admin" on public.customers for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- profiles
 drop policy if exists "profiles select authenticated" on public.profiles;
@@ -219,3 +252,77 @@ grant execute on function public.set_my_theme(text) to authenticated;
 --    from the dashboard: Database → Replication.
 -- ---------------------------------------------------------------------------
 alter publication supabase_realtime add table public.jobs;
+
+-- ---------------------------------------------------------------------------
+-- 8. Notifications (@-mentions in job notes).
+--    Each row targets one login account. job_id is TEXT with no FK: jobs.id is
+--    bigint in cloud but a string id in demo, and jobs use soft delete.
+-- ---------------------------------------------------------------------------
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  actor text not null default '',
+  job_id text,
+  job_label text,
+  excerpt text not null default '',
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists notifications_user_created_idx on public.notifications (user_id, created_at desc);
+
+alter table public.notifications enable row level security;
+
+-- Users can only ever see / modify their OWN notifications.
+drop policy if exists "notifications select own" on public.notifications;
+create policy "notifications select own" on public.notifications for select to authenticated using (user_id = auth.uid());
+drop policy if exists "notifications update own" on public.notifications;
+create policy "notifications update own" on public.notifications for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "notifications delete own" on public.notifications;
+create policy "notifications delete own" on public.notifications for delete to authenticated using (user_id = auth.uid());
+
+-- Cross-user inserts go through this SECURITY DEFINER RPC — there is deliberately
+-- NO insert policy. The actor name is derived from auth.uid() (so it can't be
+-- spoofed), self- and inactive-targets are skipped, and anon callers are rejected.
+create or replace function public.notify_mentions(target_ids uuid[], p_job_id text, p_job_label text, p_excerpt text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+declare actor_name text;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  select coalesce(name, email, 'Workshop') into actor_name from public.profiles where id = auth.uid();
+  insert into public.notifications (user_id, actor, job_id, job_label, excerpt)
+  select distinct t, actor_name, p_job_id, p_job_label, left(coalesce(p_excerpt, ''), 200)
+  from unnest(target_ids) as t
+  where t <> auth.uid()
+    and exists (select 1 from public.profiles p where p.id = t and p.active);
+end;
+$$;
+
+revoke all on function public.notify_mentions(uuid[], text, text, text) from public;
+grant execute on function public.notify_mentions(uuid[], text, text, text) to authenticated;
+
+-- Add notifications to realtime so the bell updates live. Wrapped for idempotency.
+do $$
+begin
+  alter publication supabase_realtime add table public.notifications;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 9. Push tokens (Android FCM). Only used if you complete the Firebase setup in
+--    BUILD_APK.md. Each device registers its token here; the notify-push Edge
+--    Function reads them with the service-role key (which bypasses RLS) and sends
+--    FCM messages. Users can only see/modify their OWN tokens.
+-- ---------------------------------------------------------------------------
+create table if not exists public.push_tokens (
+  token text primary key,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  platform text not null default 'android',
+  updated_at timestamptz not null default now()
+);
+alter table public.push_tokens enable row level security;
+drop policy if exists "push tokens own" on public.push_tokens;
+create policy "push tokens own" on public.push_tokens for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());

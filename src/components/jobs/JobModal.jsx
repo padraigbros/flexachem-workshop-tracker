@@ -16,12 +16,19 @@ function Section({ title, children, cols = 2 }) {
   );
 }
 
-export function JobModal({ job, open, people, jobTypes, businessUnits, onClose, onSave }) {
+export function JobModal({ job, open, people, jobTypes, customers, businessUnits, onClose, onSave }) {
   const assignablePeople = useMemo(() => {
     const set = new Set(people);
     if (job.alloc) set.add(job.alloc);
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [people, job.alloc]);
+
+  // Placeholder first, then the active catalogue, plus the job's current customer so a
+  // legacy / PDF-imported value that isn't catalogued still shows and re-saves unchanged.
+  const customerOptions = useMemo(() => {
+    const catalogue = (customers?.length ? customers : []).slice().sort((a, b) => a.localeCompare(b));
+    return ["", ...Array.from(new Set([...catalogue, job.cust].filter(Boolean)))];
+  }, [customers, job.cust]);
 
   const [fields, setFields] = useState(() => ({
     asm: job.asm || "", so: job.so || "", cust: job.cust || "",
@@ -150,8 +157,14 @@ export function JobModal({ job, open, people, jobTypes, businessUnits, onClose, 
               <Input value={fields.asm} onChange={(e) => set("asm", e.target.value)} onBlur={() => blur("asm")} className={cx(showError("asm") && "border-[var(--danger)]")} />
             </Field>
             <Field label="Sales Order"><Input value={fields.so} onChange={(e) => set("so", e.target.value)} /></Field>
-            <Field label="Customer" error={showError("cust")}>
-              <Input value={fields.cust} onChange={(e) => set("cust", e.target.value)} onBlur={() => blur("cust")} className={cx(showError("cust") && "border-[var(--danger)]")} />
+            <Field
+              label="Customer"
+              error={showError("cust")}
+              hint={fields.cust && !(customers || []).includes(fields.cust) ? "Not in the catalogue — add it in Customers to reuse it." : undefined}
+            >
+              <Select value={fields.cust} onChange={(e) => set("cust", e.target.value)} onBlur={() => blur("cust")} className={cx(showError("cust") && "border-[var(--danger)]")}>
+                {customerOptions.map((c) => <option key={c} value={c}>{c || "Select customer…"}</option>)}
+              </Select>
             </Field>
             <Field label="Project Owner"><Input value={fields.owner} onChange={(e) => set("owner", e.target.value)} /></Field>
           </Section>

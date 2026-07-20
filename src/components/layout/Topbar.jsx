@@ -8,6 +8,8 @@ import { useJobDrawer } from "../../state/useJobDrawer";
 import { useIsDesktop } from "../../lib/useMediaQuery";
 import { Button } from "../ui/primitives";
 import { ThemeToggle } from "./ThemeToggle";
+import { AccountSheet } from "./AccountSheet";
+import { NotificationsBell } from "./NotificationsBell";
 import { FilterControls, FilterSheet } from "./FilterSheet";
 
 export function Topbar({ onNewJob, onOpenPalette }) {
@@ -41,7 +43,9 @@ export function Topbar({ onNewJob, onOpenPalette }) {
               <Plus size={16} /><span className="hidden sm:inline">Log new job</span><span className="sm:hidden">New</span>
             </Button>
           )}
+          <NotificationsBell />
           <ThemeToggle className="h-9 w-9 lg:hidden" />
+          <AccountSheet />
         </div>
       </div>
 

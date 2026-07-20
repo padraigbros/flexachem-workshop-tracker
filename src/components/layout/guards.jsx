@@ -6,7 +6,7 @@ function CheckingSession() {
   return (
     <div className="grid min-h-[100dvh] place-items-center p-6">
       <div className="card grid max-w-sm gap-3 p-7 text-center">
-        <div className="mx-auto animate-pulse"><BrandMark /></div>
+        <div className="animate-pulse"><BrandMark className="mx-auto" /></div>
         <div className="text-lg font-bold text-[var(--ink)]">Checking session…</div>
         <div className="text-[0.82rem] text-[var(--ink-muted)]">Restoring your workshop login.</div>
       </div>

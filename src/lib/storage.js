@@ -1,10 +1,12 @@
 // localStorage persistence + demo seed data — moved verbatim from App.jsx.
 import {
-  STORAGE_KEY, STAFF_STORAGE_KEY, JOB_TYPE_STORAGE_KEY, USER_KEY,
-  DEFAULT_STAFF, DEFAULT_JOB_TYPES,
+  STORAGE_KEY, STAFF_STORAGE_KEY, JOB_TYPE_STORAGE_KEY, CUSTOMER_STORAGE_KEY, NOTIFICATIONS_STORAGE_KEY, USER_KEY,
+  DEFAULT_STAFF, DEFAULT_JOB_TYPES, DEFAULT_CUSTOMERS,
 } from "./constants";
 import { normalizeJob } from "./jobs";
 import { normalizeStaff, mergeStaffLists, normalizeJobType, mergeJobTypeLists } from "./staff";
+import { normalizeCustomer, mergeCustomerLists } from "./customers";
+import { normalizeNotification } from "./notifications";
 import { offsetDate } from "./dates";
 
 export const SEED_JOBS = [
@@ -70,6 +72,41 @@ export function loadStoredJobTypes() {
 export function saveStoredJobTypes(jobTypes) {
   try {
     localStorage.setItem(JOB_TYPE_STORAGE_KEY, JSON.stringify(jobTypes));
+  } catch {
+    // Ignore storage quota/privacy errors.
+  }
+}
+
+export function loadStoredCustomers() {
+  try {
+    const stored = localStorage.getItem(CUSTOMER_STORAGE_KEY);
+    const base = stored ? JSON.parse(stored).map(normalizeCustomer) : DEFAULT_CUSTOMERS.map(normalizeCustomer);
+    return mergeCustomerLists(DEFAULT_CUSTOMERS.map(normalizeCustomer), base);
+  } catch {
+    return DEFAULT_CUSTOMERS.map(normalizeCustomer);
+  }
+}
+
+export function saveStoredCustomers(customers) {
+  try {
+    localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify(customers));
+  } catch {
+    // Ignore storage quota/privacy errors.
+  }
+}
+
+export function loadStoredNotifications() {
+  try {
+    const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+    return stored ? JSON.parse(stored).map(normalizeNotification) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveStoredNotifications(notifications) {
+  try {
+    localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications));
   } catch {
     // Ignore storage quota/privacy errors.
   }

@@ -29,7 +29,9 @@ code reading. `npx vite build` must pass at the end.
       `normalizeJob` MUST `String()` the id or numeric DB ids fail `job.id === jobId` and the
       drawer/edit silently no-op with real Supabase data (demo ids are strings, so demo hides it).
 - [ ] Create job (topbar button / mobile FAB / palette): Assembly + Customer required inline,
-      job appears on board, "Job created" audit entry exists.
+      job appears on board, "Job created" audit entry exists. Customer is a **Select** driven
+      by the active customer catalogue; a job whose stored `cust` isn't catalogued (legacy /
+      PDF-imported) still shows as the selected option and re-saves unchanged.
 - [ ] Edit job → changed fields produce an audit diff entry.
 - [ ] PDF import: drop an Assembly Order PDF in the JobModal → fields autofill, chips list
       what was found, PDF attaches (pdfjs loads lazily — no pdfjs in initial network log).
@@ -42,6 +44,22 @@ code reading. `npx vite build` must pass at the end.
       drawer and Filters sheet stay **right-anchored** (they don't pass the prop). All three
       remain mobile bottom-sheets with drag-to-dismiss.
 - [ ] Delete (Master List) → ConfirmDialog → job moves to Archive → Restore brings it back.
+- [ ] **@-mentions**: typing `@` in the JobDrawer note composer opens a suggestion list
+      (login accounts in cloud; staff names in demo). Picking inserts `@Full Name`; posting a
+      note with a mention raises a notification (demo: a self-notification so it's testable).
+      Mentioned `@Name` renders highlighted in the posted note.
+
+### Customers
+- [ ] `/customers` (admin) lists the seeded catalogue: add, deactivate/reactivate, batch
+      "Move all" onto another customer (writes an audit diff), remove-if-no-open-jobs.
+      "Uncatalogued customers" lists `cust` strings on jobs not in the catalogue with one-click Add.
+- [ ] Dashboard "Jobs per customer" card ranks by open jobs; tapping a row toggles the shared
+      search filter to that customer name.
+
+### Notifications
+- [ ] Bell in the Topbar (all breakpoints) shows an unread badge; clicking opens the
+      notifications panel; a row click marks it read and opens the job. RLS: a user only ever
+      sees their own notification rows (cloud). Realtime insert raises a toast + live badge.
 
 ### Shell
 - [ ] Ctrl/Cmd+K opens the palette: fuzzy job search opens drawer; Go-to navigates; actions run.
@@ -50,7 +68,8 @@ code reading. `npx vite build` must pass at the end.
       updates `<meta theme-color>`. New visitors default to LIGHT. Signed-in users:
       toggle mirrors to `profiles.theme` via the `set_my_theme` RPC and follows the account.
 - [ ] Auth: staff-role users are redirected from admin routes (`/staff` → `/`); demo mode
-      auto-grants admin; logout returns to `/login`.
+      auto-grants admin; logout returns to `/login`. Desktop signs out from the sidebar card;
+      **mobile** signs out from the Topbar account (avatar) sheet — the only mobile sign-out.
 - [ ] Demo-mode data survives a hard refresh (localStorage).
 
 ### Responsive (resize_window 375×812)
@@ -105,3 +124,15 @@ code reading. `npx vite build` must pass at the end.
 - 2026-07-18: LIGHT is now the default for new visitors (key bumped to flexachem_theme_v3).
   Signed-in users' choice is saved to their account (`profiles.theme` + `set_my_theme` RPC)
   and applied on next login across devices. Dark remains available via the toggle.
+- 2026-07-20: BrandMark now renders the real Flexachem wordmark PNG (was a CSS "F" tile) on a
+  white tile so it stays legible on navy surfaces; the `size` prop was replaced by `className`.
+- 2026-07-20: Customers are now first-class (new `customers` table + `/customers` admin view).
+  JobModal's Customer field changed from a free-text Input to a Select over the catalogue
+  (legacy values preserved as the current option). New "Jobs per customer" dashboard card.
+  Playwright: `job-create.spec` fills Customer via `selectOption`; `/customers` added to ROUTES.
+- 2026-07-20: Added @-mentions in job notes + an in-app notification bell/panel (new
+  `notifications` table, `notify_mentions` security-definer RPC, `NotificationsProvider`).
+  Profiles are now fetched for ALL authenticated users (was admin-only) to power mention
+  suggestions. Mobile gained a Topbar account sheet (first mobile sign-out). Optional Android
+  push via FCM (`push_tokens` table, `src/lib/push.js`, `supabase/functions/notify-push`) —
+  inert until Firebase is configured per BUILD_APK.md; does not affect web/demo.

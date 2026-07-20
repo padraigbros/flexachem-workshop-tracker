@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Plus } from "lucide-react";
 import { useAuthCtx } from "../../state/AuthProvider";
 import { useWorkshop } from "../../state/WorkshopProvider";
+import { useNotifications } from "../../state/NotificationsProvider";
 import { useJobDrawer } from "../../state/useJobDrawer";
 import { uploadJobPdf } from "../../lib/files";
 import { Sidebar } from "./Sidebar";
@@ -12,6 +13,7 @@ import { Topbar } from "./Topbar";
 import { CommandPalette } from "./CommandPalette";
 import { JobDrawer } from "../jobs/JobDrawer";
 import { UpdatesDrawer } from "../jobs/UpdatesDrawer";
+import { NotificationsDrawer } from "../jobs/NotificationsDrawer";
 import { JobModal } from "../jobs/JobModal";
 import { ConfirmDialog } from "../ui/overlay";
 
@@ -24,6 +26,7 @@ export function AppShell() {
   const reduce = useReducedMotion();
   const { user, isAdmin } = useAuthCtx();
   const shop = useWorkshop();
+  const { notifications, markRead, markAllRead } = useNotifications();
   const { jobId, panel, openJob, closeJob, openUpdates, closePanel } = useJobDrawer();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
@@ -107,12 +110,22 @@ export function AppShell() {
         onSelect={(id) => openJob(id)}
       />
 
+      <NotificationsDrawer
+        notifications={notifications}
+        open={panel === "notifications"}
+        onClose={closePanel}
+        onSelect={(id) => openJob(id)}
+        onMarkRead={markRead}
+        onMarkAllRead={markAllRead}
+      />
+
       {editingJob && isAdmin && (
         <JobModal
           job={editingJob}
           open
           people={shop.activePeople}
           jobTypes={shop.activeJobTypes}
+          customers={shop.activeCustomers}
           businessUnits={shop.businessUnits}
           onClose={() => setEditingJob(null)}
           onSave={saveJob}

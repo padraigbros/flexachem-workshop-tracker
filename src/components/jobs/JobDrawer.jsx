@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { X, Paperclip, Download, Pencil, Send } from "lucide-react";
 import { parseNotes, jobCalendarSpan } from "../../lib/jobs";
 import { formatDate, formatDateTime, formatRelative } from "../../lib/dates";
 import { formatBytes, openJobAttachment } from "../../lib/files";
+import { excerptOf, extractMentions } from "../../lib/notifications";
 import { STATUS_ORDER } from "../../lib/constants";
+import { useNotifications } from "../../state/NotificationsProvider";
 import { Drawer, DrawerHeader } from "../ui/overlay";
 import { StatusChip } from "../ui/StatusChip";
-import { Button, IconButton, Select, Textarea, EmptyState, cx } from "../ui/primitives";
+import { Button, IconButton, Select, EmptyState, cx } from "../ui/primitives";
+import { MentionTextarea, renderNoteWithMentions } from "./MentionTextarea";
 
 function Detail({ label, value }) {
   return (
@@ -21,6 +25,8 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
   const [text, setText] = useState("");
   const [nextStatus, setNextStatus] = useState(job?.status);
   const [tab, setTab] = useState("all");
+  const { mentionables, notifyMentions } = useNotifications();
+  const candidateNames = useMemo(() => mentionables.map((c) => c.name), [mentionables]);
 
   useEffect(() => {
     if (job) { setNextStatus(job.status); setText(""); }
@@ -33,8 +39,23 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
   const submit = async (e) => {
     e.preventDefault();
     if (!text.trim()) return;
-    await onAddNote(job.id, text, nextStatus, user.name || user.email);
+    const noteText = text;
+    // Derive mentions from the final text at submit — reliable regardless of how the
+    // @-name got there (picker or typed) and free of React state-timing concerns.
+    const noteMentions = extractMentions(noteText, mentionables);
+    await onAddNote(job.id, noteText, nextStatus, user.name || user.email);
     setText("");
+    // Fire-and-forget: a failed notification must never block posting the note.
+    // notifyMentions routes by mode: cloud sends to the login accounts, demo stores a
+    // local self-notification (ids like "staff:Name" carry no cloud target).
+    if (noteMentions.length) {
+      notifyMentions({
+        userIds: noteMentions.map((m) => m.id),
+        jobId: String(job.id),
+        jobLabel: `${job.asm || "Job"} · ${job.cust || ""}`.trim(),
+        excerpt: excerptOf(noteText),
+      }).catch((err) => toast.error("Note posted, but mentions could not be sent", { description: err?.message || String(err) }));
+    }
   };
 
   const header = (
@@ -54,11 +75,12 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
   const footer = (
     <form onSubmit={submit} className="border-t border-[var(--line)] bg-[var(--surface-card)] p-4" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
       <label className="field-label">Add note / status update</label>
-      <Textarea
+      <MentionTextarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={setText}
+        candidates={mentionables}
         onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(e); }}
-        placeholder="Example: Waiting on customer spec — job stays open until Friday."
+        placeholder="Type @ to notify a teammate. Example: @Darragh waiting on customer spec."
         className="min-h-[76px]"
       />
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -130,7 +152,7 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
                     <strong className="text-[var(--ink-soft)]">{note.by}</strong>
                     <span title={formatDateTime(note.at)}>{formatRelative(note.at)}</span>
                   </div>
-                  <div className="mt-1 text-[0.85rem] text-[var(--ink)]">{note.txt}</div>
+                  <div className="mt-1 text-[0.85rem] text-[var(--ink)]">{renderNoteWithMentions(note.txt, candidateNames)}</div>
                   {note.status && <div className="mt-2"><StatusChip status={note.status} size="sm" /></div>}
                 </div>
               )

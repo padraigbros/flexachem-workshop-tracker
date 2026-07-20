@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  supabase, SUPABASE_TABLE, SUPABASE_STAFF_TABLE, SUPABASE_JOB_TYPES_TABLE, SUPABASE_PROFILES_TABLE,
+  supabase, SUPABASE_TABLE, SUPABASE_STAFF_TABLE, SUPABASE_JOB_TYPES_TABLE, SUPABASE_CUSTOMERS_TABLE, SUPABASE_PROFILES_TABLE,
 } from "../lib/supabase";
 import {
-  AUDIT_LABELS, BUSINESS_UNITS, DEFAULT_STAFF, DEFAULT_JOB_TYPES,
+  AUDIT_LABELS, BUSINESS_UNITS, DEFAULT_STAFF, DEFAULT_JOB_TYPES, DEFAULT_CUSTOMERS,
 } from "../lib/constants";
 import {
   normalizeJob, jobSort, toDbPayload, parseNotes, dueBucket, jobCalendarSpan, riskScore, mergeNotes,
@@ -14,10 +14,13 @@ import {
   normalizeJobType, mergeJobTypeLists, jobTypeKey,
   toStaffDbPayload, toJobTypeDbPayload,
 } from "../lib/staff";
+import {
+  normalizeCustomer, mergeCustomerLists, customerKey, toCustomerDbPayload,
+} from "../lib/customers";
 import { daysUntil, formatDate, parseISODate } from "../lib/dates";
 import {
   loadStoredJobs, saveStoredJobs, loadStoredStaff, saveStoredStaff,
-  loadStoredJobTypes, saveStoredJobTypes,
+  loadStoredJobTypes, saveStoredJobTypes, loadStoredCustomers, saveStoredCustomers,
 } from "../lib/storage";
 import { isNative } from "../lib/native";
 import { useAuthCtx } from "./AuthProvider";
@@ -31,11 +34,13 @@ export function WorkshopProvider({ children }) {
   const [jobs, setJobs] = useState(loadStoredJobs);
   const [staff, setStaff] = useState(loadStoredStaff);
   const [jobTypes, setJobTypes] = useState(loadStoredJobTypes);
+  const [customers, setCustomers] = useState(loadStoredCustomers);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [syncState, setSyncState] = useState(supabase ? "syncing" : "local");
   const [staffSyncState, setStaffSyncState] = useState(supabase ? "syncing" : "local");
   const [jobTypeSyncState, setJobTypeSyncState] = useState(supabase ? "syncing" : "local");
+  const [customerSyncState, setCustomerSyncState] = useState(supabase ? "syncing" : "local");
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   // With RLS enabled, queries only return rows for an authenticated session — wait for login.
@@ -101,17 +106,32 @@ export function WorkshopProvider({ children }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!supabase || !userId || user?.role !== "admin") return;
+      if (!supabase || !userId) return;
+      const { data, error } = await supabase.from(SUPABASE_CUSTOMERS_TABLE).select("*").order("name", { ascending: true });
+      if (cancelled) return;
+      if (error) setCustomerSyncState("error");
+      else if (Array.isArray(data) && data.length) { setCustomers(mergeCustomerLists(DEFAULT_CUSTOMERS, data)); setCustomerSyncState("synced"); }
+      else setCustomerSyncState("synced");
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // All authenticated users load profiles — needed for @-mention suggestions, not just admins.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!supabase || !userId) return;
       const { data, error } = await supabase.from(SUPABASE_PROFILES_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
       if (!error && Array.isArray(data)) setProfiles(data);
     })();
     return () => { cancelled = true; };
-  }, [userId, user?.role]);
+  }, [userId]);
 
   useEffect(() => { saveStoredJobs(jobs); }, [jobs]);
   useEffect(() => { saveStoredStaff(staff); }, [staff]);
   useEffect(() => { saveStoredJobTypes(jobTypes); }, [jobTypes]);
+  useEffect(() => { saveStoredCustomers(customers); }, [customers]);
 
   // Realtime: keep the board live across devices. Incoming rows win for scalar fields
   // only if newer (updated_at); notes are always unioned so no note is dropped.
@@ -296,6 +316,47 @@ export function WorkshopProvider({ children }) {
     }
   }, []);
 
+  const addCustomer = useCallback(async (fields) => {
+    const name = String(fields.name || "").trim();
+    if (!name) return;
+    const existing = customers.find((customer) => customerKey(customer.name) === customerKey(name));
+    const localCustomer = normalizeCustomer({
+      ...(existing || {}),
+      ...fields,
+      id: existing?.id || `customer-${customerKey(name)}-${Date.now().toString(36)}`,
+      name,
+      active: fields.active ?? true,
+      updatedAt: new Date().toISOString(),
+    });
+    setCustomers((prev) => mergeCustomerLists(prev.filter((customer) => customer.id !== localCustomer.id), [localCustomer]));
+    if (supabase) {
+      const { data, error } = await supabase.from(SUPABASE_CUSTOMERS_TABLE).upsert(toCustomerDbPayload(localCustomer)).select("*").single();
+      if (error) setCustomerSyncState("error");
+      else if (data) { setCustomers((prev) => mergeCustomerLists(prev.filter((customer) => customer.id !== localCustomer.id), [data])); setCustomerSyncState("synced"); }
+    }
+  }, [customers]);
+
+  const updateCustomer = useCallback(async (id, patch) => {
+    let nextCustomer = null;
+    setCustomers((prev) => mergeCustomerLists(prev.map((customer) => {
+      if (customer.id !== id) return customer;
+      nextCustomer = normalizeCustomer({ ...customer, ...patch, updatedAt: new Date().toISOString() });
+      return nextCustomer;
+    })));
+    if (supabase && nextCustomer) {
+      const { error } = await supabase.from(SUPABASE_CUSTOMERS_TABLE).update(toCustomerDbPayload(nextCustomer)).eq("id", id);
+      setCustomerSyncState(error ? "error" : "synced");
+    }
+  }, []);
+
+  const deleteCustomer = useCallback(async (id) => {
+    setCustomers((prev) => prev.filter((customer) => customer.id !== id));
+    if (supabase) {
+      const { error } = await supabase.from(SUPABASE_CUSTOMERS_TABLE).delete().eq("id", id);
+      setCustomerSyncState(error ? "error" : "synced");
+    }
+  }, []);
+
   const updateProfile = useCallback(async (id, patch) => {
     setProfiles((prev) => prev.map((profile) => (profile.id === id ? { ...profile, ...patch } : profile)));
     if (supabase) {
@@ -331,6 +392,12 @@ export function WorkshopProvider({ children }) {
     .map((jobType) => jobType.name)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b)), [jobTypes]);
+
+  const activeCustomers = useMemo(() => (customers.length ? customers : DEFAULT_CUSTOMERS)
+    .filter((customer) => customer.active)
+    .map((customer) => customer.name)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b)), [customers]);
 
   const filteredJobs = useMemo(() => {
     const term = filters.search.trim().toLowerCase();
@@ -409,24 +476,32 @@ export function WorkshopProvider({ children }) {
     for (const job of affected) await auditPatch(job.id, { type: toType }, "Batch job-type move");
   }, [jobs, auditPatch]);
 
+  const reassignCustomerJobs = useCallback(async (fromName, toName) => {
+    if (!toName || toName === fromName) return;
+    const affected = jobs.filter((job) => job.cust === fromName);
+    for (const job of affected) await auditPatch(job.id, { cust: toName }, "Batch customer move");
+  }, [jobs, auditPatch]);
+
   const value = useMemo(() => ({
-    jobs, staff, jobTypes, profiles, loading,
-    syncState, staffSyncState, jobTypeSyncState,
-    activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes,
+    jobs, staff, jobTypes, customers, profiles, loading,
+    syncState, staffSyncState, jobTypeSyncState, customerSyncState,
+    activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes, activeCustomers,
     filters, filteredJobs, metrics, updates, auditBy,
     updateFilter, resetFilters, refetch: fetchJobs,
     patchJob, addNote, addJob, createJob,
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
+    addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs,
     updateProfile, auditPatch,
     getJob: (id) => jobs.find((j) => j.id === id) || null,
   }), [
-    jobs, staff, jobTypes, profiles, loading, syncState, staffSyncState, jobTypeSyncState,
-    activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes,
+    jobs, staff, jobTypes, customers, profiles, loading, syncState, staffSyncState, jobTypeSyncState, customerSyncState,
+    activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes, activeCustomers,
     filters, filteredJobs, metrics, updates, auditBy,
     updateFilter, resetFilters, fetchJobs, patchJob, addNote, addJob, createJob,
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs,
-    addJobType, updateJobType, deleteJobType, reassignJobTypeJobs, updateProfile, auditPatch,
+    addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
+    addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs, updateProfile, auditPatch,
   ]);
 
   return <WorkshopContext.Provider value={value}>{children}</WorkshopContext.Provider>;

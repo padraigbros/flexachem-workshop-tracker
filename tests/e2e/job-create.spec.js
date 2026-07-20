@@ -21,7 +21,7 @@ test("create job: validation, appears on board, audit entry", async ({ page }) =
   // Fill the minimum and save. Anchored regexes — the inline "Required" text appends to
   // the label's accessible name, and a bare /assembly/i also matches the Job Type select.
   await dialog.getByLabel(/^Assembly \/ Tag/).fill("TEST-9001");
-  await dialog.getByLabel(/^Customer/).fill("Playwright Customer");
+  await dialog.getByLabel(/^Customer/).selectOption("Eli Lilly");
   await page.getByRole("button", { name: /create job/i }).click();
   await expect(dialog).toBeHidden();
 
