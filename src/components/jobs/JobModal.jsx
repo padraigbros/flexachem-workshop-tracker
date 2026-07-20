@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { UploadCloud, FileText, X, Check } from "lucide-react";
 import { JOB_TYPES, PRIORITIES, STATUS_ORDER } from "../../lib/constants";
 import { offsetDate, daysBetween } from "../../lib/dates";
+import { customerKey } from "../../lib/customers";
 import { importAssemblyOrderPdf } from "../../lib/pdfImport";
 import { Modal, ModalHeader } from "../ui/overlay";
 import { Button, Field, Input, Select, Textarea, cx } from "../ui/primitives";
@@ -16,19 +17,12 @@ function Section({ title, children, cols = 2 }) {
   );
 }
 
-export function JobModal({ job, open, people, jobTypes, customers, businessUnits, onClose, onSave }) {
+export function JobModal({ job, open, people, jobTypes, customers, businessUnits, onClose, onSave, onAddCustomer }) {
   const assignablePeople = useMemo(() => {
     const set = new Set(people);
     if (job.alloc) set.add(job.alloc);
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [people, job.alloc]);
-
-  // Placeholder first, then the active catalogue, plus the job's current customer so a
-  // legacy / PDF-imported value that isn't catalogued still shows and re-saves unchanged.
-  const customerOptions = useMemo(() => {
-    const catalogue = (customers?.length ? customers : []).slice().sort((a, b) => a.localeCompare(b));
-    return ["", ...Array.from(new Set([...catalogue, job.cust].filter(Boolean)))];
-  }, [customers, job.cust]);
 
   const [fields, setFields] = useState(() => ({
     asm: job.asm || "", so: job.so || "", cust: job.cust || "",
@@ -50,11 +44,31 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
   const [dragActive, setDragActive] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  // Placeholder first, the active catalogue, plus the currently-selected value so any
+  // customer (legacy, PDF-imported, or freshly created) always has a matching <option>.
+  const customerOptions = useMemo(() => {
+    const catalogue = (customers?.length ? customers : []).slice().sort((a, b) => a.localeCompare(b));
+    return ["", ...Array.from(new Set([...catalogue, fields.cust].filter(Boolean)))];
+  }, [customers, fields.cust]);
+
   const set = (key, value) => {
     touchedRef.current.add(key);
     setFields((prev) => ({ ...prev, [key]: value }));
   };
   const blur = (key) => setTouched((prev) => ({ ...prev, [key]: true }));
+
+  // Map a customer name parsed from a PDF onto the catalogue: return the canonical
+  // catalogue name if one matches (case/punctuation-insensitive), otherwise create a new
+  // customer and return its name so the dropdown selects it.
+  const resolveCustomer = (raw) => {
+    const name = String(raw || "").trim();
+    if (!name) return "";
+    const match = (customers || []).find((c) => customerKey(c) === customerKey(name));
+    if (match) return match;
+    onAddCustomer?.({ name, active: true });
+    toast.info(`Added new customer "${name}" to the catalogue`);
+    return name;
+  };
 
   const errors = {
     asm: !fields.asm.trim() ? "Required" : null,
@@ -72,14 +86,20 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
     try {
       const { fields: parsed, found } = await importAssemblyOrderPdf(file, { staffNames: people, jobTypes });
       const allowDefaults = !job.id;
+      // Resolve the parsed customer to a catalogue entry (or create one) up front, so the
+      // dropdown gets a real selectable value instead of an unmatched free-text string.
+      const resolvedCust = (parsed.cust && !touchedRef.current.has("cust") && !fields.cust)
+        ? resolveCustomer(parsed.cust)
+        : null;
       setFields((prev) => {
         const next = { ...prev };
         Object.entries(parsed).forEach(([key, value]) => {
-          if (!value || touchedRef.current.has(key)) return;
+          if (key === "cust" || !value || touchedRef.current.has(key)) return;
           const isEmpty = next[key] === "" || next[key] == null;
           const hasDefault = ["type", "start", "due"].includes(key);
           if (isEmpty || (allowDefaults && hasDefault)) next[key] = value;
         });
+        if (resolvedCust && (next.cust === "" || next.cust == null)) next.cust = resolvedCust;
         return next;
       });
       setPdfFile(file);

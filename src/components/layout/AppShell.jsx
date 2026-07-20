@@ -129,6 +129,7 @@ export function AppShell() {
           businessUnits={shop.businessUnits}
           onClose={() => setEditingJob(null)}
           onSave={saveJob}
+          onAddCustomer={shop.addCustomer}
         />
       )}
 
