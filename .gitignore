@@ -11,6 +11,11 @@ android/local.properties
 android/keystore.properties
 *.keystore
 *.jks
+# Machine-specific: PKCS12 truststore built from the local Windows root store (see
+# tools/regen-truststore.ps1). Contains this machine's CA certs — never commit it.
+android/proxy-cacerts.p12
+# Firebase config for push (per-project secret; keep out of source control).
+android/app/google-services.json
 
 # Playwright
 test-results/

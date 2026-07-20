@@ -1,5 +1,14 @@
 apply plugin: 'com.android.application'
 
+// Release signing is driven by android/keystore.properties (git-ignored). When it's
+// absent (debug builds, CI, a fresh clone) the release config is simply left unsigned so
+// nothing breaks — see BUILD_APK.md § "Release (signed) APK / AAB" to create the keystore.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
 android {
     namespace = "com.flexachem.workshop"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +25,24 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Only sign when a keystore is configured; otherwise produce an unsigned release.
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     // Name the packaged APK "Flexachem.apk" instead of the default "app-debug.apk".
