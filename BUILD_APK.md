@@ -114,6 +114,13 @@ supabase functions deploy notify-push
 - Add an HTTP header `X-Webhook-Secret` with the same value you set for
   `PUSH_WEBHOOK_SECRET`.
 
+**7. Enable push in the build** (do this LAST — only after steps 1–3)
+- Add `VITE_ENABLE_PUSH=true` to `.env.local`, then rebuild (`npm run apk`).
+- Push registration is **off by default**. This is deliberate: calling `register()`
+  before `google-services.json` exists throws a native Firebase exception that crashes the
+  app right after the user taps "Allow" on the notification prompt. Do NOT set this flag
+  until `google-services.json` and the google-services Gradle plugin (step 3) are in place.
+
 Once deployed, an @-mention inserts a `notifications` row → the webhook fires →
 `notify-push` looks up the tagged user's device tokens in `push_tokens` and sends the FCM
 message. Tapping the notification deep-links to the job (`/?job=<id>`). Android 13+ shows a
