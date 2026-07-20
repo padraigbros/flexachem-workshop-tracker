@@ -2,7 +2,7 @@
 // Logic moved verbatim from App.jsx.
 import { JOB_TYPES, STATUS_ORDER, BUSINESS_UNITS } from "./constants";
 import { SUPABASE_START_COLUMN, SUPABASE_DUE_COLUMN } from "./supabase";
-import { asISO, daysBetween, daysUntil, offsetDate, parseISODate } from "./dates";
+import { asISO, daysBetween, daysUntil, offsetDate, parseISODate, parseInstant, weekStart } from "./dates";
 
 export function parseNotes(notes) {
   if (!notes) return [];
@@ -54,9 +54,28 @@ export function normalizeJob(row) {
     notes,
     attachment: row.attachment || null,
     deleted: Boolean(row.deleted),
+    completedAt: row.completedAt ?? row.completed_at ?? null,
+    archived: Boolean(row.archived),
     createdAt: row.createdAt || row.created_at || new Date().toISOString(),
     updatedAt: row.updatedAt || row.updated_at || notes[0]?.at || new Date().toISOString(),
   };
+}
+
+// When a completed job "left" the board: its completion instant. Falls back to the
+// last-updated time for jobs completed before completed_at existed (no backfill needed).
+export function completedInstant(job) {
+  if (!job || job.status !== "Complete") return null;
+  return parseInstant(job.completedAt) || parseInstant(job.updatedAt);
+}
+
+// A completed job is archived (off the board, kept in the Master List) when it was
+// closed out manually, or completed in a week that has already ended (before the most
+// recent Saturday-midnight boundary). Non-complete jobs are never archived.
+export function isArchived(job, now = new Date()) {
+  if (!job || job.status !== "Complete") return false;
+  if (job.archived) return true;
+  const completed = completedInstant(job);
+  return !completed || completed.getTime() < weekStart(now).getTime();
 }
 
 export function riskScore(job) {
@@ -89,6 +108,8 @@ export function toDbPayload(job) {
     notes: job.notes,
     attachment: job.attachment || null,
     deleted: Boolean(job.deleted),
+    completed_at: job.completedAt || null,
+    archived: Boolean(job.archived),
     updated_at: new Date().toISOString(),
   };
   payload[SUPABASE_START_COLUMN] = job.start || null;

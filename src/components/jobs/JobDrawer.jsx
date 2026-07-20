@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { X, Paperclip, Download, Pencil, Send } from "lucide-react";
-import { parseNotes, jobCalendarSpan } from "../../lib/jobs";
+import { X, Paperclip, Download, Pencil, Send, Archive, ArchiveRestore } from "lucide-react";
+import { parseNotes, jobCalendarSpan, isArchived } from "../../lib/jobs";
 import { formatDate, formatDateTime, formatRelative } from "../../lib/dates";
 import { formatBytes, openJobAttachment } from "../../lib/files";
 import { excerptOf, extractMentions } from "../../lib/notifications";
@@ -21,7 +21,7 @@ function Detail({ label, value }) {
   );
 }
 
-export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNote }) {
+export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNote, onArchive }) {
   const [text, setText] = useState("");
   const [nextStatus, setNextStatus] = useState(job?.status);
   const [tab, setTab] = useState("all");
@@ -132,6 +132,11 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
                   </button>
                 ))}
               </div>
+              {job.status === "Complete" && onArchive && (
+                job.archived
+                  ? <Button size="sm" variant="ghost" onClick={() => onArchive(false)} className="gap-1"><ArchiveRestore size={13} />Unarchive</Button>
+                  : !isArchived(job) && <Button size="sm" variant="ghost" onClick={() => onArchive(true)} className="gap-1"><Archive size={13} />Archive</Button>
+              )}
               {onEdit && <Button size="sm" variant="ghost" onClick={onEdit} className="gap-1"><Pencil size={13} />Edit</Button>}
             </div>
           </div>

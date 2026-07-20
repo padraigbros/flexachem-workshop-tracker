@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { ArrowUpRight, Pencil, Trash2, Paperclip, ArrowUpDown, RotateCcw } from "lucide-react";
+import { ArrowUpRight, Pencil, Trash2, Paperclip, ArrowUpDown, RotateCcw, Archive, ArchiveRestore } from "lucide-react";
 import { useWorkshop } from "../state/WorkshopProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { useShell } from "../components/layout/AppShell";
-import { parseNotes, jobCalendarSpan } from "../lib/jobs";
+import { parseNotes, jobCalendarSpan, isArchived } from "../lib/jobs";
 import { formatDate, formatDateTime, parseISODate } from "../lib/dates";
 import { Card, PanelHeader, Button, IconButton, EmptyState, cx } from "../components/ui/primitives";
 import { Avatar } from "../components/ui/dataviz";
@@ -20,11 +20,12 @@ const COLUMNS = [
 ];
 
 export function MasterListView() {
-  const { filteredJobs: jobs, deletedJobs, auditPatch } = useWorkshop();
+  const { filteredJobs: jobs, deletedJobs, auditPatch, setJobArchived } = useWorkshop();
   const { openJob } = useJobDrawer();
   const shell = useShell();
   const [sort, setSort] = useState({ key: null, dir: 1 });
   const [showArchive, setShowArchive] = useState(false);
+  const now = new Date();
 
   const sorted = useMemo(() => {
     if (!sort.key) return jobs;
@@ -75,12 +76,23 @@ export function MasterListView() {
                     <td className="px-4 py-3 align-top"><span className="inline-flex items-center gap-1.5 text-[0.82rem] text-[var(--ink-soft)]"><Avatar name={job.alloc} size={20} />{job.alloc}</span></td>
                     <td className="px-4 py-3 align-top text-[0.82rem] text-[var(--ink-soft)] tnum">{formatDate(job.start)} → {formatDate(job.due)}<div className="text-[0.7rem] text-[var(--ink-muted)]">{jobCalendarSpan(job)} days</div></td>
                     <td className="px-4 py-3 align-top text-[0.82rem] text-[var(--ink-soft)] tnum">{job.hrs}h<div className="text-[0.7rem] text-[var(--ink-muted)]">Act {job.actualHrs || 0}h</div></td>
-                    <td className="px-4 py-3 align-top"><StatusChip status={job.status} size="sm" /><StatusSwitch className="mt-2" value={job.status} onChange={(status) => auditPatch(job.id, { status })} /></td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <StatusChip status={job.status} size="sm" />
+                        {isArchived(job, now) && <span className="rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Archived</span>}
+                      </div>
+                      <StatusSwitch className="mt-2" value={job.status} onChange={(status) => auditPatch(job.id, { status })} />
+                    </td>
                     <td className="px-4 py-3 align-top">{notes[0] ? <div className="max-w-[200px]"><strong className="text-[0.78rem] text-[var(--ink)]">{notes[0].by}</strong><div className="truncate text-[0.72rem] text-[var(--ink-muted)]">{notes[0].txt}</div></div> : <span className="text-[0.72rem] text-[var(--ink-muted)]">No notes</span>}</td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-1">
                         <IconButton label="Open" className="h-8 w-8" onClick={() => openJob(job.id)}><ArrowUpRight size={14} /></IconButton>
                         <IconButton label="Edit" className="h-8 w-8" onClick={() => shell.editJob(job)}><Pencil size={14} /></IconButton>
+                        {job.status === "Complete" && (
+                          job.archived
+                            ? <IconButton label="Return to board" className="h-8 w-8" onClick={() => setJobArchived(job.id, false)}><ArchiveRestore size={14} /></IconButton>
+                            : !isArchived(job, now) && <IconButton label="Archive (close out)" className="h-8 w-8" onClick={() => setJobArchived(job.id, true)}><Archive size={14} /></IconButton>
+                        )}
                         <IconButton label="Delete" className="h-8 w-8" onClick={() => shell.askDelete(job)}><Trash2 size={14} /></IconButton>
                       </div>
                     </td>

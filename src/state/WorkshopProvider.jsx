@@ -183,7 +183,15 @@ export function WorkshopProvider({ children }) {
     let nextJob = null;
     setJobs((prev) => prev.map((job) => {
       if (job.id !== id) return job;
-      nextJob = normalizeJob({ ...job, ...patch, updatedAt });
+      const merged = { ...job, ...patch, updatedAt };
+      // Stamp/clear the completion time as the job crosses into or out of "Complete".
+      // Re-completing (status unchanged) leaves completed_at stable so the weekly window
+      // measures from the original completion, and reopening returns it to the board.
+      if ("status" in patch && patch.status !== job.status) {
+        if (patch.status === "Complete") { merged.completedAt = updatedAt; merged.archived = false; }
+        else { merged.completedAt = null; merged.archived = false; }
+      }
+      nextJob = normalizeJob(merged);
       return nextJob;
     }));
     if (supabase && nextJob) {
@@ -482,6 +490,11 @@ export function WorkshopProvider({ children }) {
     for (const job of affected) await auditPatch(job.id, { cust: toName }, "Batch customer move");
   }, [jobs, auditPatch]);
 
+  // Manual close-out: archive a completed job off the board early (or return it).
+  const setJobArchived = useCallback((id, archived) => (
+    auditPatch(id, { archived }, archived ? "Job archived" : "Job returned to board")
+  ), [auditPatch]);
+
   const value = useMemo(() => ({
     jobs, staff, jobTypes, customers, profiles, loading,
     syncState, staffSyncState, jobTypeSyncState, customerSyncState,
@@ -492,7 +505,7 @@ export function WorkshopProvider({ children }) {
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
     addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs,
-    updateProfile, auditPatch,
+    setJobArchived, updateProfile, auditPatch,
     getJob: (id) => jobs.find((j) => j.id === id) || null,
   }), [
     jobs, staff, jobTypes, customers, profiles, loading, syncState, staffSyncState, jobTypeSyncState, customerSyncState,
@@ -501,7 +514,7 @@ export function WorkshopProvider({ children }) {
     updateFilter, resetFilters, fetchJobs, patchJob, addNote, addJob, createJob,
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
-    addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs, updateProfile, auditPatch,
+    addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs, setJobArchived, updateProfile, auditPatch,
   ]);
 
   return <WorkshopContext.Provider value={value}>{children}</WorkshopContext.Provider>;

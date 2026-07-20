@@ -20,6 +20,7 @@ export const AUDIT_LABELS = {
   owner: "Owner",
   details: "Details",
   deleted: null,
+  archived: null,
 };
 
 export const STATUS_ORDER = ["Not Started", "In Progress", "Input Needed", "Complete"];

@@ -8,6 +8,7 @@ import { useAuthCtx } from "../state/AuthProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { useShell } from "../components/layout/AppShell";
 import { STATUS_ORDER, STATUS_META } from "../lib/constants";
+import { isArchived } from "../lib/jobs";
 import { impact } from "../lib/native";
 import { markDragEnd } from "../lib/dnd";
 import { JobCard } from "../components/jobs/JobCard";
@@ -27,7 +28,7 @@ function collisionDetection(args) {
   return within.length ? within : closestCorners(args);
 }
 
-function Column({ status, jobs, onSelect, onEdit, onStatus }) {
+function Column({ status, jobs, note, onSelect, onEdit, onStatus }) {
   const { setNodeRef, isOver } = useDroppable({ id: `status:${status}`, data: { type: "column", status } });
   const meta = STATUS_META[status];
   return (
@@ -51,6 +52,7 @@ function Column({ status, jobs, onSelect, onEdit, onStatus }) {
         </div>
         <span className="code rounded-full bg-[var(--surface-card)] px-2 py-0.5 text-[0.7rem] font-bold text-[var(--ink-muted)]">{jobs.length}</span>
       </div>
+      {note && <p className="mb-2 px-1 text-[0.66rem] leading-snug text-[var(--ink-muted)]">{note}</p>}
       <SortableContext items={jobs.map((j) => j.id)} strategy={verticalListSortingStrategy}>
         <div className="grid content-start gap-2.5">
           {jobs.length
@@ -91,7 +93,15 @@ export function ScheduleView() {
   };
 
   const activeJob = activeId ? getJob(activeId) : null;
-  const columns = STATUS_ORDER.map((status) => ({ status, jobs: filteredJobs.filter((j) => j.status === status) }));
+  // The Complete column is a weekly window: only jobs completed since the last Saturday
+  // midnight. Older completed jobs (and manually-archived ones) auto-drop to the Master List.
+  const now = new Date();
+  const columns = STATUS_ORDER.map((status) => {
+    const inColumn = filteredJobs.filter((j) => j.status === status);
+    return status === "Complete"
+      ? { status, jobs: inColumn.filter((j) => !isArchived(j, now)), note: "This week only — older completed jobs auto-archive to the Master List." }
+      : { status, jobs: inColumn, note: null };
+  });
 
   return (
     <DndContext
@@ -113,6 +123,7 @@ export function ScheduleView() {
             <Column
               status={col.status}
               jobs={col.jobs}
+              note={col.note}
               onSelect={openJob}
               onEdit={isAdmin ? shell.editJob : null}
               onStatus={auditPatch}

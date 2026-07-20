@@ -64,6 +64,13 @@ $$;
 -- ---------------------------------------------------------------------------
 alter table public.jobs add column if not exists attachment jsonb;
 alter table public.jobs add column if not exists deleted boolean not null default false;
+-- Completion time + manual close-out flag. The board's Complete column shows only jobs
+-- completed in the current week (since the last Saturday midnight); older completed jobs
+-- and manually-archived ones drop off the board but stay in the Master List forever.
+-- Jobs completed before completed_at existed keep null here and the app falls back to
+-- updated_at, so no backfill is required.
+alter table public.jobs add column if not exists completed_at timestamptz;
+alter table public.jobs add column if not exists archived boolean not null default false;
 
 -- ---------------------------------------------------------------------------
 -- 2a. Auto-generate jobs.id on insert.

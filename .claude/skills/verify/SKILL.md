@@ -44,6 +44,13 @@ code reading. `npx vite build` must pass at the end.
       drawer and Filters sheet stay **right-anchored** (they don't pass the prop). All three
       remain mobile bottom-sheets with drag-to-dismiss.
 - [ ] Delete (Master List) → ConfirmDialog → job moves to Archive → Restore brings it back.
+- [ ] **Complete column is a weekly window**: it shows only jobs completed since the most
+      recent Saturday-midnight (Sunday 00:00) boundary; older completed jobs auto-drop off the
+      board. Completing a job stamps `completed_at`; legacy completes fall back to `updated_at`.
+      A completed job's drawer has an **Archive** (close-out) action that removes it from the
+      board early; archived/older-completed jobs still appear in the **Master List** in
+      perpetuity (non-deleted) with an "Archived" badge, and can be returned to the board.
+      Archived ≠ deleted (deleted = the separate trash/restore Archive card).
 - [ ] **@-mentions**: typing `@` in the JobDrawer note composer opens a suggestion list
       (login accounts in cloud; staff names in demo). Picking inserts `@Full Name`; posting a
       note with a mention raises a notification (demo: a self-notification so it's testable).

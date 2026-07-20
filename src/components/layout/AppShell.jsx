@@ -101,6 +101,7 @@ export function AppShell() {
         onEdit={isAdmin && selectedJob ? () => editJob(selectedJob) : null}
         onStatus={shop.auditPatch}
         onAddNote={shop.addNote}
+        onArchive={selectedJob ? (archived) => shop.setJobArchived(selectedJob.id, archived) : null}
       />
 
       <UpdatesDrawer

@@ -60,12 +60,22 @@ export function formatDate(value, options = {}) {
 }
 
 // Full ISO timestamps carry a real time-of-day; date-only values stay noon-anchored via parseISODate.
-function parseInstant(value) {
+export function parseInstant(value) {
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value.trim())) {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
   return parseISODate(value);
+}
+
+// Start of the current workshop week: the most recent Sunday at 00:00 local time.
+// The week runs Sunday 00:00 → Saturday 24:00 (Saturday midnight), so a job completed
+// in a finished week falls before this boundary and auto-archives off the board.
+export function weekStart(now = new Date()) {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay()); // getDay(): 0 = Sunday
+  return d;
 }
 
 export function formatDateTime(value) {
