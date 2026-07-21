@@ -53,7 +53,9 @@ export function WorkshopProvider({ children }) {
     const { data, error } = await supabase.from(SUPABASE_TABLE).select("*");
     if (error) {
       setSyncState("error");
-    } else if (Array.isArray(data) && data.length) {
+    } else if (Array.isArray(data)) {
+      // Reflect the DB exactly, including a genuinely empty result — otherwise a
+      // wiped table would leave stale cached jobs showing indefinitely.
       setJobs(data.map(normalizeJob).sort(jobSort));
       setSyncState("synced");
     } else {
@@ -70,7 +72,8 @@ export function WorkshopProvider({ children }) {
       const { data, error } = await supabase.from(SUPABASE_TABLE).select("*");
       if (cancelled) return;
       if (error) setSyncState("error");
-      else if (Array.isArray(data) && data.length) { setJobs(data.map(normalizeJob).sort(jobSort)); setSyncState("synced"); }
+      // Reflect the DB exactly, including empty (see fetchJobs above for why).
+      else if (Array.isArray(data)) { setJobs(data.map(normalizeJob).sort(jobSort)); setSyncState("synced"); }
       else setSyncState("synced");
       setLoading(false);
     })();
@@ -84,7 +87,10 @@ export function WorkshopProvider({ children }) {
       const { data, error } = await supabase.from(SUPABASE_STAFF_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
       if (error) setStaffSyncState("error");
-      else if (Array.isArray(data) && data.length) { setStaff(mergeStaffLists(DEFAULT_STAFF, data)); setStaffSyncState("synced"); }
+      // Reflect the DB exactly, including empty (see fetchJobs above for why). Note:
+      // mergeStaffLists always folds in DEFAULT_STAFF as a UI fallback, by design —
+      // an intentionally empty table still merges those defaults in.
+      else if (Array.isArray(data)) { setStaff(mergeStaffLists(DEFAULT_STAFF, data)); setStaffSyncState("synced"); }
       else setStaffSyncState("synced");
     })();
     return () => { cancelled = true; };
@@ -97,7 +103,8 @@ export function WorkshopProvider({ children }) {
       const { data, error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
       if (error) setJobTypeSyncState("error");
-      else if (Array.isArray(data) && data.length) { setJobTypes(mergeJobTypeLists(DEFAULT_JOB_TYPES, data)); setJobTypeSyncState("synced"); }
+      // Reflect the DB exactly, including empty (see fetchJobs above for why).
+      else if (Array.isArray(data)) { setJobTypes(mergeJobTypeLists(DEFAULT_JOB_TYPES, data)); setJobTypeSyncState("synced"); }
       else setJobTypeSyncState("synced");
     })();
     return () => { cancelled = true; };
@@ -110,7 +117,8 @@ export function WorkshopProvider({ children }) {
       const { data, error } = await supabase.from(SUPABASE_CUSTOMERS_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
       if (error) setCustomerSyncState("error");
-      else if (Array.isArray(data) && data.length) { setCustomers(mergeCustomerLists(DEFAULT_CUSTOMERS, data)); setCustomerSyncState("synced"); }
+      // Reflect the DB exactly, including empty (see fetchJobs above for why).
+      else if (Array.isArray(data)) { setCustomers(mergeCustomerLists(DEFAULT_CUSTOMERS, data)); setCustomerSyncState("synced"); }
       else setCustomerSyncState("synced");
     })();
     return () => { cancelled = true; };
