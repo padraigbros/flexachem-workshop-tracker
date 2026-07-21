@@ -4,7 +4,7 @@ import {
   supabase, SUPABASE_TABLE, SUPABASE_STAFF_TABLE, SUPABASE_JOB_TYPES_TABLE, SUPABASE_CUSTOMERS_TABLE, SUPABASE_PROFILES_TABLE,
 } from "../lib/supabase";
 import {
-  AUDIT_LABELS, BUSINESS_UNITS, DEFAULT_STAFF, DEFAULT_JOB_TYPES, DEFAULT_CUSTOMERS,
+  AUDIT_LABELS, BUSINESS_UNITS, DEFAULT_JOB_TYPES, DEFAULT_CUSTOMERS,
 } from "../lib/constants";
 import {
   normalizeJob, jobSort, toDbPayload, parseNotes, dueBucket, jobCalendarSpan, riskScore, mergeNotes,
@@ -87,10 +87,11 @@ export function WorkshopProvider({ children }) {
       const { data, error } = await supabase.from(SUPABASE_STAFF_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
       if (error) setStaffSyncState("error");
-      // Reflect the DB exactly, including empty (see fetchJobs above for why). Note:
-      // mergeStaffLists always folds in DEFAULT_STAFF as a UI fallback, by design —
-      // an intentionally empty table still merges those defaults in.
-      else if (Array.isArray(data)) { setStaff(mergeStaffLists(DEFAULT_STAFF, data)); setStaffSyncState("synced"); }
+      // Reflect the DB exactly, including empty (see fetchJobs above for why).
+      // Deliberately does NOT fold in DEFAULT_STAFF here — once cloud data is
+      // fetched, an empty table means genuinely no staff, not "show the demo six."
+      // (DEFAULT_STAFF is still used for the local/demo-mode seed in storage.js.)
+      else if (Array.isArray(data)) { setStaff(mergeStaffLists(data)); setStaffSyncState("synced"); }
       else setStaffSyncState("synced");
     })();
     return () => { cancelled = true; };
@@ -391,7 +392,9 @@ export function WorkshopProvider({ children }) {
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [activeJobs, staff]);
 
-  const activePeople = useMemo(() => (staff.length ? staff : DEFAULT_STAFF)
+  // No DEFAULT_STAFF fallback here — cloud staff state (see fetch effect above) is
+  // now the source of truth, including when it's genuinely empty.
+  const activePeople = useMemo(() => staff
     .filter((member) => member.active)
     .map((member) => member.name)
     .filter(Boolean)

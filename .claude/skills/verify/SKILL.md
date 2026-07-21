@@ -77,6 +77,12 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Auth: staff-role users are redirected from admin routes (`/staff` → `/`); demo mode
       auto-grants admin; logout returns to `/login`. Desktop signs out from the sidebar card;
       **mobile** signs out from the Topbar account (avatar) sheet — the only mobile sign-out.
+- [ ] **Cloud staff list reflects the DB exactly, including empty.** `DEFAULT_STAFF`
+      (Darragh/Shauna/Cathal/Ross/Dave/Colin) is used ONLY as the local/demo-mode seed
+      (`storage.js`) — the cloud fetch/`activePeople` in `WorkshopProvider.jsx` no longer
+      folds it in, so an empty `staff` table means a genuinely empty technician dropdown/
+      Staff view in production, not the demo six reappearing. Demo mode (no Supabase) is
+      unaffected and still seeds those six by design.
 - [ ] Demo-mode data survives a hard refresh (localStorage).
 
 ### Responsive (resize_window 375×812)
