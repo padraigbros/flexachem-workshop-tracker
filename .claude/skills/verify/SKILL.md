@@ -68,6 +68,21 @@ code reading. `npx vite build` must pass at the end.
       notifications panel; a row click marks it read and opens the job. RLS: a user only ever
       sees their own notification rows (cloud). Realtime insert raises a toast + live badge.
 
+### Resilience to stale deploys
+- [ ] **Chunk-load crash self-heals.** Router is wrapped in a pathless root route with
+      `errorElement: <RouteErrorBoundary />` (`router.jsx`) so ANY route error — including
+      every lazy-loaded admin view — is caught, not just react-router's raw default crash
+      screen. On a "Failed to fetch dynamically imported module" error (stale tab open
+      across a Vercel deploy, old chunk hash 404s), it auto-reloads ONCE (guarded by a
+      sessionStorage flag so it can't loop) and shows a branded "Something went wrong"
+      fallback with Reload/Dashboard buttons if that doesn't fix it. Verified by deleting a
+      built chunk file and confirming: (1) first load reloads automatically, (2) second
+      failure shows the fallback instead of looping, (3) once the chunk is available again,
+      a normal load fully recovers.
+- [ ] PWA update flow: `injectRegister: false` in `vite.config.js` + manual `registerSW()`
+      in `main.jsx` — a new deploy's ready service worker shows a "Refresh" toast
+      (`onNeedRefresh`) instead of updating silently with no way to nudge an idle open tab.
+
 ### Shell
 - [ ] Ctrl/Cmd+K opens the palette: fuzzy job search opens drawer; Go-to navigates; actions run.
 - [ ] Filters (staff/unit/status/horizon + search) narrow every view; Reset appears when active.

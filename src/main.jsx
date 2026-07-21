@@ -1,7 +1,8 @@
 import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
+import { registerSW } from "virtual:pwa-register";
 import { router } from "./router";
 import { ThemeProvider, useTheme } from "./state/ThemeProvider";
 import { AuthProvider } from "./state/AuthProvider";
@@ -32,6 +33,21 @@ function ThemedToaster() {
   const { resolved } = useTheme();
   return <Toaster richColors position="top-right" theme={resolved} closeButton />;
 }
+
+// Nudge an idle open tab to refresh once a new deploy's service worker is ready — the
+// main defence against the "Failed to fetch dynamically imported module" crash, which
+// happens when a tab left open across a deploy tries to lazy-load a chunk the CDN no
+// longer serves. RouteErrorBoundary is the safety net if this is missed or dismissed.
+const updateApp = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    toast("A new version of the app is available", {
+      description: "Refresh to get the latest features and fixes.",
+      duration: Infinity,
+      action: { label: "Refresh", onClick: () => updateApp() },
+    });
+  },
+});
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

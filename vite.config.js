@@ -9,6 +9,10 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Register manually in main.jsx (registerSW from 'virtual:pwa-register') so we can
+      // show an "update available" toast via onNeedRefresh, instead of the default
+      // auto-injected script which updates silently with no way to nudge an idle tab.
+      injectRegister: false,
       includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon-180x180.png'],
       manifest: {
         name: 'Flexachem Workshop',

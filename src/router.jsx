@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { RequireAuth, RequireAdmin, RedirectIfAuthed } from "./components/layout/guards";
+import { RouteErrorBoundary } from "./components/layout/RouteErrorBoundary";
 import { LoginView } from "./views/LoginView";
 import { DashboardView } from "./views/DashboardView";
 import { ScheduleView } from "./views/ScheduleView";
@@ -28,20 +29,28 @@ function admin(node) {
 }
 
 export const router = createBrowserRouter([
-  { path: "/login", element: <RedirectIfAuthed><LoginView /></RedirectIfAuthed> },
   {
-    path: "/",
-    element: <RequireAuth><AppShell /></RequireAuth>,
+    // Pathless wrapper so a single errorElement catches errors from every route below,
+    // including a lazy-loaded chunk 404 after a new deploy (see RouteErrorBoundary).
+    id: "root",
+    errorElement: <RouteErrorBoundary />,
     children: [
-      { index: true, element: <DashboardView /> },
-      { path: "schedule", element: <ScheduleView /> },
-      { path: "staff", element: admin(<StaffView />) },
-      { path: "job-types", element: admin(<JobTypesView />) },
-      { path: "customers", element: admin(<CustomersView />) },
-      { path: "business-units", element: admin(<BusinessUnitsView />) },
-      { path: "due-dates", element: admin(<DueDatesView />) },
-      { path: "master-list", element: admin(<MasterListView />) },
+      { path: "/login", element: <RedirectIfAuthed><LoginView /></RedirectIfAuthed> },
+      {
+        path: "/",
+        element: <RequireAuth><AppShell /></RequireAuth>,
+        children: [
+          { index: true, element: <DashboardView /> },
+          { path: "schedule", element: <ScheduleView /> },
+          { path: "staff", element: admin(<StaffView />) },
+          { path: "job-types", element: admin(<JobTypesView />) },
+          { path: "customers", element: admin(<CustomersView />) },
+          { path: "business-units", element: admin(<BusinessUnitsView />) },
+          { path: "due-dates", element: admin(<DueDatesView />) },
+          { path: "master-list", element: admin(<MasterListView />) },
+        ],
+      },
+      { path: "*", element: <Navigate to="/" replace /> },
     ],
   },
-  { path: "*", element: <Navigate to="/" replace /> },
 ]);
