@@ -4,25 +4,32 @@ import { seedUser } from "./helpers.js";
 test.beforeEach(async ({ page }) => { await seedUser(page); });
 
 test("@-mention in a note raises a notification the bell surfaces", async ({ page }) => {
+  // No staff are seeded by default (demo or cloud) — add a technician ourselves so the
+  // mention picker has someone to suggest, rather than relying on any built-in name.
+  await page.goto("/staff");
+  await page.getByPlaceholder(/new staff member name/i).fill("Priya Shah");
+  await page.getByRole("button", { name: /add staff/i }).click();
+  await expect(page.locator("strong", { hasText: "Priya Shah" }).first()).toBeVisible();
+
   await page.goto("/schedule?job=demo-1");
   const drawer = page.locator("aside").filter({ hasText: "A007563" });
   await expect(drawer).toBeVisible();
 
-  // Type an @-mention; the suggestion list should offer a demo staff member.
+  // Type an @-mention; the suggestion list should offer the staff member just added.
   const composer = drawer.getByPlaceholder(/type @ to notify/i);
   await composer.click();
-  await composer.pressSequentially("Reviewing with @Da");
+  await composer.pressSequentially("Reviewing with @Pri");
 
-  const option = page.getByRole("option", { name: /darragh/i });
+  const option = page.getByRole("option", { name: /priya/i });
   await expect(option).toBeVisible();
   await option.click();
 
-  await expect(composer).toHaveValue(/@Darragh/);
+  await expect(composer).toHaveValue(/@Priya Shah/);
 
   await drawer.getByRole("button", { name: /post update/i }).click();
 
   // Note posts with the mention text.
-  await expect(drawer.getByText(/Reviewing with @Darragh/)).toBeVisible();
+  await expect(drawer.getByText(/Reviewing with @Priya Shah/)).toBeVisible();
 
   // Bell shows an unread badge.
   const bell = page.getByRole("button", { name: /notifications, 1 unread/i });

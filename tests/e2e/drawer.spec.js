@@ -10,7 +10,7 @@ test("posting a note shows a present-time timestamp, never 'in N hours'", async 
   const drawer = page.locator("aside").filter({ hasText: "A007563" });
   await expect(drawer).toBeVisible();
 
-  await drawer.getByPlaceholder(/Waiting on customer spec/i).fill("Timestamp regression note");
+  await drawer.getByPlaceholder(/type @ to notify/i).fill("Timestamp regression note");
   await drawer.getByRole("button", { name: /Post update/i }).click();
 
   await expect(drawer.getByText("Timestamp regression note")).toBeVisible();

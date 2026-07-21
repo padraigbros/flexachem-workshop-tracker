@@ -4,7 +4,6 @@ import { useWorkshop } from "../state/WorkshopProvider";
 import { useAuthCtx } from "../state/AuthProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { supabase } from "../lib/supabase";
-import { PEOPLE } from "../lib/constants";
 import { makeGroups } from "../lib/jobs";
 import { Card, PanelHeader, Button, Input, Select, EmptyState, Chip, cx } from "../components/ui/primitives";
 import { Avatar, Meter } from "../components/ui/dataviz";
@@ -77,7 +76,7 @@ export function StaffView() {
                   </Select>
                   <Button size="sm" variant="ghost" disabled={!openJobs.length} onClick={() => reassignStaffJobs(member.name, target)}>Move jobs</Button>
                   <Button size="sm" variant="secondary" onClick={() => updateStaffMember(member.id, { active: !member.active })}>{member.active ? "Deactivate" : "Reactivate"}</Button>
-                  {!PEOPLE.includes(member.name) && <Button size="sm" variant="danger" onClick={() => setConfirmDelete(member)} className="gap-1"><Trash2 size={13} />Remove</Button>}
+                  <Button size="sm" variant="danger" onClick={() => setConfirmDelete(member)} className="gap-1"><Trash2 size={13} />Remove</Button>
                 </div>
               </div>
             );

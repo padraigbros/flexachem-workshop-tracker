@@ -80,7 +80,7 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
         onChange={setText}
         candidates={mentionables}
         onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(e); }}
-        placeholder="Type @ to notify a teammate. Example: @Darragh waiting on customer spec."
+        placeholder="Type @ to notify a teammate about this job."
         className="min-h-[76px]"
       />
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">

@@ -40,7 +40,9 @@ export const DEFAULT_JOB_TYPES = JOB_TYPES.map((name) => ({
   active: true,
 }));
 
-export const PEOPLE = ["Darragh", "Shauna", "Cathal", "Ross", "Dave", "Colin"];
+// Intentionally empty — no staff are seeded by default (demo or cloud). Add real
+// technicians via the Staff view.
+export const PEOPLE = [];
 export const DEFAULT_STAFF = PEOPLE.map((name) => ({
   id: `staff-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
   name,

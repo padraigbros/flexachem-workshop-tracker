@@ -114,7 +114,7 @@ export function LoginView() {
                   </button>
                 ))}
               </div>
-              {mode === "signup" && <Field label="Your name"><Input ref={firstFieldRef} value={name} onChange={(e) => setName(e.target.value)} required disabled={busy} placeholder="e.g. Darragh" /></Field>}
+              {mode === "signup" && <Field label="Your name"><Input ref={firstFieldRef} value={name} onChange={(e) => setName(e.target.value)} required disabled={busy} placeholder="Full name" /></Field>}
               <Field label="Email"><Input ref={mode === "signup" ? undefined : firstFieldRef} type="email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={busy} autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} /></Field>
               <Field label="Password">
                 <div className="relative">
