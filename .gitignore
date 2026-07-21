@@ -16,8 +16,15 @@ android/keystore.properties
 android/proxy-cacerts.p12
 # Firebase config for push (per-project secret; keep out of source control).
 android/app/google-services.json
+# Firebase Admin SDK service-account key (server-side push secret) — never commit.
+*firebase-adminsdk*.json
+service-account*.json
 
 # Playwright
 test-results/
 playwright-report/
 .playwright/
+
+# Supabase CLI local working state (project ref/pooler host cache, not secrets, but
+# transient local metadata that doesn't belong in version control).
+supabase/.temp/
