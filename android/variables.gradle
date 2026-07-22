@@ -1,10 +1,11 @@
 ext {
     minSdkVersion = 24
     compileSdkVersion = 36
-    // targetSdk 34 opts out of Android 15+ forced edge-to-edge, so StatusBar
-    // overlaysWebView:false actually insets the WebView below the system bars.
-    // (App is sideloaded, so Play Store's targetSdk-35 requirement doesn't apply.)
-    targetSdkVersion = 34
+    // targetSdk 35 (Play Store requirement). Android 15+ forces edge-to-edge at this
+    // target, but Capacitor 8's Bridge/StatusBar plugin already handles system-bar
+    // insets via WindowInsets, so StatusBar overlaysWebView:false (capacitor.config.json)
+    // still insets the WebView correctly below the status bar.
+    targetSdkVersion = 35
     androidxActivityVersion = '1.11.0'
     androidxAppCompatVersion = '1.7.1'
     androidxCoordinatorLayoutVersion = '1.3.0'

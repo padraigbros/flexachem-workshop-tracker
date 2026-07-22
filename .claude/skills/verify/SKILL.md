@@ -135,6 +135,13 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-22: Android **targetSdk 34 → 35** (Play Store requirement), superseding the
+  2026-07-18 entry below. Android 15+ forces edge-to-edge at this target; the app relies on
+  Capacitor 8's Bridge/StatusBar handling system-bar insets via WindowInsets, with
+  `StatusBar.overlaysWebView: false` still set in `capacitor.config.json`.
+  **UNVERIFIED ON DEVICE** — build an APK and confirm the status bar does not overlap the
+  Topbar before shipping. If it does, revert to 34 (the app is sideloaded, so the Play Store
+  requirement only binds if/when it is actually submitted).
 - 2026-07-22: Business units renamed Pharma/Industrial/Engineering/Mining/Other →
   **Pumps/Valves/Mechanical Seals/Process/Venting**. `normalizeJob`'s fallback for a job with
   no unit is now `BUSINESS_UNITS[0]` (was the hardcoded "Other", which resurrected a phantom
