@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { UploadCloud, FileText, X, Check } from "lucide-react";
-import { JOB_TYPES, PRIORITIES, STATUS_ORDER } from "../../lib/constants";
+import { JOB_TYPES, PRIORITIES, STATUS_ORDER, HOURS_STEP } from "../../lib/constants";
+import { roundHours } from "../../lib/jobs";
 import { offsetDate, daysBetween } from "../../lib/dates";
 import { customerKey } from "../../lib/customers";
 import { importAssemblyOrderPdf } from "../../lib/pdfImport";
@@ -116,7 +117,8 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
     e.preventDefault();
     setSubmitted(true);
     if (errors.asm || errors.cust) return;
-    onSave({ ...fields, hrs: Number(fields.hrs) || 0, actualHrs: Number(fields.actualHrs) || 0, attachment, attachmentFile: pdfFile });
+    // Snapped to the half hour on save so a typed 1.25 can't slip past the stepper.
+    onSave({ ...fields, hrs: roundHours(fields.hrs), actualHrs: roundHours(fields.actualHrs), attachment, attachmentFile: pdfFile });
   };
 
   const plannedSpan = Math.max(1, daysBetween(fields.start, fields.due) + 1);
@@ -211,8 +213,8 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
           <Section title="Schedule">
             <Field label="Start / To be done"><Input type="date" value={fields.start} onChange={(e) => set("start", e.target.value)} /></Field>
             <Field label="Due date"><Input type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} /></Field>
-            <Field label="Estimated hours"><Input type="number" step="0.25" min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
-            <Field label="Actual hours"><Input type="number" step="0.25" min="0" value={fields.actualHrs} onChange={(e) => set("actualHrs", e.target.value)} /></Field>
+            <Field label="Estimated hours"><Input type="number" step={HOURS_STEP} min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
+            <Field label="Actual hours"><Input type="number" step={HOURS_STEP} min="0" value={fields.actualHrs} onChange={(e) => set("actualHrs", e.target.value)} /></Field>
             <Field label="Status"><Select value={fields.status} onChange={(e) => set("status", e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</Select></Field>
             <Field label="Planned span">
               <div className="flex min-h-[42px] items-center rounded-[var(--radius-field)] border border-[var(--line)] bg-[var(--surface-sunken)] px-3 text-[0.8rem] font-semibold text-[var(--ink)]">

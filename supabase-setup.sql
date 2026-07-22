@@ -71,6 +71,10 @@ alter table public.jobs add column if not exists deleted boolean not null defaul
 -- updated_at, so no backfill is required.
 alter table public.jobs add column if not exists completed_at timestamptz;
 alter table public.jobs add column if not exists archived boolean not null default false;
+-- Hours actually worked, captured by the status-change prompt and compared against the
+-- estimate (jobs.hrs) on the dashboard. 0 means "not logged yet" and is excluded from the
+-- estimate-vs-actual figures rather than counted as a job finished in no time.
+alter table public.jobs add column if not exists actual_hours numeric not null default 0;
 
 -- ---------------------------------------------------------------------------
 -- 2a. Auto-generate jobs.id on insert.

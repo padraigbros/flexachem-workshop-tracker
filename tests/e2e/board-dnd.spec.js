@@ -14,6 +14,10 @@ test.describe("board interactions", () => {
     await expect(card).toBeVisible();
 
     await card.getByRole("button", { name: "Blocked" }).click();
+    // Status moves now route through the actual-hours prompt; skipping applies the move
+    // untouched. See actual-hours.spec.js for the prompt's own behaviour.
+    await page.getByRole("button", { name: "Skip" }).click();
+    await expect(page.getByRole("heading", { name: "Log actual hours" })).toBeHidden();
 
     await card.click(); // open the drawer
     const drawer = page.locator("aside").filter({ hasText: "A007563" });

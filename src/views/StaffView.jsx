@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { UserPlus, Trash2, Star } from "lucide-react";
 import { useWorkshop } from "../state/WorkshopProvider";
+import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useAuthCtx } from "../state/AuthProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { supabase } from "../lib/supabase";
@@ -16,8 +17,9 @@ const WEEK_CAPACITY = 40;
 export function StaffView() {
   const {
     filteredJobs: jobs, activeJobs, staff, people, activePeople, profiles,
-    auditPatch, addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs, updateProfile,
+    addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs, updateProfile,
   } = useWorkshop();
+  const { requestStatusChange } = useStatusPrompt();
   const { user } = useAuthCtx();
   const { openJob } = useJobDrawer();
 
@@ -149,7 +151,7 @@ export function StaffView() {
                 ))}
               </div>
               <div className="grid gap-2">
-                {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={openJob} onStatus={auditPatch} />) : <EmptyState text="No filtered work allocated." />}
+                {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={openJob} onStatus={requestStatusChange} />) : <EmptyState text="No filtered work allocated." />}
               </div>
             </Card>
           );

@@ -1,14 +1,14 @@
 import { useMemo } from "react";
-import { AlertTriangle, Clock, CheckCircle2, Layers, Plus, Flame } from "lucide-react";
+import { AlertTriangle, Clock, CheckCircle2, Layers, Plus, Flame, Scale } from "lucide-react";
 import { useWorkshop, riskScore } from "../state/WorkshopProvider";
 import { useAuthCtx } from "../state/AuthProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { useShell } from "../components/layout/AppShell";
 import { STATUS_ORDER } from "../lib/constants";
-import { parseNotes } from "../lib/jobs";
+import { parseNotes, hoursVariance, completedInstant } from "../lib/jobs";
 import { parseISODate } from "../lib/dates";
 import { Card, PanelHeader, Button, EmptyState, cx } from "../components/ui/primitives";
-import { CountUp, Sparkline, ProgressRing, Meter } from "../components/ui/dataviz";
+import { CountUp, Sparkline, ProgressRing, Meter, EstimateActualBars } from "../components/ui/dataviz";
 import { statusTone } from "../components/ui/StatusChip";
 import { RiskItem, UpdatesList } from "../components/jobs/JobBits";
 
@@ -77,6 +77,33 @@ export function DashboardView() {
   }, [jobs]);
   const maxCustomerOpen = Math.max(1, ...customerRanking.map((c) => c.open));
 
+  // Estimate-vs-actual on completed jobs only, most recently finished first. Jobs closed
+  // without a logged actual are excluded rather than counted as zero, which would make
+  // the workshop look permanently under its estimates.
+  const accuracy = useMemo(() => {
+    const rows = jobs
+      .filter((job) => job.status === "Complete")
+      .map((job) => ({ job, variance: hoursVariance(job) }))
+      .filter((entry) => entry.variance)
+      .sort((a, b) => (completedInstant(b.job)?.getTime() || 0) - (completedInstant(a.job)?.getTime() || 0))
+      .slice(0, 6);
+    const totalEst = rows.reduce((sum, r) => sum + r.variance.est, 0);
+    const totalActual = rows.reduce((sum, r) => sum + r.variance.actual, 0);
+    return {
+      rows: rows.map(({ job, variance }) => ({
+        id: job.id,
+        label: `${job.asm || job.cust || "Job"}${job.cust && job.asm ? ` · ${job.cust}` : ""}`,
+        est: variance.est,
+        actual: variance.actual,
+        delta: variance.delta,
+        onSelect: () => openJob(job.id),
+      })),
+      totalEst,
+      totalActual,
+      pct: totalEst ? Math.round(((totalActual - totalEst) / totalEst) * 100) : 0,
+    };
+  }, [jobs, openJob]);
+
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_0.9fr]">
       <div className="space-y-5">
@@ -98,6 +125,27 @@ export function DashboardView() {
               ? risky.map((job) => <RiskItem key={job.id} job={job} onSelect={openJob} onStatus={auditPatch} />)
               : <EmptyState icon={Flame} text="No risk items in the current filter." />}
           </div>
+        </Card>
+
+        <Card>
+          <PanelHeader
+            title="Estimate vs actual"
+            subtitle="Completed jobs with hours logged. Tap a job to open it."
+            action={accuracy.rows.length > 0 && (
+              <div className="text-right">
+                <div className="code text-lg font-extrabold leading-none tnum" style={{ color: accuracy.pct > 0 ? "var(--danger)" : "var(--status-done)" }}>
+                  {accuracy.pct > 0 ? "+" : ""}{accuracy.pct}%
+                </div>
+                {/* Not uppercased — it would render the hour suffix as "28.5H". */}
+                <div className="mt-0.5 text-[0.66rem] font-semibold text-[var(--ink-muted)] tnum">
+                  {accuracy.totalActual}h actual / {accuracy.totalEst}h est
+                </div>
+              </div>
+            )}
+          />
+          {accuracy.rows.length
+            ? <EstimateActualBars rows={accuracy.rows} />
+            : <EmptyState icon={Scale} text="No completed jobs with actual hours logged yet. Hours are captured when a job's status changes." />}
         </Card>
       </div>
 

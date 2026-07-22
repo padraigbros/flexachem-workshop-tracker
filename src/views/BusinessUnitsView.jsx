@@ -1,11 +1,13 @@
 import { useWorkshop } from "../state/WorkshopProvider";
+import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { makeGroups } from "../lib/jobs";
 import { EmptyState } from "../components/ui/primitives";
 import { MiniJob } from "../components/jobs/JobBits";
 
 export function BusinessUnitsView() {
-  const { filteredJobs: jobs, businessUnits, auditPatch } = useWorkshop();
+  const { filteredJobs: jobs, businessUnits } = useWorkshop();
+  const { requestStatusChange } = useStatusPrompt();
   const { openJob } = useJobDrawer();
   const groups = makeGroups(jobs, (j) => j.bus);
 
@@ -28,7 +30,7 @@ export function BusinessUnitsView() {
               </div>
             </div>
             <div className="grid gap-2 p-3.5">
-              {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={openJob} onStatus={auditPatch} />) : <EmptyState text="No filtered jobs for this business unit." />}
+              {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={openJob} onStatus={requestStatusChange} />) : <EmptyState text="No filtered jobs for this business unit." />}
             </div>
           </section>
         );

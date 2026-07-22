@@ -23,6 +23,12 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Every card has an **Active/Blocked/Done status control** (tap to change status —
       the reliable path on touch; drag is a bonus). Sensors: MouseSensor (8px) +
       TouchSensor (250ms long-press). Do NOT use PointerSensor — it hijacks touch scroll.
+- [ ] **Every status move raises the "Log actual hours" prompt** (drag-drop, the card
+      status control, the Master List switch, and the drawer). Moving to **Complete is
+      gated**: no Skip button and Save stays disabled until hours > 0. Other transitions
+      offer **Skip** (applies the move, logs nothing). **Cancel abandons the move entirely** —
+      the job must NOT land in the new column. Saving writes ONE audit entry combining both
+      ("Status: In Progress → Complete · Actual hours: 0 → 24").
 
 ### Jobs
 - [ ] `?job=<id>` deep link opens the drawer; browser Back closes it. IDs are strings —
@@ -35,7 +41,9 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Edit job → changed fields produce an audit diff entry.
 - [ ] PDF import: drop an Assembly Order PDF in the JobModal → fields autofill, chips list
       what was found, PDF attaches (pdfjs loads lazily — no pdfjs in initial network log).
-- [ ] Post a note from the drawer (with status change) → appears in feed + Recent updates.
+- [ ] Post a note from the drawer (with status change) → the note posts against the CURRENT
+      status, then the status move runs through the actual-hours prompt (two entries: the note,
+      then the audit diff). Cancelling the prompt keeps the note. Appears in feed + Recent updates.
       Its timestamp reads a present/past relative time ("just now", "4 minutes ago") — NEVER
       "in N hours". Note `at` is a full ISO instant; `formatRelative`/`formatDateTime` parse it
       via `parseInstant` (NOT `parseISODate`, which noon-anchors date-only start/due fields).
@@ -127,6 +135,21 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-22: Business units renamed Pharma/Industrial/Engineering/Mining/Other →
+  **Pumps/Valves/Mechanical Seals/Process/Venting**. `normalizeJob`'s fallback for a job with
+  no unit is now `BUSINESS_UNITS[0]` (was the hardcoded "Other", which resurrected a phantom
+  column on the Business Units board after the rename).
+- 2026-07-22: **Status changes now prompt for actual hours.** New `StatusPromptProvider`
+  (`src/state/StatusPromptProvider.jsx`) is the single funnel — every call site uses
+  `requestStatusChange(id, patch)` instead of `auditPatch` directly, so the prompt cannot be
+  bypassed on web or native. Completing REQUIRES hours; other moves may be skipped; cancel
+  abandons the move. The drawer's note composer posts the note first, then routes its status
+  change through the same funnel (so a note + status change is now two entries, not one).
+- 2026-07-22: Estimated/actual hours step in **0.5h (30 min)** increments, not 0.25.
+  `HOURS_STEP`/`QUICK_HOURS` in `constants.js`; `roundHours()` in `jobs.js` snaps typed values
+  on save so a hand-typed 1.25 can't persist. New "Estimate vs actual" dashboard card
+  (paired est/act bars per completed job + total variance %); jobs completed with 0 actual
+  hours are EXCLUDED from it rather than counted as zero.
 - 2026-07-18: Card drag restored to whole-card surface (was briefly grip-handle-only);
   click opens drawer (was double-click in the pre-overhaul app).
 - 2026-07-18: Board collision detection closestCorners → pointerWithin (drops land under

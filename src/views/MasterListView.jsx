@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, Pencil, Trash2, Paperclip, ArrowUpDown, RotateCcw, Archive, ArchiveRestore } from "lucide-react";
 import { useWorkshop } from "../state/WorkshopProvider";
+import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { useShell } from "../components/layout/AppShell";
 import { parseNotes, jobCalendarSpan, isArchived } from "../lib/jobs";
@@ -21,6 +22,7 @@ const COLUMNS = [
 
 export function MasterListView() {
   const { filteredJobs: jobs, deletedJobs, auditPatch, setJobArchived } = useWorkshop();
+  const { requestStatusChange } = useStatusPrompt();
   const { openJob } = useJobDrawer();
   const shell = useShell();
   const [sort, setSort] = useState({ key: null, dir: 1 });
@@ -81,7 +83,7 @@ export function MasterListView() {
                         <StatusChip status={job.status} size="sm" />
                         {isArchived(job, now) && <span className="rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Archived</span>}
                       </div>
-                      <StatusSwitch className="mt-2" value={job.status} onChange={(status) => auditPatch(job.id, { status })} />
+                      <StatusSwitch className="mt-2" value={job.status} onChange={(status) => requestStatusChange(job.id, { status })} />
                     </td>
                     <td className="px-4 py-3 align-top">{notes[0] ? <div className="max-w-[200px]"><strong className="text-[0.78rem] text-[var(--ink)]">{notes[0].by}</strong><div className="truncate text-[0.72rem] text-[var(--ink-muted)]">{notes[0].txt}</div></div> : <span className="text-[0.72rem] text-[var(--ink-muted)]">No notes</span>}</td>
                     <td className="px-4 py-3 align-top">

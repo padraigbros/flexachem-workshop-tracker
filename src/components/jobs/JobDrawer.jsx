@@ -43,7 +43,11 @@ export function JobDrawer({ job, user, open, onClose, onEdit, onStatus, onAddNot
     // Derive mentions from the final text at submit — reliable regardless of how the
     // @-name got there (picker or typed) and free of React state-timing concerns.
     const noteMentions = extractMentions(noteText, mentionables);
-    await onAddNote(job.id, noteText, nextStatus, user.name || user.email);
+    // Post the note against the CURRENT status, then run any status move through
+    // onStatus so it hits the actual-hours prompt like every other transition does.
+    // Posting first means a cancelled prompt still keeps the note.
+    await onAddNote(job.id, noteText, job.status, user.name || user.email);
+    if (nextStatus && nextStatus !== job.status) await onStatus(job.id, { status: nextStatus });
     setText("");
     // Fire-and-forget: a failed notification must never block posting the note.
     // notifyMentions routes by mode: cloud sends to the login accounts, demo stores a

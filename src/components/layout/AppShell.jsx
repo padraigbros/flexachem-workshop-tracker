@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Plus } from "lucide-react";
 import { useAuthCtx } from "../../state/AuthProvider";
 import { useWorkshop } from "../../state/WorkshopProvider";
+import { useStatusPrompt } from "../../state/StatusPromptProvider";
 import { useNotifications } from "../../state/NotificationsProvider";
 import { useJobDrawer } from "../../state/useJobDrawer";
 import { uploadJobPdf } from "../../lib/files";
@@ -26,6 +27,7 @@ export function AppShell() {
   const reduce = useReducedMotion();
   const { user, isAdmin } = useAuthCtx();
   const shop = useWorkshop();
+  const { requestStatusChange } = useStatusPrompt();
   const { notifications, markRead, markAllRead } = useNotifications();
   const { jobId, panel, openJob, closeJob, openUpdates, closePanel } = useJobDrawer();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -99,7 +101,7 @@ export function AppShell() {
         user={user}
         onClose={closeJob}
         onEdit={isAdmin && selectedJob ? () => editJob(selectedJob) : null}
-        onStatus={shop.auditPatch}
+        onStatus={requestStatusChange}
         onAddNote={shop.addNote}
         onArchive={selectedJob ? (archived) => shop.setJobArchived(selectedJob.id, archived) : null}
       />

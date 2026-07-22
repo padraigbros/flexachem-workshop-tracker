@@ -1,4 +1,5 @@
 import { useWorkshop } from "../state/WorkshopProvider";
+import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { makeGroups, dueBucket } from "../lib/jobs";
 import { parseISODate } from "../lib/dates";
@@ -7,7 +8,8 @@ import { Chip, EmptyState, cx } from "../components/ui/primitives";
 import { TimelineJob } from "../components/jobs/JobBits";
 
 export function DueDatesView() {
-  const { filteredJobs: jobs, auditPatch } = useWorkshop();
+  const { filteredJobs: jobs } = useWorkshop();
+  const { requestStatusChange } = useStatusPrompt();
   const { openJob } = useJobDrawer();
   const groups = makeGroups(jobs, dueBucket);
 
@@ -23,7 +25,7 @@ export function DueDatesView() {
               <Chip>{items.length} job{items.length === 1 ? "" : "s"}</Chip>
             </div>
             <div className="grid gap-2.5">
-              {items.length ? items.map((job) => <TimelineJob key={job.id} job={job} onSelect={openJob} onStatus={auditPatch} />) : <EmptyState text="No jobs in this due-date bucket." />}
+              {items.length ? items.map((job) => <TimelineJob key={job.id} job={job} onSelect={openJob} onStatus={requestStatusChange} />) : <EmptyState text="No jobs in this due-date bucket." />}
             </div>
           </section>
         );

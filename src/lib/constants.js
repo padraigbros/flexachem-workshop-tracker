@@ -64,6 +64,11 @@ export const DEFAULT_CUSTOMERS = CUSTOMERS.map((name) => ({
 }));
 
 export const BUSINESS_UNITS = ["Pumps", "Valves", "Mechanical Seals", "Process", "Venting"];
+
+// Estimated and actual hours are booked in half-hour (30 minute) increments — the
+// smallest unit the workshop actually records against a job.
+export const HOURS_STEP = 0.5;
+export const QUICK_HOURS = [0.5, 1, 2, 4];
 export const PRIORITIES = ["Low", "Normal", "High", "Critical"];
 
 export const DUE_BUCKETS = ["Overdue", "Due today", "Next 7 days", "Next 30 days", "Later", "No due date", "Complete"];

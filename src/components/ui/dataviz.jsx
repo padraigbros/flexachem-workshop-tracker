@@ -78,6 +78,49 @@ export function Meter({ value, max = 100, className, tone = "var(--color-brand-5
   );
 }
 
+// Paired estimate/actual bars on a shared scale — one row per job. Over-estimate rows
+// are tinted with the danger token so the gap reads at a glance without a legend lookup.
+export function EstimateActualBars({ rows, max }) {
+  const scale = Math.max(1, max || Math.max(1, ...rows.flatMap((r) => [r.est, r.actual])));
+  return (
+    <div className="space-y-3">
+      {rows.map((row) => {
+        const over = row.actual > row.est;
+        const actualTone = over ? "var(--danger)" : "var(--status-done)";
+        return (
+          <button
+            key={row.id}
+            type="button"
+            onClick={row.onSelect}
+            className="block w-full rounded-xl px-2 py-1 text-left transition-colors hover:bg-[var(--surface-sunken)]"
+          >
+            <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[0.72rem]">
+              <span className="truncate font-semibold text-[var(--ink-soft)]">{row.label}</span>
+              <span className="shrink-0 pl-2 font-bold tnum" style={{ color: actualTone }}>
+                {row.actual}h / {row.est}h{row.delta !== 0 && ` · ${row.delta > 0 ? "+" : ""}${row.delta}h`}
+              </span>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="w-9 shrink-0 text-[0.6rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Est</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--surface-sunken)]">
+                  <div className="h-full rounded-full" style={{ width: `${Math.max(2, (row.est / scale) * 100)}%`, background: "var(--ink-muted)" }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-9 shrink-0 text-[0.6rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Act</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--surface-sunken)]">
+                  <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.max(2, (row.actual / scale) * 100)}%`, background: actualTone }} />
+                </div>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // Compact inline-SVG sparkline (area + line). No chart library.
 export function Sparkline({ data, width = 132, height = 38, stroke = "var(--color-brand-500)" }) {
   if (!data || data.length < 2) return <div style={{ height }} />;

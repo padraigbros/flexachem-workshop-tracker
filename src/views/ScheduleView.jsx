@@ -4,6 +4,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useWorkshop } from "../state/WorkshopProvider";
+import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useAuthCtx } from "../state/AuthProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { useShell } from "../components/layout/AppShell";
@@ -65,7 +66,8 @@ function Column({ status, jobs, note, onSelect, onEdit, onStatus }) {
 }
 
 export function ScheduleView() {
-  const { filteredJobs, auditPatch, getJob } = useWorkshop();
+  const { filteredJobs, getJob } = useWorkshop();
+  const { requestStatusChange } = useStatusPrompt();
   const { isAdmin } = useAuthCtx();
   const { openJob } = useJobDrawer();
   const shell = useShell();
@@ -88,7 +90,7 @@ export function ScheduleView() {
     const targetStatus = over.data?.current?.status || (String(over.id).startsWith("status:") ? String(over.id).replace("status:", "") : null);
     if (targetStatus && targetStatus !== job.status) {
       impact("medium");
-      await auditPatch(job.id, { status: targetStatus });
+      await requestStatusChange(job.id, { status: targetStatus });
     }
   };
 
@@ -126,7 +128,7 @@ export function ScheduleView() {
               note={col.note}
               onSelect={openJob}
               onEdit={isAdmin ? shell.editJob : null}
-              onStatus={auditPatch}
+              onStatus={requestStatusChange}
             />
           </div>
         ))}

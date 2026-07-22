@@ -1,6 +1,6 @@
 // Job domain helpers — normalization, sorting, risk scoring, grouping.
 // Logic moved verbatim from App.jsx.
-import { JOB_TYPES, STATUS_ORDER, BUSINESS_UNITS } from "./constants";
+import { JOB_TYPES, STATUS_ORDER, BUSINESS_UNITS, HOURS_STEP } from "./constants";
 import { SUPABASE_START_COLUMN, SUPABASE_DUE_COLUMN } from "./supabase";
 import { asISO, daysBetween, daysUntil, offsetDate, parseISODate, parseInstant, weekStart } from "./dates";
 
@@ -48,7 +48,9 @@ export function normalizeJob(row) {
     hrs: bookedHours,
     actualHrs: Number(row.actualHrs ?? row.actual_hours ?? 0) || 0,
     status: normalizeStatus(row.status),
-    bus: row.bus || row.business_unit || row.business_stream || "Other",
+    // Falls back to the first configured unit — a hardcoded name here would resurrect a
+    // phantom column on the Business Units board after the catalogue is renamed.
+    bus: row.bus || row.business_unit || row.business_stream || BUSINESS_UNITS[0],
     priority: row.priority || "Normal",
     details: row.details || row.description || row.work_order || "",
     notes,
@@ -76,6 +78,23 @@ export function isArchived(job, now = new Date()) {
   if (job.archived) return true;
   const completed = completedInstant(job);
   return !completed || completed.getTime() < weekStart(now).getTime();
+}
+
+// Snap an hours value to the nearest half hour. Typed input and quick-add buttons both
+// go through this so no job ends up holding an un-bookable quarter-hour figure.
+export function roundHours(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n / HOURS_STEP) * HOURS_STEP;
+}
+
+// Estimate-vs-actual for a single job. Returns null unless both sides carry a real
+// number, so jobs closed without a logged actual never skew the dashboard averages.
+export function hoursVariance(job) {
+  const est = Number(job?.hrs) || 0;
+  const actual = Number(job?.actualHrs) || 0;
+  if (!est || !actual) return null;
+  return { est, actual, delta: actual - est, pct: Math.round(((actual - est) / est) * 100) };
 }
 
 export function riskScore(job) {

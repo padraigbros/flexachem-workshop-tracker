@@ -7,6 +7,7 @@ import { router } from "./router";
 import { ThemeProvider, useTheme } from "./state/ThemeProvider";
 import { AuthProvider } from "./state/AuthProvider";
 import { WorkshopProvider } from "./state/WorkshopProvider";
+import { StatusPromptProvider } from "./state/StatusPromptProvider";
 import { NotificationsProvider } from "./state/NotificationsProvider";
 import { RecoveryModal } from "./components/jobs/RecoveryModal";
 import { initNativeShell, setStatusBarTheme } from "./lib/native";
@@ -54,12 +55,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <ThemeProvider>
       <AuthProvider>
         <WorkshopProvider>
-          <NotificationsProvider>
-            <NativeBridge />
-            <RouterProvider router={router} />
-            <RecoveryModal />
-            <ThemedToaster />
-          </NotificationsProvider>
+          <StatusPromptProvider>
+            <NotificationsProvider>
+              <NativeBridge />
+              <RouterProvider router={router} />
+              <RecoveryModal />
+              <ThemedToaster />
+            </NotificationsProvider>
+          </StatusPromptProvider>
         </WorkshopProvider>
       </AuthProvider>
     </ThemeProvider>
