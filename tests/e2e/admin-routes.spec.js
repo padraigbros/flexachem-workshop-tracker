@@ -8,7 +8,7 @@ const ADMIN_ROUTES = [
   ["/staff", /staff management/i],
   ["/job-types", /job type management/i],
   ["/customers", /customer management/i],
-  ["/business-units", "Pharma"],
+  ["/business-units", "Pumps"],
   ["/due-dates", "Overdue"],
   ["/master-list", /master job register/i],
 ];
