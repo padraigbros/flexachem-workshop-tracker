@@ -63,7 +63,7 @@ export const DEFAULT_CUSTOMERS = CUSTOMERS.map((name) => ({
   active: true,
 }));
 
-export const BUSINESS_UNITS = ["Pharma", "Industrial", "Engineering", "Mining", "Other"];
+export const BUSINESS_UNITS = ["Pumps", "Valves", "Mechanical Seals", "Process", "Venting"];
 export const PRIORITIES = ["Low", "Normal", "High", "Critical"];
 
 export const DUE_BUCKETS = ["Overdue", "Due today", "Next 7 days", "Next 30 days", "Later", "No due date", "Complete"];

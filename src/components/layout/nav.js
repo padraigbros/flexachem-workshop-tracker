@@ -8,7 +8,7 @@ export const NAV_ITEMS = [
   { to: "/schedule", label: "Schedule", hint: "Drag status columns", icon: KanbanSquare, admin: false },
   { to: "/staff", label: "Staff", hint: "Manage staff & workload", icon: Users, admin: true },
   { to: "/job-types", label: "Job Types", hint: "Maintain the catalogue", icon: Wrench, admin: true },
-  { to: "/business-units", label: "Business Units", hint: "Pharma, mining, industrial", icon: Building2, admin: true },
+  { to: "/business-units", label: "Business Units", hint: "Pumps, valves, mechanical seals", icon: Building2, admin: true },
   { to: "/customers", label: "Customers", hint: "Customer catalogue & reports", icon: Handshake, admin: true },
   { to: "/due-dates", label: "Due Dates", hint: "Delivery windows", icon: CalendarClock, admin: true },
   { to: "/master-list", label: "Master List", hint: "Full job register", icon: Table2, admin: true },
@@ -20,7 +20,7 @@ export const PAGE_META = {
   "/staff": ["Staff Management", "Add staff, deactivate leavers, reassign open jobs and monitor workload."],
   "/job-types": ["Job Type Management", "Add job types, batch-move jobs, deactivate or remove unused types."],
   "/customers": ["Customer Management", "Add customers, batch-move jobs, deactivate or remove unused ones."],
-  "/business-units": ["Business Unit Portfolio", "Roll up jobs by Pharma, Industrial, Engineering, Mining and Other."],
+  "/business-units": ["Business Unit Portfolio", "Roll up jobs by Pumps, Valves, Mechanical Seals, Process and Venting."],
   "/due-dates": ["Due Date Control", "Understand overdue work, delivery windows and multi-day jobs."],
   "/master-list": ["Master Job Register", "Dense, searchable production list for admin and planning."],
 };
