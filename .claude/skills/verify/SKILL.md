@@ -29,6 +29,10 @@ code reading. `npx vite build` must pass at the end.
       offer **Skip** (applies the move, logs nothing). **Cancel abandons the move entirely** —
       the job must NOT land in the new column. Saving writes ONE audit entry combining both
       ("Status: In Progress → Complete · Actual hours: 0 → 24").
+- [ ] The **JobModal Status dropdown enforces the same gate** — setting Status to Complete
+      with Actual hours 0 blocks the save with "Required to mark a job complete". Without
+      this the edit modal is a back door around the prompt and the job drops silently out of
+      the dashboard's estimate-vs-actual figures.
 
 ### Jobs
 - [ ] `?job=<id>` deep link opens the drawer; browser Back closes it. IDs are strings —

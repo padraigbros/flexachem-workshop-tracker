@@ -72,6 +72,19 @@ test("quick-add buttons step hours in half-hour increments", async ({ page }) =>
   await expect(hoursInput(page)).toHaveValue("2");
 });
 
+test("the edit modal cannot complete a job with no actual hours either", async ({ page }) => {
+  await page.goto("/schedule");
+  await cardFor(page, "A007445").dblclick(); // admin edit modal
+  await expect(page.getByText(/Edit workshop job/i)).toBeVisible();
+
+  await page.getByLabel("Status").selectOption("Complete");
+  await page.getByRole("button", { name: "Save changes" }).click();
+
+  // The Status dropdown must not be a back door around the prompt's requirement.
+  await expect(page.getByText("Required to mark a job complete")).toBeVisible();
+  await expect(page.getByText(/Edit workshop job/i)).toBeVisible();
+});
+
 test("dashboard charts estimated against actual once a job is completed", async ({ page }) => {
   await page.goto("/");
   // Nothing logged yet, so the card explains itself rather than rendering an empty chart.

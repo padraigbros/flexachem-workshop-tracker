@@ -74,6 +74,11 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
   const errors = {
     asm: !fields.asm.trim() ? "Required" : null,
     cust: !fields.cust.trim() ? "Required" : null,
+    // Same gate the status-change prompt applies. Without it the Status dropdown here is a
+    // back door to completing a job with no hours, and it drops out of the dashboard's
+    // estimate-vs-actual figures with no indication anything is missing.
+    actualHrs: fields.status === "Complete" && roundHours(fields.actualHrs) <= 0
+      ? "Required to mark a job complete" : null,
   };
   const showError = (key) => (touched[key] || submitted) && errors[key];
 
@@ -116,7 +121,7 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
   const submit = (e) => {
     e.preventDefault();
     setSubmitted(true);
-    if (errors.asm || errors.cust) return;
+    if (errors.asm || errors.cust || errors.actualHrs) return;
     // Snapped to the half hour on save so a typed 1.25 can't slip past the stepper.
     onSave({ ...fields, hrs: roundHours(fields.hrs), actualHrs: roundHours(fields.actualHrs), attachment, attachmentFile: pdfFile });
   };
@@ -214,7 +219,9 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
             <Field label="Start / To be done"><Input type="date" value={fields.start} onChange={(e) => set("start", e.target.value)} /></Field>
             <Field label="Due date"><Input type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} /></Field>
             <Field label="Estimated hours"><Input type="number" step={HOURS_STEP} min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
-            <Field label="Actual hours"><Input type="number" step={HOURS_STEP} min="0" value={fields.actualHrs} onChange={(e) => set("actualHrs", e.target.value)} /></Field>
+            <Field label="Actual hours" error={showError("actualHrs")}>
+              <Input type="number" step={HOURS_STEP} min="0" value={fields.actualHrs} onChange={(e) => set("actualHrs", e.target.value)} onBlur={() => blur("actualHrs")} className={cx(showError("actualHrs") && "border-[var(--danger)]")} />
+            </Field>
             <Field label="Status"><Select value={fields.status} onChange={(e) => set("status", e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</Select></Field>
             <Field label="Planned span">
               <div className="flex min-h-[42px] items-center rounded-[var(--radius-field)] border border-[var(--line)] bg-[var(--surface-sunken)] px-3 text-[0.8rem] font-semibold text-[var(--ink)]">
