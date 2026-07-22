@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 import { registerSW } from "virtual:pwa-register";
 import { router } from "./router";
 import { ThemeProvider, useTheme } from "./state/ThemeProvider";
@@ -35,20 +35,39 @@ function ThemedToaster() {
   return <Toaster richColors position="top-right" theme={resolved} closeButton />;
 }
 
-// Nudge an idle open tab to refresh once a new deploy's service worker is ready — the
-// main defence against the "Failed to fetch dynamically imported module" crash, which
-// happens when a tab left open across a deploy tries to lazy-load a chunk the CDN no
-// longer serves. RouteErrorBoundary is the safety net if this is missed or dismissed.
-const updateApp = registerSW({
+// Deploys apply themselves. skipWaiting + clientsClaim (vite.config.js) let a new service
+// worker activate and take over open tabs immediately; the controllerchange listener below
+// then reloads the page onto the new assets. This is the main defence against the "Failed
+// to fetch dynamically imported module" crash, where a tab left open across a deploy tries
+// to lazy-load a chunk the CDN no longer serves. RouteErrorBoundary is the safety net.
+const UPDATE_CHECK_MS = 60 * 60 * 1000;
+
+registerSW({
   immediate: true,
-  onNeedRefresh() {
-    toast("A new version of the app is available", {
-      description: "Refresh to get the latest features and fixes.",
-      duration: Infinity,
-      action: { label: "Refresh", onClick: () => updateApp() },
+  onRegisteredSW(_swUrl, registration) {
+    if (!registration) return;
+    // A tab that is never reloaded would otherwise never notice a deploy — poll hourly and
+    // whenever it regains focus, so a workshop tablet left open all day stays current.
+    const check = () => { if (navigator.onLine) registration.update().catch(() => {}); };
+    setInterval(check, UPDATE_CHECK_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") check();
     });
   },
 });
+
+if ("serviceWorker" in navigator) {
+  let reloading = false;
+  // A first-ever install also fires controllerchange (nothing controlled the page before).
+  // Only reload when REPLACING an existing controller — i.e. a genuine update — otherwise
+  // every first visit would reload itself once for no reason.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading || !hadController) return;
+    reloading = true;
+    window.location.reload();
+  });
+}
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

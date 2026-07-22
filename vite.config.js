@@ -9,9 +9,8 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Register manually in main.jsx (registerSW from 'virtual:pwa-register') so we can
-      // show an "update available" toast via onNeedRefresh, instead of the default
-      // auto-injected script which updates silently with no way to nudge an idle tab.
+      // Registered manually in main.jsx (registerSW from 'virtual:pwa-register') so we can
+      // add periodic update checks — an idle tab never re-checks on its own.
       injectRegister: false,
       includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon-180x180.png'],
       manifest: {
@@ -32,6 +31,13 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // MUST be set explicitly. With injectRegister:false, vite-plugin-pwa does NOT apply
+        // the autoUpdate defaults, and the emitted SW only skipped waiting on a SKIP_WAITING
+        // message that the autoUpdate registration code never sends. The new SW parked in
+        // "waiting" forever, the old one kept serving stale precached assets, and only a
+        // cache-bypassing hard reload (Ctrl+Shift+R) showed a new deploy.
+        skipWaiting: true,
+        clientsClaim: true,
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // pdfjs worker chunk
         runtimeCaching: [
           {

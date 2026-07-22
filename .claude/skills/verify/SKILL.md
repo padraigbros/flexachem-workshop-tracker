@@ -87,9 +87,17 @@ code reading. `npx vite build` must pass at the end.
       built chunk file and confirming: (1) first load reloads automatically, (2) second
       failure shows the fallback instead of looping, (3) once the chunk is available again,
       a normal load fully recovers.
-- [ ] PWA update flow: `injectRegister: false` in `vite.config.js` + manual `registerSW()`
-      in `main.jsx` — a new deploy's ready service worker shows a "Refresh" toast
-      (`onNeedRefresh`) instead of updating silently with no way to nudge an idle open tab.
+- [ ] **PWA auto-update.** `dist/sw.js` MUST contain a top-level `self.skipWaiting()` AND
+      `clientsClaim()` — grep for both after any `vite.config.js` change. If it instead only
+      calls skipWaiting inside a `SKIP_WAITING` message handler, the update handshake is
+      deadlocked: the new SW parks in "waiting", the old one keeps serving stale precached
+      assets, and only Ctrl+Shift+R shows a new deploy. `injectRegister: false` does NOT
+      apply the `registerType: 'autoUpdate'` defaults, so `workbox.skipWaiting`/`clientsClaim`
+      are set explicitly.
+- [ ] `main.jsx` reloads once on `controllerchange`, guarded by `hadController` so a
+      first-ever install doesn't self-reload, and by a `reloading` flag so it can't loop.
+      Registration also polls `registration.update()` hourly and on tab refocus, so a tab
+      left open all day still picks up a deploy.
 
 ### Shell
 - [ ] Ctrl/Cmd+K opens the palette: fuzzy job search opens drawer; Go-to navigates; actions run.
@@ -135,6 +143,14 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-22: **Deploys now apply themselves; the "new version available" toast is gone.**
+  Fixed a deadlocked service-worker handshake: `registerType: 'autoUpdate'` with
+  `injectRegister: false` emitted a prompt-shaped SW (skipWaiting only on a `SKIP_WAITING`
+  message) driven by autoUpdate registration code that never sent that message — so the new
+  SW waited forever and only Ctrl+Shift+R surfaced a deploy. Now `workbox.skipWaiting` +
+  `clientsClaim` are explicit, and `main.jsx` reloads once on `controllerchange` plus polls
+  for updates hourly/on refocus. Accepted trade-off: a tab CAN reload while someone is
+  typing (the idle-gated variant was considered and declined).
 - 2026-07-22: Android **targetSdk 34 → 35** (Play Store requirement), superseding the
   2026-07-18 entry below. Android 15+ forces edge-to-edge at this target; the app relies on
   Capacitor 8's Bridge/StatusBar handling system-bar insets via WindowInsets, with
