@@ -1,4 +1,4 @@
-import { LayoutDashboard, KanbanSquare, Users, Wrench, Building2, CalendarClock, Table2, Handshake } from "lucide-react";
+import { LayoutDashboard, KanbanSquare, Users, Wrench, Building2, CalendarClock, Table2, Handshake, Target } from "lucide-react";
 
 // Single source of truth for navigation, shared by the sidebar and the mobile tab bar.
 // NOTE: the mobile tab bar shows the first 5 admin-visible items — keep Customers and
@@ -12,6 +12,7 @@ export const NAV_ITEMS = [
   { to: "/customers", label: "Customers", hint: "Customer catalogue & reports", icon: Handshake, admin: true },
   { to: "/due-dates", label: "Due Dates", hint: "Delivery windows", icon: CalendarClock, admin: true },
   { to: "/master-list", label: "Master List", hint: "Full job register", icon: Table2, admin: true },
+  { to: "/accuracy", label: "Accuracy", hint: "Estimate vs actual by job and person", icon: Target, admin: true },
 ];
 
 export const PAGE_META = {
@@ -23,4 +24,5 @@ export const PAGE_META = {
   "/business-units": ["Business Unit Portfolio", "Roll up jobs by Pumps, Valves, Mechanical Seals, Process and Venting."],
   "/due-dates": ["Due Date Control", "Understand overdue work, delivery windows and multi-day jobs."],
   "/master-list": ["Master Job Register", "Dense, searchable production list for admin and planning."],
+  "/accuracy": ["Estimate Accuracy", "How close booked hours land to actuals, per job and per staff member."],
 };

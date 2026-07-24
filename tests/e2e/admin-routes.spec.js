@@ -11,6 +11,7 @@ const ADMIN_ROUTES = [
   ["/business-units", "Pumps"],
   ["/due-dates", "Overdue"],
   ["/master-list", /master job register/i],
+  ["/accuracy", /estimate vs actual hours/i],
 ];
 
 test.beforeEach(async ({ page }) => { await seedUser(page); });

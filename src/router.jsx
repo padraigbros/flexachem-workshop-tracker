@@ -16,6 +16,7 @@ const CustomersView = lazy(() => import("./views/CustomersView").then((m) => ({ 
 const BusinessUnitsView = lazy(() => import("./views/BusinessUnitsView").then((m) => ({ default: m.BusinessUnitsView })));
 const DueDatesView = lazy(() => import("./views/DueDatesView").then((m) => ({ default: m.DueDatesView })));
 const MasterListView = lazy(() => import("./views/MasterListView").then((m) => ({ default: m.MasterListView })));
+const AccuracyView = lazy(() => import("./views/AccuracyView").then((m) => ({ default: m.AccuracyView })));
 
 function Lazy({ children }) {
   return (
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
           { path: "business-units", element: admin(<BusinessUnitsView />) },
           { path: "due-dates", element: admin(<DueDatesView />) },
           { path: "master-list", element: admin(<MasterListView />) },
+          { path: "accuracy", element: admin(<AccuracyView />) },
         ],
       },
       { path: "*", element: <Navigate to="/" replace /> },
