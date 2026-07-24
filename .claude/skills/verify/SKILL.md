@@ -75,6 +75,16 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Dashboard "Jobs per customer" card ranks by open jobs; tapping a row toggles the shared
       search filter to that customer name.
 
+### Estimate accuracy (admin)
+- [ ] `/accuracy` (admin-only, code-split) toggles between **Scatter Plot** and **Staff
+      Scorecards**; the choice is deep-linkable (`?view=scorecards`). Scatter dots open the
+      job drawer; a scorecard toggles the shared `employee` filter to that person.
+- [ ] Only completed jobs with BOTH an estimate and logged actual hours are scored — the
+      rest are excluded (not counted as zero) and the excluded count is stated on the page.
+- [ ] **Grades come from the mean ABSOLUTE error (`spread`), not the signed average
+      (`bias`)** — see `src/lib/accuracy.js`. Grading on bias awards an A to someone who
+      misses by ±60% in alternating directions. Both numbers are shown on each card.
+
 ### Team roster, calendar, availability & invitations
 - [ ] `/staff` is a **single unified "Team" card** (the old separate "Staff management" +
       "Login accounts" cards were merged). One row per person, reconciling the staff record
@@ -192,6 +202,13 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-25: **New admin-only `/accuracy` route** (Estimate Accuracy) with a scatter plot of
+  estimate-vs-actual per completed job and per-staff scorecards. Guarded by `RequireAdmin` and
+  lazy-loaded like the other admin views; nav entry is `admin: true` and sits after Master List
+  so the 5-item mobile tab set is unchanged. Scoring lives in `src/lib/accuracy.js` and grades
+  on mean ABSOLUTE error rather than signed bias (bias is reported alongside). The dashboard's
+  existing "Estimate vs actual" card is unchanged. Android `versionCode 1 → 2` / `versionName
+  1.0 → 1.1` for the accompanying Play release.
 - 2026-07-24: **Staff page: Team Availability calendar is now a permanent section, not a
   List/Calendar toggle.** `/staff` stacks roster → Team Availability calendar → per-person
   cards. The per-person card tiles changed from Open/Hours/Blocked to **Assigned/Estimated/
