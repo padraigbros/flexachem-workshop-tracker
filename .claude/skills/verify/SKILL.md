@@ -75,12 +75,23 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Dashboard "Jobs per customer" card ranks by open jobs; tapping a row toggles the shared
       search filter to that customer name.
 
-### Staff calendar, availability & invitations
-- [ ] Each `/staff` row has a **calendar icon**; clicking opens a month calendar (Modal) with
-      prev/next month + Today. Clicking an editable weekday opens a status picker
-      (Available / Training / Leave / Sick); setting a status colours the day and drops that
-      week's trailing **hours badge** by 8h (Available removes the entry, restores the hour).
-      Entries persist (demo: localStorage `flexachem_workshop_calendar_v1`; cloud: `staff_calendar`).
+### Team roster, calendar, availability & invitations
+- [ ] `/staff` is a **single unified "Team" card** (the old separate "Staff management" +
+      "Login accounts" cards were merged). One row per person, reconciling the staff record
+      (assignable, has a calendar) with its login account/profile (role, sign-in status),
+      **matched by email**. Row shows: avatar, name, email, **Admin/Staff** badge, status
+      (Active / Pending / Inactive), open-jobs count (staff only). Actions: calendar + reassign
+      (staff only), Make admin/staff (accounts only), Resend (pending only), Deactivate, Remove.
+- [ ] **Only Staff-role people are assignable.** `activePeople` excludes any staff whose
+      email matches an admin-role profile, so admins never appear in the JobModal assignment
+      dropdown or the per-person job cards. Demo mode has no profiles → everyone is staff.
+- [ ] Each staff row has a **calendar icon** → month calendar (Modal) with prev/next + Today.
+      Clicking an editable weekday opens a status picker (Available / Training / Leave / Sick);
+      setting a status colours the day (icon, not truncated text), drops that week's trailing
+      **hours badge** (set-apart column) by 8h; Available removes the entry, restores the hour.
+      **Today** = solid brand-orange number badge; the day being edited = brand ring (distinct
+      cues). Picker flips up on bottom rows and clamps horizontally so it stays in the modal.
+      Legend lists all 5 statuses. Entries persist (demo: localStorage `flexachem_workshop_calendar_v1`; cloud: `staff_calendar`).
 - [ ] **Irish public holidays** (config seed `DEFAULT_HOLIDAYS` / cloud `public_holidays`) show
       on every calendar in **purple**, are **read-only** (disabled, name in tooltip), and reduce
       that week's hours by 8h each. Capacity = 40 − 8×(non-available weekdays), floored at 0.
@@ -88,13 +99,15 @@ code reading. `npx vite build` must pass at the end.
       start..due range are **disabled** with a reason (e.g. "— On leave (27 Jul)"); Unassigned
       and the job's current assignee stay selectable. A **non-blocking** amber capacity warning
       shows when the selected person's free hours that week < the job's hours (save still works).
-- [ ] **Add staff** is a Modal (Name, Email validated, Role Admin/Staff). Submitting adds the
-      staff record; in cloud it invokes the `invite-user` Edge Function (Supabase built-in
-      invite email); in demo it toasts that invites need Supabase and still adds the record.
-      `/invite` (public route) establishes the invite session and asks for a password only
-      (no email re-verification), then `complete_onboarding` flips the profile to onboarded;
-      un-onboarded accounts show a "Pending" chip in Login accounts. Requires SMTP + redirect
-      URL configured in the Supabase dashboard (see supabase-setup.sql header + function comments).
+- [ ] **Add person** is a Modal (Name, Email validated, Role Staff/Admin). Staff → staff
+      record (assignable) + invite; Admin → invite only (no staff record) except demo mode
+      always adds a record so the person is visible. Cloud invokes the `invite-user` Edge
+      Function; demo toasts that invites need Supabase. `/invite` (public route) establishes
+      the invite session and asks for a password only (no email re-verification), then
+      `complete_onboarding` flips the profile to onboarded (drops the "Pending" chip).
+      Invite errors surface the **real** function message (dug out of `error.context`, not the
+      generic non-2xx) and an already-registered email gets a friendly toast. Requires SMTP +
+      `<APP_URL>/invite` in the Auth redirect allowlist (see supabase-setup.sql + function comments).
 - NOTE: framer-motion modal EXIT animations need a compositing browser — in a non-displayed
       automation pane, open→close (Cancel/Close on any Modal, incl. ConfirmDialog) may appear
       stuck. Verify modal close in a real browser or the deployed app, not a headless pane.

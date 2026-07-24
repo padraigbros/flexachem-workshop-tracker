@@ -378,9 +378,23 @@ export function WorkshopProvider({ children }) {
       return { ok: false, skipped: true };
     }
     const { data, error } = await supabase.functions.invoke("invite-user", { body: { email, name, role } });
-    if (error || data?.error) {
-      toast.error("Could not send invitation", { description: error?.message || data?.error });
-      return { ok: false };
+    // A non-2xx from the function surfaces as a FunctionsHttpError whose `.message` is the
+    // generic "Edge Function returned a non-2xx status code" — the real reason is in the
+    // response body (error.context). Dig it out so failures are actually diagnosable.
+    let reason = data?.error || null;
+    if (error) {
+      reason = error.message;
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) reason = body.error;
+      } catch { /* body wasn't JSON */ }
+    }
+    if (reason) {
+      const already = /already been registered|already registered/i.test(reason);
+      toast.error(already ? "That email already has an account" : "Could not send invitation", {
+        description: already ? "They can sign in directly (or reset their password) — no new invite needed." : reason,
+      });
+      return { ok: false, reason };
     }
     toast.success(`Invitation sent to ${email}`);
     return { ok: true };
@@ -486,13 +500,21 @@ export function WorkshopProvider({ children }) {
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [activeJobs, staff]);
 
+  // Emails of accounts with the admin role — admins manage the shop but are NOT assignable
+  // to jobs (only staff-role people are). Matched to staff records by email.
+  const adminEmails = useMemo(
+    () => new Set(profiles.filter((p) => p.role === "admin").map((p) => String(p.email || "").toLowerCase()).filter(Boolean)),
+    [profiles],
+  );
+
   // No DEFAULT_STAFF fallback here — cloud staff state (see fetch effect above) is
-  // now the source of truth, including when it's genuinely empty.
+  // now the source of truth, including when it's genuinely empty. Admin-role accounts are
+  // excluded so they never appear in the job-assignment dropdown.
   const activePeople = useMemo(() => staff
-    .filter((member) => member.active)
+    .filter((member) => member.active && !(member.email && adminEmails.has(String(member.email).toLowerCase())))
     .map((member) => member.name)
     .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b)), [staff]);
+    .sort((a, b) => a.localeCompare(b)), [staff, adminEmails]);
 
   const businessUnits = useMemo(() => {
     const set = new Set(BUSINESS_UNITS);

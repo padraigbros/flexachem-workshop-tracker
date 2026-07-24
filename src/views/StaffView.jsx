@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { UserPlus, Trash2, Star, CalendarDays } from "lucide-react";
+import { UserPlus, Trash2, Star, CalendarDays, Send } from "lucide-react";
 import { useWorkshop } from "../state/WorkshopProvider";
 import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useAuthCtx } from "../state/AuthProvider";
@@ -15,6 +15,7 @@ import { MiniJob } from "../components/jobs/JobBits";
 import { StaffCalendarModal } from "../components/staff/StaffCalendarModal";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const cloud = Boolean(supabase);
 
 export function StaffView() {
   const {
@@ -33,11 +34,38 @@ export function StaffView() {
   const [reassignTargets, setReassignTargets] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [calendarMember, setCalendarMember] = useState(null);
+  const [resending, setResending] = useState(null);
 
   const groups = makeGroups(jobs, (j) => j.alloc);
   const staffByName = useMemo(() => new Map(staff.map((m) => [m.name, m])), [staff]);
-  const activeCount = staff.filter((m) => m.active).length;
-  const inactiveCount = staff.filter((m) => !m.active).length;
+
+  // Unified roster: one row per person, reconciling the staff record (assignable to jobs,
+  // has a calendar) with the login account/profile (role, sign-in status). Matched by email.
+  const roster = useMemo(() => {
+    const byEmail = new Map();
+    const rows = [];
+    staff.forEach((m) => {
+      const row = { key: m.id, staff: m, profile: null, name: m.name, email: m.email || "" };
+      const k = String(m.email || "").toLowerCase();
+      if (k) byEmail.set(k, row);
+      rows.push(row);
+    });
+    profiles.forEach((p) => {
+      const k = String(p.email || "").toLowerCase();
+      const existing = k && byEmail.get(k);
+      if (existing) existing.profile = p;
+      else rows.push({ key: `profile-${p.id}`, staff: null, profile: p, name: p.name || p.email, email: p.email || "" });
+    });
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }, [staff, profiles]);
+
+  const roleOf = (row) => (row.profile?.role === "admin" ? "admin" : "staff");
+  const isActiveRow = (row) => (row.profile ? row.profile.active !== false : row.staff ? row.staff.active : true);
+  const isPending = (row) => row.profile?.onboarded === false;
+
+  const staffCount = roster.filter((r) => roleOf(r) !== "admin").length;
+  const adminCount = roster.filter((r) => roleOf(r) === "admin").length;
+  const pendingCount = roster.filter(isPending).length;
 
   const emailError = form.email && !EMAIL_RE.test(form.email.trim()) ? "Enter a valid email" : null;
   const resetForm = () => { setForm({ name: "", email: "", role: "staff" }); setAddSubmitted(false); };
@@ -49,7 +77,9 @@ export function StaffView() {
     const email = form.email.trim();
     if (!name || !email || emailError) return;
     setInviting(true);
-    addStaffMember({ name, email, role: "Workshop technician", active: true });
+    // Staff are assignable technicians (staff record + calendar); admins manage only. In demo
+    // mode (no accounts) always create the record so the person is visible.
+    if (!cloud || form.role === "staff") addStaffMember({ name, email, role: "Workshop technician", active: true });
     try {
       await inviteStaff({ email, name, role: form.role });
     } finally {
@@ -59,88 +89,89 @@ export function StaffView() {
     }
   };
 
+  const setPersonActive = (row, active) => {
+    if (row.staff) updateStaffMember(row.staff.id, { active });
+    if (row.profile) updateProfile(row.profile.id, { active });
+  };
+
+  const toggleRole = (row) => {
+    const p = row.profile;
+    if (!p) return;
+    if (p.id === user?.id && !window.confirm("Change your own role? You will lose admin access immediately.")) return;
+    updateProfile(p.id, { role: p.role === "admin" ? "staff" : "admin" });
+  };
+
+  const resend = async (row) => {
+    setResending(row.key);
+    try { await inviteStaff({ email: row.email, name: row.name, role: roleOf(row) }); }
+    finally { setResending(null); }
+  };
+
   return (
     <div className="space-y-5">
       <Card>
         <PanelHeader
-          title="Staff management"
-          subtitle="Deactivate leavers to remove them from future assignment, or invite new technicians."
+          title="Team"
+          subtitle="Everyone who signs in or gets assigned work. Staff are assignable to jobs and have an availability calendar; admins manage the shop but aren't assignable."
           action={(
-            <div className="flex items-center gap-1.5">
-              <Chip>{activeCount} active</Chip><Chip>{inactiveCount} inactive</Chip>
-              <Button variant="primary" size="sm" className="gap-1.5" onClick={() => { resetForm(); setAddOpen(true); }}><UserPlus size={15} />Add staff</Button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Chip>{staffCount} staff</Chip>
+              {cloud && <Chip>{adminCount} admin</Chip>}
+              {pendingCount > 0 && <Chip>{pendingCount} pending</Chip>}
+              <Button variant="primary" size="sm" className="gap-1.5" onClick={() => { resetForm(); setAddOpen(true); }}><UserPlus size={15} />Add person</Button>
             </div>
           )}
         />
         <div className="grid gap-2.5">
-          {staff.map((member) => {
-            const openJobs = activeJobs.filter((j) => j.alloc === member.name && j.status !== "Complete");
-            const choices = activePeople.filter((n) => n !== member.name);
-            const target = reassignTargets[member.name] || "Unassigned";
+          {roster.length ? roster.map((row) => {
+            const admin = roleOf(row) === "admin";
+            const member = row.staff;
+            const active = isActiveRow(row);
+            const pending = isPending(row);
+            const openJobs = member ? activeJobs.filter((j) => j.alloc === member.name && j.status !== "Complete") : [];
+            const choices = activePeople.filter((n) => n !== row.name);
+            const target = reassignTargets[row.name] || "Unassigned";
+            const isSelf = row.profile?.id === user?.id;
             return (
-              <div key={member.id} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.2fr)] lg:items-center", !member.active && "opacity-70")}>
+              <div key={row.key} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.3fr)] lg:items-center", !active && "opacity-70")}>
                 <div className="flex items-center gap-3 min-w-0">
-                  <Avatar name={member.name} size={40} />
+                  <Avatar name={row.name} size={40} />
                   <div className="min-w-0">
-                    <strong className="block truncate text-[0.9rem] text-[var(--ink)]">{member.name}</strong>
-                    <span className="text-[0.75rem] text-[var(--ink-muted)]">{member.role || "Workshop technician"}</span>
+                    <strong className="block truncate text-[0.9rem] text-[var(--ink)]">{row.name}</strong>
+                    <span className="block truncate text-[0.75rem] text-[var(--ink-muted)]">{row.email || (member?.role || "Workshop technician")}</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <StatusChip status={member.active ? "Complete" : "Not Started"} size="sm" />
-                  <Chip>{openJobs.length} open</Chip>
+                  <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.66rem] font-bold", admin ? "bg-[var(--status-active-bg)] text-[var(--status-active)]" : "bg-[var(--surface-sunken)] text-[var(--ink-muted)]")}>
+                    {admin && <Star size={10} />}{admin ? "Admin" : "Staff"}
+                  </span>
+                  {pending ? <Chip>Pending</Chip> : <StatusChip status={active ? "Complete" : "Not Started"} size="sm" />}
+                  {member && !admin && <Chip>{openJobs.length} open</Chip>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <IconButton label={`${member.name}'s calendar`} className="h-9 w-9" onClick={() => setCalendarMember(member)}><CalendarDays size={16} /></IconButton>
-                  <Select className="w-auto min-w-[130px]" value={target} onChange={(e) => setReassignTargets((p) => ({ ...p, [member.name]: e.target.value }))}>
-                    <option>Unassigned</option>{choices.map((n) => <option key={n}>{n}</option>)}
-                  </Select>
-                  <Button size="sm" variant="ghost" disabled={!openJobs.length} onClick={() => reassignStaffJobs(member.name, target)}>Move jobs</Button>
-                  <Button size="sm" variant="secondary" onClick={() => updateStaffMember(member.id, { active: !member.active })}>{member.active ? "Deactivate" : "Reactivate"}</Button>
-                  <Button size="sm" variant="danger" onClick={() => setConfirmDelete(member)} className="gap-1"><Trash2 size={13} />Remove</Button>
+                  {member && !admin && (
+                    <>
+                      <IconButton label={`${row.name}'s calendar`} className="h-9 w-9" onClick={() => setCalendarMember(member)}><CalendarDays size={16} /></IconButton>
+                      <Select className="w-auto min-w-[120px]" value={target} onChange={(e) => setReassignTargets((p) => ({ ...p, [row.name]: e.target.value }))}>
+                        <option>Unassigned</option>{choices.map((n) => <option key={n}>{n}</option>)}
+                      </Select>
+                      <Button size="sm" variant="ghost" disabled={!openJobs.length} onClick={() => reassignStaffJobs(member.name, target)}>Move jobs</Button>
+                    </>
+                  )}
+                  {pending && row.email && (
+                    <Button size="sm" variant="secondary" className="gap-1" disabled={resending === row.key} onClick={() => resend(row)}><Send size={13} />{resending === row.key ? "Sending…" : "Resend"}</Button>
+                  )}
+                  {row.profile && (
+                    <Button size="sm" variant="secondary" onClick={() => toggleRole(row)}>{admin ? "Make staff" : "Make admin"}</Button>
+                  )}
+                  <Button size="sm" variant="ghost" disabled={isSelf} onClick={() => setPersonActive(row, !active)}>{active ? "Deactivate" : "Reactivate"}</Button>
+                  {member && <Button size="sm" variant="danger" disabled={isSelf} onClick={() => setConfirmDelete(member)} className="gap-1"><Trash2 size={13} />Remove</Button>}
                 </div>
               </div>
             );
-          })}
+          }) : <EmptyState text="No one on the team yet. Use “Add person” to invite your first staff member or admin." />}
         </div>
       </Card>
-
-      {supabase && (
-        <Card>
-          <PanelHeader
-            title="Login accounts"
-            subtitle="Admins get every section; staff see the Dashboard and Schedule. New signups start as staff."
-            action={<Chip>{profiles.length} account{profiles.length === 1 ? "" : "s"}</Chip>}
-          />
-          <div className="grid gap-2.5">
-            {profiles.length ? profiles.map((profile) => (
-              <div key={profile.id} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center", profile.active === false && "opacity-70")}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar name={profile.name || profile.email} size={40} />
-                  <div className="min-w-0"><strong className="block truncate text-[0.9rem] text-[var(--ink)]">{profile.name || "—"}</strong><span className="truncate text-[0.75rem] text-[var(--ink-muted)]">{profile.email}</span></div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.66rem] font-bold", profile.role === "admin" ? "bg-[var(--status-active-bg)] text-[var(--status-active)]" : "bg-[var(--surface-sunken)] text-[var(--ink-muted)]")}>
-                    {profile.role === "admin" && <Star size={10} />}{profile.role === "admin" ? "Admin" : "Staff"}
-                  </span>
-                  {profile.onboarded === false
-                    ? <Chip>Pending</Chip>
-                    : <StatusChip status={profile.active === false ? "Not Started" : "Complete"} size="sm" />}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <Button size="sm" variant="secondary" onClick={() => {
-                    if (profile.id === user.id && !window.confirm("Change your own role? You will lose admin access immediately.")) return;
-                    updateProfile(profile.id, { role: profile.role === "admin" ? "staff" : "admin" });
-                  }}>{profile.role === "admin" ? "Make staff" : "Make admin"}</Button>
-                  <Button size="sm" variant="ghost" disabled={profile.id === user.id} onClick={() => updateProfile(profile.id, { active: profile.active === false })}>
-                    {profile.active === false ? "Enable" : "Disable"}
-                  </Button>
-                </div>
-              </div>
-            )) : <EmptyState text="No login accounts yet. Accounts appear here after people sign up." />}
-          </div>
-        </Card>
-      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {people.map((person) => {
@@ -182,7 +213,7 @@ export function StaffView() {
       <ConfirmDialog
         open={Boolean(confirmDelete)}
         title={`Remove ${confirmDelete?.name}?`}
-        message="Open jobs assigned to this person will be set to Unassigned. This cannot be undone."
+        message="Open jobs assigned to this person will be set to Unassigned. This removes their staff record; any login account is unaffected. This cannot be undone."
         confirmLabel="Remove"
         onConfirm={() => confirmDelete && deleteStaffMember(confirmDelete.id)}
         onClose={() => setConfirmDelete(null)}
@@ -200,9 +231,9 @@ export function StaffView() {
       <Modal open={addOpen} onClose={() => setAddOpen(false)} size="md">
         <form onSubmit={submit} className="flex flex-col">
           <ModalHeader
-            eyebrow="Invite technician"
-            title="Add a staff member"
-            subtitle={supabase ? "They'll get an email invite to set a password — no separate verification step." : "Demo mode: the staff record is added; email invites need a connected Supabase project."}
+            eyebrow="Invite to the team"
+            title="Add a person"
+            subtitle={cloud ? "They'll get an email invite to set a password — no separate verification step." : "Demo mode: the staff record is added; email invites need a connected Supabase project."}
             onClose={() => setAddOpen(false)}
           />
           <div className="space-y-4 p-6">
@@ -212,10 +243,10 @@ export function StaffView() {
             <Field label="Email address" error={(addSubmitted && !form.email.trim() ? "Required" : null) || emailError}>
               <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="name@company.com" />
             </Field>
-            <Field label="Role" hint="Admins get every section; staff see the Dashboard and Schedule.">
+            <Field label="Role" hint="Staff are assignable to jobs and get a calendar. Admins get every section but aren't assignable.">
               <Select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
-                <option value="staff">Staff</option>
-                <option value="admin">Admin</option>
+                <option value="staff">Staff — assignable technician</option>
+                <option value="admin">Admin — manage only</option>
               </Select>
             </Field>
           </div>
