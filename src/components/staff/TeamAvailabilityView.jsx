@@ -7,7 +7,7 @@ import { useJobDrawer } from "../../state/useJobDrawer";
 import { useStatusPrompt } from "../../state/StatusPromptProvider";
 import { WEEK_CAPACITY, DAY_HOURS } from "../../lib/constants";
 import {
-  CALENDAR_STATUS_META, indexEntries, holidayIndex, statusOn,
+  CALENDAR_STATUS_META, indexEntries, holidayIndex, statusOn, weekAvailableHours,
   weekDates, monthDates, mondayOf, addDaysISO, availableHoursInRange, datesInRange, isWeekday,
 } from "../../lib/calendar";
 import { buildRoster, rosterRole, rosterActive } from "../../lib/staff";
@@ -86,9 +86,10 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
     const map = new Map();
     activeJobs.forEach((job) => {
       if (job.status === "Complete" || !job.alloc) return;
-      const cur = map.get(job.alloc) || { open: 0, hours: 0, blocked: 0, jobs: [] };
+      const cur = map.get(job.alloc) || { open: 0, hours: 0, actual: 0, blocked: 0, jobs: [] };
       cur.open += 1;
       cur.hours += Number(job.hrs || 0);
+      cur.actual += Number(job.actualHrs || 0);
       if (job.status === "Input Needed") cur.blocked += 1;
       cur.jobs.push(job);
       map.set(job.alloc, cur);
@@ -441,6 +442,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
         open={Boolean(detail)}
         onClose={() => setDetail(null)}
         workload={detail ? workloadByName.get(detail.name) : null}
+        weekCapacity={detail?.staff ? weekAvailableHours(detail.staff.id, todayISO, entriesByKey, holidaySet) : WEEK_CAPACITY}
         moveTargets={detail ? activePeople.filter((n) => n !== detail.name) : []}
         onOpenFullCalendar={onOpenFullCalendar}
         onMoveJobs={reassignStaffJobs}
@@ -502,14 +504,15 @@ function FilterBar({ filters, setFilters, showInactive, setShowInactive, activeF
 }
 
 // ---- Detail slide-out ----------------------------------------------------
-function StaffDetailDrawer({ row, open, onClose, workload, moveTargets, onOpenFullCalendar, onMoveJobs, onToggleRole, openJob, onStatus }) {
+function StaffDetailDrawer({ row, open, onClose, workload, weekCapacity = WEEK_CAPACITY, moveTargets, onOpenFullCalendar, onMoveJobs, onToggleRole, openJob, onStatus }) {
   const [moveTarget, setMoveTarget] = useState("Unassigned");
   useEffect(() => { setMoveTarget("Unassigned"); }, [row]);
   if (!row) return null;
 
   const member = row.staff;
   const admin = rosterRole(row) === "admin";
-  const hours = workload?.hours || 0;
+  const estimated = workload?.hours || 0;
+  const actual = workload?.actual || 0;
   const openCount = workload?.open || 0;
   const blocked = workload?.blocked || 0;
   const jobs = workload?.jobs || [];
@@ -537,11 +540,11 @@ function StaffDetailDrawer({ row, open, onClose, workload, moveTargets, onOpenFu
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
             <span className="text-[0.7rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">This week&apos;s workload</span>
-            <span className={cx("text-[0.8rem] font-bold tnum", hours > WEEK_CAPACITY ? "text-[var(--danger)]" : "text-[var(--ink-soft)]")}>{hours}h of {WEEK_CAPACITY}h</span>
+            <span className={cx("text-[0.8rem] font-bold tnum", estimated > weekCapacity ? "text-[var(--danger)]" : "text-[var(--ink-soft)]")}>{estimated}h of {weekCapacity}h</span>
           </div>
-          <Meter className="h-2.5" value={(hours / WEEK_CAPACITY) * 100} tone={hours > WEEK_CAPACITY ? "var(--danger)" : "var(--color-brand-500)"} />
+          <Meter className="h-2.5" value={(estimated / (weekCapacity || 1)) * 100} tone={estimated > weekCapacity ? "var(--danger)" : "var(--color-brand-500)"} />
           <div className="mt-3 grid grid-cols-3 gap-2">
-            {[["Open", openCount], ["Hours", `${hours}h`], ["Blocked", blocked]].map(([label, val]) => (
+            {[["Assigned", openCount], ["Estimated", `${estimated}h`], ["Actual", `${actual}h`]].map(([label, val]) => (
               <div key={label} className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
                 <strong className="block text-lg font-extrabold text-[var(--ink)] tnum">{val}</strong>
                 <span className="text-[0.58rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{label}</span>

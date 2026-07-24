@@ -95,6 +95,14 @@ code reading. `npx vite build` must pass at the end.
 - [ ] **Irish public holidays** (config seed `DEFAULT_HOLIDAYS` / cloud `public_holidays`) show
       on every calendar in **purple**, are **read-only** (disabled, name in tooltip), and reduce
       that week's hours by 8h each. Capacity = 40 − 8×(non-available weekdays), floored at 0.
+- [ ] `/staff` shows three stacked sections (NOT a List/Calendar toggle): the **Team roster
+      card**, then a **Team Availability** calendar section (per-staff rows × day columns,
+      week/month toggle, filters, click/shift-click to set status; "Open full calendar" opens
+      the per-person Modal), then the **per-person workload cards**. Editing availability in the
+      calendar updates a person's card live. Each card's tiles are **Assigned / Estimated /
+      Actual** (open-job count, Σ estimated `hrs`, Σ `actualHrs`) and the capacity line/meter use
+      the person's **available** hours this week (`weekAvailableHours`), e.g. "3h of 32h week"
+      when on leave — NOT a flat 40h. The calendar's detail drawer mirrors the same tiles/capacity.
 - [ ] **Assignment dropdown** (JobModal): staff unavailable on any weekday in the job's
       start..due range are **disabled** with a reason (e.g. "— On leave (27 Jul)"); Unassigned
       and the job's current assignee stay selectable. A **non-blocking** amber capacity warning
@@ -184,6 +192,13 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-24: **Staff page: Team Availability calendar is now a permanent section, not a
+  List/Calendar toggle.** `/staff` stacks roster → Team Availability calendar → per-person
+  cards. The per-person card tiles changed from Open/Hours/Blocked to **Assigned/Estimated/
+  Actual** (over open jobs), and the card capacity line + meter now use the person's
+  availability-adjusted weekly hours (`weekAvailableHours`, StaffView.jsx) instead of a flat
+  40h, so leave/training/sick shrink the denominator (e.g. "3h of 32h week"). The calendar's
+  detail drawer uses the same tiles/capacity for consistency.
 - 2026-07-22: **Deploys now apply themselves; the "new version available" toast is gone.**
   Fixed a deadlocked service-worker handshake: `registerType: 'autoUpdate'` with
   `injectRegister: false` emitted a prompt-shaped SW (skipWaiting only on a `SKIP_WAITING`
