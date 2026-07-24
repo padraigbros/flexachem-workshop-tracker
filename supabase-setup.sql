@@ -25,15 +25,29 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
--- Auto-create a profile when someone signs up (name comes from the signup form).
+-- Onboarding state. Existing/self-signup accounts are onboarded (true); an invited account
+-- (created by the invite-user Edge Function) is false until they set a password on /invite.
+alter table public.profiles add column if not exists onboarded boolean not null default true;
+
+-- Auto-create a profile when someone signs up OR is invited. Name/role/onboarding come from
+-- the auth user metadata: self-signup carries {name}; an invite carries {name, role, invited}.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer set search_path = public
 as $$
+declare
+  meta_role text := new.raw_user_meta_data->>'role';
+  was_invited boolean := coalesce((new.raw_user_meta_data->>'invited')::boolean, false);
 begin
-  insert into public.profiles (id, email, name)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)))
+  insert into public.profiles (id, email, name, role, onboarded)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    case when meta_role in ('admin', 'staff') then meta_role else 'staff' end,
+    not was_invited
+  )
   on conflict (id) do nothing;
   return new;
 end;
@@ -157,6 +171,58 @@ insert into public.customers (id, name) values
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
+-- 2d. Staff availability calendar + Irish public holidays.
+--     staff_calendar: one row per (staff, date) non-available entry. "Available" is the
+--     absence of a row; "Public Holiday" is derived from public_holidays and never stored
+--     per-staff. public_holidays are auto-applied to every staff calendar and are
+--     admin-editable. Both drive the weekly-capacity figure (40h − 8h per non-available
+--     weekday) and the availability-aware assignment dropdown on the schedule.
+-- ---------------------------------------------------------------------------
+create table if not exists public.staff_calendar (
+  id text primary key,
+  staff_id text not null references public.staff (id) on delete cascade,
+  date text not null,                 -- ISO 'YYYY-MM-DD'
+  status text not null check (status in ('Training', 'Leave', 'Sick')),
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (staff_id, date)
+);
+create index if not exists staff_calendar_staff_idx on public.staff_calendar (staff_id);
+
+create table if not exists public.public_holidays (
+  date text primary key,              -- ISO 'YYYY-MM-DD'
+  name text not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Seed the 2026 + 2027 Irish public holidays (idempotent).
+insert into public.public_holidays (date, name) values
+  ('2026-01-01', 'New Year''s Day'),
+  ('2026-02-02', 'February Bank Holiday'),
+  ('2026-03-17', 'St Patrick''s Day'),
+  ('2026-04-06', 'Easter Monday'),
+  ('2026-05-04', 'May Bank Holiday'),
+  ('2026-06-01', 'June Bank Holiday'),
+  ('2026-08-03', 'August Bank Holiday'),
+  ('2026-10-26', 'October Bank Holiday'),
+  ('2026-12-25', 'Christmas Day'),
+  ('2026-12-26', 'St Stephen''s Day'),
+  ('2027-01-01', 'New Year''s Day'),
+  ('2027-02-01', 'February Bank Holiday'),
+  ('2027-03-17', 'St Patrick''s Day'),
+  ('2027-03-29', 'Easter Monday'),
+  ('2027-05-03', 'May Bank Holiday'),
+  ('2027-06-07', 'June Bank Holiday'),
+  ('2027-08-02', 'August Bank Holiday'),
+  ('2027-10-25', 'October Bank Holiday'),
+  ('2027-12-25', 'Christmas Day'),
+  ('2027-12-26', 'St Stephen''s Day')
+on conflict (date) do nothing;
+
+-- ---------------------------------------------------------------------------
 -- 3. Storage bucket for job PDFs (private; the app uses signed URLs).
 -- ---------------------------------------------------------------------------
 insert into storage.buckets (id, name, public)
@@ -177,6 +243,8 @@ alter table public.staff enable row level security;
 alter table public.job_types enable row level security;
 alter table public.customers enable row level security;
 alter table public.profiles enable row level security;
+alter table public.staff_calendar enable row level security;
+alter table public.public_holidays enable row level security;
 
 -- jobs
 drop policy if exists "jobs select authenticated" on public.jobs;
@@ -205,6 +273,18 @@ drop policy if exists "customers select authenticated" on public.customers;
 create policy "customers select authenticated" on public.customers for select to authenticated using (true);
 drop policy if exists "customers write admin" on public.customers;
 create policy "customers write admin" on public.customers for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- staff_calendar (read for all signed-in users; only admins edit)
+drop policy if exists "staff_calendar select authenticated" on public.staff_calendar;
+create policy "staff_calendar select authenticated" on public.staff_calendar for select to authenticated using (true);
+drop policy if exists "staff_calendar write admin" on public.staff_calendar;
+create policy "staff_calendar write admin" on public.staff_calendar for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- public_holidays (read for all signed-in users; only admins edit)
+drop policy if exists "public_holidays select authenticated" on public.public_holidays;
+create policy "public_holidays select authenticated" on public.public_holidays for select to authenticated using (true);
+drop policy if exists "public_holidays write admin" on public.public_holidays;
+create policy "public_holidays write admin" on public.public_holidays for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- profiles
 drop policy if exists "profiles select authenticated" on public.profiles;
@@ -255,6 +335,23 @@ $$;
 
 revoke all on function public.set_my_theme(text) from public;
 grant execute on function public.set_my_theme(text) to authenticated;
+
+-- Let an invited user flip their OWN profile to onboarded after setting a password on /invite.
+-- profiles UPDATE is admin-only, so onboarding completion goes through this SECURITY DEFINER
+-- RPC scoped to auth.uid() (it can only ever touch the caller's own row).
+create or replace function public.complete_onboarding()
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  update public.profiles set onboarded = true, updated_at = now() where id = auth.uid();
+end;
+$$;
+
+revoke all on function public.complete_onboarding() from public;
+grant execute on function public.complete_onboarding() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 7. Realtime for the board (live sync across devices).

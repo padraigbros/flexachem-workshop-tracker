@@ -75,6 +75,30 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Dashboard "Jobs per customer" card ranks by open jobs; tapping a row toggles the shared
       search filter to that customer name.
 
+### Staff calendar, availability & invitations
+- [ ] Each `/staff` row has a **calendar icon**; clicking opens a month calendar (Modal) with
+      prev/next month + Today. Clicking an editable weekday opens a status picker
+      (Available / Training / Leave / Sick); setting a status colours the day and drops that
+      week's trailing **hours badge** by 8h (Available removes the entry, restores the hour).
+      Entries persist (demo: localStorage `flexachem_workshop_calendar_v1`; cloud: `staff_calendar`).
+- [ ] **Irish public holidays** (config seed `DEFAULT_HOLIDAYS` / cloud `public_holidays`) show
+      on every calendar in **purple**, are **read-only** (disabled, name in tooltip), and reduce
+      that week's hours by 8h each. Capacity = 40 − 8×(non-available weekdays), floored at 0.
+- [ ] **Assignment dropdown** (JobModal): staff unavailable on any weekday in the job's
+      start..due range are **disabled** with a reason (e.g. "— On leave (27 Jul)"); Unassigned
+      and the job's current assignee stay selectable. A **non-blocking** amber capacity warning
+      shows when the selected person's free hours that week < the job's hours (save still works).
+- [ ] **Add staff** is a Modal (Name, Email validated, Role Admin/Staff). Submitting adds the
+      staff record; in cloud it invokes the `invite-user` Edge Function (Supabase built-in
+      invite email); in demo it toasts that invites need Supabase and still adds the record.
+      `/invite` (public route) establishes the invite session and asks for a password only
+      (no email re-verification), then `complete_onboarding` flips the profile to onboarded;
+      un-onboarded accounts show a "Pending" chip in Login accounts. Requires SMTP + redirect
+      URL configured in the Supabase dashboard (see supabase-setup.sql header + function comments).
+- NOTE: framer-motion modal EXIT animations need a compositing browser — in a non-displayed
+      automation pane, open→close (Cancel/Close on any Modal, incl. ConfirmDialog) may appear
+      stuck. Verify modal close in a real browser or the deployed app, not a headless pane.
+
 ### Notifications
 - [ ] Bell in the Topbar (all breakpoints) shows an unread badge; clicking opens the
       notifications panel; a row click marks it read and opens the job. RLS: a user only ever

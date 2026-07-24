@@ -2,10 +2,15 @@ import { createContext, useContext, useEffect, useState, useMemo, useCallback } 
 import { toast } from "sonner";
 import {
   supabase, SUPABASE_TABLE, SUPABASE_STAFF_TABLE, SUPABASE_JOB_TYPES_TABLE, SUPABASE_CUSTOMERS_TABLE, SUPABASE_PROFILES_TABLE,
+  SUPABASE_CALENDAR_TABLE, SUPABASE_HOLIDAYS_TABLE,
 } from "../lib/supabase";
 import {
   AUDIT_LABELS, BUSINESS_UNITS, DEFAULT_JOB_TYPES, DEFAULT_CUSTOMERS,
 } from "../lib/constants";
+import {
+  normalizeCalendarEntry, toCalendarDbPayload, calendarEntryKey,
+  normalizeHoliday, toHolidayDbPayload,
+} from "../lib/calendar";
 import {
   normalizeJob, jobSort, toDbPayload, parseNotes, dueBucket, jobCalendarSpan, riskScore, mergeNotes,
 } from "../lib/jobs";
@@ -21,6 +26,7 @@ import { daysUntil, formatDate, parseISODate } from "../lib/dates";
 import {
   loadStoredJobs, saveStoredJobs, loadStoredStaff, saveStoredStaff,
   loadStoredJobTypes, saveStoredJobTypes, loadStoredCustomers, saveStoredCustomers,
+  loadStoredCalendar, saveStoredCalendar, loadStoredHolidays, saveStoredHolidays,
 } from "../lib/storage";
 import { isNative } from "../lib/native";
 import { useAuthCtx } from "./AuthProvider";
@@ -35,6 +41,8 @@ export function WorkshopProvider({ children }) {
   const [staff, setStaff] = useState(loadStoredStaff);
   const [jobTypes, setJobTypes] = useState(loadStoredJobTypes);
   const [customers, setCustomers] = useState(loadStoredCustomers);
+  const [calendar, setCalendar] = useState(loadStoredCalendar);
+  const [holidays, setHolidays] = useState(loadStoredHolidays);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [syncState, setSyncState] = useState(supabase ? "syncing" : "local");
@@ -125,6 +133,31 @@ export function WorkshopProvider({ children }) {
     return () => { cancelled = true; };
   }, [userId]);
 
+  // Staff availability calendar entries (Training/Leave/Sick). Reflect the table exactly.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!supabase || !userId) return;
+      const { data, error } = await supabase.from(SUPABASE_CALENDAR_TABLE).select("*");
+      if (cancelled || error) return;
+      if (Array.isArray(data)) setCalendar(data.map(normalizeCalendarEntry));
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // Public holidays. Falls back to the local seed if the cloud table is empty, so calendars
+  // are never blank for a fresh project that hasn't run the SQL seed yet.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!supabase || !userId) return;
+      const { data, error } = await supabase.from(SUPABASE_HOLIDAYS_TABLE).select("*").order("date", { ascending: true });
+      if (cancelled || error) return;
+      if (Array.isArray(data) && data.length) setHolidays(data.map(normalizeHoliday));
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
   // All authenticated users load profiles — needed for @-mention suggestions, not just admins.
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +174,8 @@ export function WorkshopProvider({ children }) {
   useEffect(() => { saveStoredStaff(staff); }, [staff]);
   useEffect(() => { saveStoredJobTypes(jobTypes); }, [jobTypes]);
   useEffect(() => { saveStoredCustomers(customers); }, [customers]);
+  useEffect(() => { saveStoredCalendar(calendar); }, [calendar]);
+  useEffect(() => { saveStoredHolidays(holidays); }, [holidays]);
 
   // Realtime: keep the board live across devices. Incoming rows win for scalar fields
   // only if newer (updated_at); notes are always unioned so no note is dropped.
@@ -290,7 +325,66 @@ export function WorkshopProvider({ children }) {
     if (member) {
       setJobs((prev) => prev.map((job) => (job.alloc === member.name ? normalizeJob({ ...job, alloc: "Unassigned", updatedAt: new Date().toISOString() }) : job)));
     }
+    // Drop the person's calendar entries locally (the DB cascades via the FK).
+    setCalendar((prev) => prev.filter((e) => e.staffId !== id));
   }, [staff]);
+
+  // Set (or clear) a staff member's status on a date. "Available" removes the row entirely —
+  // Available is the absence of an entry. Public holidays are not user-settable here.
+  const setCalendarEntry = useCallback(async (staffId, date, status) => {
+    const iso = String(date).slice(0, 10);
+    if (!staffId || !iso) return;
+    const id = calendarEntryKey(staffId, iso);
+    if (status === "Available") {
+      setCalendar((prev) => prev.filter((e) => e.id !== id));
+      if (supabase) {
+        const { error } = await supabase.from(SUPABASE_CALENDAR_TABLE).delete().eq("id", id);
+        if (error) toast.error("Could not update calendar", { description: error.message });
+      }
+      return;
+    }
+    const entry = normalizeCalendarEntry({ id, staffId, date: iso, status, updatedAt: new Date().toISOString() });
+    setCalendar((prev) => [...prev.filter((e) => e.id !== id), entry]);
+    if (supabase) {
+      const { error } = await supabase.from(SUPABASE_CALENDAR_TABLE).upsert(toCalendarDbPayload(entry));
+      if (error) toast.error("Could not update calendar", { description: error.message });
+    }
+  }, []);
+
+  const addHoliday = useCallback(async (fields) => {
+    const holiday = normalizeHoliday(fields);
+    if (!holiday.date) return;
+    setHolidays((prev) => [...prev.filter((h) => h.date !== holiday.date), holiday].sort((a, b) => a.date.localeCompare(b.date)));
+    if (supabase) {
+      const { error } = await supabase.from(SUPABASE_HOLIDAYS_TABLE).upsert(toHolidayDbPayload(holiday));
+      if (error) toast.error("Could not save holiday", { description: error.message });
+    }
+  }, []);
+
+  const deleteHoliday = useCallback(async (date) => {
+    const iso = String(date).slice(0, 10);
+    setHolidays((prev) => prev.filter((h) => h.date !== iso));
+    if (supabase) {
+      const { error } = await supabase.from(SUPABASE_HOLIDAYS_TABLE).delete().eq("date", iso);
+      if (error) toast.error("Could not remove holiday", { description: error.message });
+    }
+  }, []);
+
+  // Send a Supabase invite email via the invite-user edge function (admin-only, service role).
+  // No-op with a message in demo mode (no Supabase configured).
+  const inviteStaff = useCallback(async ({ email, name, role }) => {
+    if (!supabase) {
+      toast.info("Invitations need a connected Supabase project", { description: "The staff record was still added." });
+      return { ok: false, skipped: true };
+    }
+    const { data, error } = await supabase.functions.invoke("invite-user", { body: { email, name, role } });
+    if (error || data?.error) {
+      toast.error("Could not send invitation", { description: error?.message || data?.error });
+      return { ok: false };
+    }
+    toast.success(`Invitation sent to ${email}`);
+    return { ok: true };
+  }, []);
 
   const addJobType = useCallback(async (fields) => {
     const name = String(fields.name || "").trim();
@@ -507,23 +601,25 @@ export function WorkshopProvider({ children }) {
   ), [auditPatch]);
 
   const value = useMemo(() => ({
-    jobs, staff, jobTypes, customers, profiles, loading,
+    jobs, staff, jobTypes, customers, calendar, holidays, profiles, loading,
     syncState, staffSyncState, jobTypeSyncState, customerSyncState,
     activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes, activeCustomers,
     filters, filteredJobs, metrics, updates, auditBy,
     updateFilter, resetFilters, refetch: fetchJobs,
     patchJob, addNote, addJob, createJob,
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs,
+    setCalendarEntry, addHoliday, deleteHoliday, inviteStaff,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
     addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs,
     setJobArchived, updateProfile, auditPatch,
     getJob: (id) => jobs.find((j) => j.id === id) || null,
   }), [
-    jobs, staff, jobTypes, customers, profiles, loading, syncState, staffSyncState, jobTypeSyncState, customerSyncState,
+    jobs, staff, jobTypes, customers, calendar, holidays, profiles, loading, syncState, staffSyncState, jobTypeSyncState, customerSyncState,
     activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes, activeCustomers,
     filters, filteredJobs, metrics, updates, auditBy,
     updateFilter, resetFilters, fetchJobs, patchJob, addNote, addJob, createJob,
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs,
+    setCalendarEntry, addHoliday, deleteHoliday, inviteStaff,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
     addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs, setJobArchived, updateProfile, auditPatch,
   ]);

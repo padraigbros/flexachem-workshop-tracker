@@ -65,6 +65,39 @@ export const DEFAULT_CUSTOMERS = CUSTOMERS.map((name) => ({
 
 export const BUSINESS_UNITS = ["Pumps", "Valves", "Mechanical Seals", "Process", "Venting"];
 
+// Staff availability calendar. "Available" is the absence of an entry; "Public Holiday"
+// is derived from the holidays catalogue (never stored per-staff). A standard work week is
+// 5 weekdays × 8 hours = 40 hours; each non-available weekday deducts 8h from that week.
+export const WEEK_CAPACITY = 40;
+export const DAY_HOURS = 8;
+// Statuses a user can set on a day (Public Holiday is auto-applied, not user-settable).
+export const CALENDAR_STATUSES = ["Available", "Training", "Leave", "Sick"];
+
+// Irish public holidays, auto-applied to every staff calendar. Mirrored by the seed in
+// supabase-setup.sql; also the demo-mode seed (no Supabase configured). ISO 'YYYY-MM-DD'.
+export const DEFAULT_HOLIDAYS = [
+  { date: "2026-01-01", name: "New Year's Day" },
+  { date: "2026-02-02", name: "February Bank Holiday" },
+  { date: "2026-03-17", name: "St Patrick's Day" },
+  { date: "2026-04-06", name: "Easter Monday" },
+  { date: "2026-05-04", name: "May Bank Holiday" },
+  { date: "2026-06-01", name: "June Bank Holiday" },
+  { date: "2026-08-03", name: "August Bank Holiday" },
+  { date: "2026-10-26", name: "October Bank Holiday" },
+  { date: "2026-12-25", name: "Christmas Day" },
+  { date: "2026-12-26", name: "St Stephen's Day" },
+  { date: "2027-01-01", name: "New Year's Day" },
+  { date: "2027-02-01", name: "February Bank Holiday" },
+  { date: "2027-03-17", name: "St Patrick's Day" },
+  { date: "2027-03-29", name: "Easter Monday" },
+  { date: "2027-05-03", name: "May Bank Holiday" },
+  { date: "2027-06-07", name: "June Bank Holiday" },
+  { date: "2027-08-02", name: "August Bank Holiday" },
+  { date: "2027-10-25", name: "October Bank Holiday" },
+  { date: "2027-12-25", name: "Christmas Day" },
+  { date: "2027-12-26", name: "St Stephen's Day" },
+];
+
 // Estimated and actual hours are booked in half-hour (30 minute) increments — the
 // smallest unit the workshop actually records against a job.
 export const HOURS_STEP = 0.5;
@@ -77,6 +110,8 @@ export const STORAGE_KEY = "flexachem_workshop_jobs_v2";
 export const STAFF_STORAGE_KEY = "flexachem_workshop_staff_v1";
 export const JOB_TYPE_STORAGE_KEY = "flexachem_workshop_job_types_v1";
 export const CUSTOMER_STORAGE_KEY = "flexachem_workshop_customers_v1";
+export const CALENDAR_STORAGE_KEY = "flexachem_workshop_calendar_v1";
+export const HOLIDAY_STORAGE_KEY = "flexachem_workshop_holidays_v1";
 export const NOTIFICATIONS_STORAGE_KEY = "flexachem_workshop_notifications_v1";
 export const USER_KEY = "flexachem_workshop_user_v2";
 export const THEME_KEY = "flexachem_theme_v3";

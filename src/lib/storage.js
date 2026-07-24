@@ -1,11 +1,13 @@
 // localStorage persistence + demo seed data — moved verbatim from App.jsx.
 import {
   STORAGE_KEY, STAFF_STORAGE_KEY, JOB_TYPE_STORAGE_KEY, CUSTOMER_STORAGE_KEY, NOTIFICATIONS_STORAGE_KEY, USER_KEY,
-  DEFAULT_STAFF, DEFAULT_JOB_TYPES, DEFAULT_CUSTOMERS,
+  CALENDAR_STORAGE_KEY, HOLIDAY_STORAGE_KEY,
+  DEFAULT_STAFF, DEFAULT_JOB_TYPES, DEFAULT_CUSTOMERS, DEFAULT_HOLIDAYS,
 } from "./constants";
 import { normalizeJob } from "./jobs";
 import { normalizeStaff, mergeStaffLists, normalizeJobType, mergeJobTypeLists } from "./staff";
 import { normalizeCustomer, mergeCustomerLists } from "./customers";
+import { normalizeCalendarEntry, normalizeHoliday } from "./calendar";
 import { normalizeNotification } from "./notifications";
 import { offsetDate } from "./dates";
 
@@ -90,6 +92,40 @@ export function loadStoredCustomers() {
 export function saveStoredCustomers(customers) {
   try {
     localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify(customers));
+  } catch {
+    // Ignore storage quota/privacy errors.
+  }
+}
+
+export function loadStoredCalendar() {
+  try {
+    const stored = localStorage.getItem(CALENDAR_STORAGE_KEY);
+    return stored ? JSON.parse(stored).map(normalizeCalendarEntry) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveStoredCalendar(entries) {
+  try {
+    localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    // Ignore storage quota/privacy errors.
+  }
+}
+
+export function loadStoredHolidays() {
+  try {
+    const stored = localStorage.getItem(HOLIDAY_STORAGE_KEY);
+    return (stored ? JSON.parse(stored) : DEFAULT_HOLIDAYS).map(normalizeHoliday);
+  } catch {
+    return DEFAULT_HOLIDAYS.map(normalizeHoliday);
+  }
+}
+
+export function saveStoredHolidays(holidays) {
+  try {
+    localStorage.setItem(HOLIDAY_STORAGE_KEY, JSON.stringify(holidays));
   } catch {
     // Ignore storage quota/privacy errors.
   }

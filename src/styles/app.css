@@ -65,6 +65,16 @@
   --danger: #c2413b;
   --danger-bg: #fff0ee;
 
+  /* Staff availability calendar (Available uses --status-done green). */
+  --cal-training: #2563eb;
+  --cal-training-bg: #ecf4ff;
+  --cal-leave: #b7791f;
+  --cal-leave-bg: #fff7db;
+  --cal-sick: #c2413b;
+  --cal-sick-bg: #fff0ee;
+  --cal-holiday: #7c3aed;
+  --cal-holiday-bg: #f3ecff;
+
   --prio-critical: #c2413b;
   --prio-critical-bg: #fff0ee;
   --prio-high: #d8551a;
@@ -102,6 +112,16 @@
 
   --danger: #ff8f88;
   --danger-bg: rgb(248 113 113 / 0.14);
+
+  /* Staff availability calendar. */
+  --cal-training: #63b3ff;
+  --cal-training-bg: rgb(96 165 250 / 0.15);
+  --cal-leave: #ffc848;
+  --cal-leave-bg: rgb(251 191 36 / 0.13);
+  --cal-sick: #ff8f88;
+  --cal-sick-bg: rgb(248 113 113 / 0.14);
+  --cal-holiday: #c4a3ff;
+  --cal-holiday-bg: rgb(168 130 255 / 0.16);
 
   --prio-critical: #ff8f88;
   --prio-critical-bg: rgb(248 113 113 / 0.15);

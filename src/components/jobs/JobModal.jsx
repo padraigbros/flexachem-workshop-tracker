@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { UploadCloud, FileText, X, Check } from "lucide-react";
+import { UploadCloud, FileText, X, Check, AlertTriangle } from "lucide-react";
 import { JOB_TYPES, PRIORITIES, STATUS_ORDER, HOURS_STEP } from "../../lib/constants";
 import { roundHours } from "../../lib/jobs";
 import { offsetDate, daysBetween } from "../../lib/dates";
+import { indexEntries, holidayIndex, unavailableReason, weekAvailableHours, weekdaysOfWeek } from "../../lib/calendar";
 import { customerKey } from "../../lib/customers";
 import { importAssemblyOrderPdf } from "../../lib/pdfImport";
 import { Modal, ModalHeader } from "../ui/overlay";
@@ -18,7 +19,7 @@ function Section({ title, children, cols = 2 }) {
   );
 }
 
-export function JobModal({ job, open, people, jobTypes, customers, businessUnits, onClose, onSave, onAddCustomer }) {
+export function JobModal({ job, open, people, staff = [], calendar = [], holidays = [], jobs = [], jobTypes, customers, businessUnits, onClose, onSave, onAddCustomer }) {
   const assignablePeople = useMemo(() => {
     const set = new Set(people);
     if (job.alloc) set.add(job.alloc);
@@ -57,6 +58,38 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
     setFields((prev) => ({ ...prev, [key]: value }));
   };
   const blur = (key) => setTouched((prev) => ({ ...prev, [key]: true }));
+
+  // Availability-aware assignment. Map staff names → ids, then flag anyone unavailable across
+  // the job's start..due range (weekdays only) so the dropdown can grey them out with a reason.
+  const staffByName = useMemo(() => new Map(staff.map((m) => [m.name, m])), [staff]);
+  const entriesByKey = useMemo(() => indexEntries(calendar), [calendar]);
+  const holidays_ = useMemo(() => holidayIndex(holidays), [holidays]);
+  const availability = useMemo(() => {
+    const map = new Map();
+    assignablePeople.forEach((name) => {
+      const member = staffByName.get(name);
+      map.set(name, member ? unavailableReason(member.id, fields.start, fields.due, entriesByKey, holidays_.set) : null);
+    });
+    return map;
+  }, [assignablePeople, staffByName, entriesByKey, holidays_, fields.start, fields.due]);
+
+  // Non-blocking capacity check for the currently-selected assignee: their remaining hours for
+  // the job's start-week, minus hours already booked to them that week, vs this job's hours.
+  const capacityWarning = useMemo(() => {
+    const member = staffByName.get(fields.alloc);
+    if (!member || !fields.start) return null;
+    const remaining = weekAvailableHours(member.id, fields.start, entriesByKey, holidays_.set);
+    const weekSet = new Set(weekdaysOfWeek(fields.start));
+    const alreadyBooked = jobs
+      .filter((j) => j.id !== job.id && j.alloc === fields.alloc && j.status !== "Complete" && weekSet.has(String(j.start).slice(0, 10)))
+      .reduce((sum, j) => sum + (Number(j.hrs) || 0), 0);
+    const free = remaining - alreadyBooked;
+    const need = Number(fields.hrs) || 0;
+    if (need > free) {
+      return `${fields.alloc} has ${Math.max(0, free)}h free that week (${remaining}h available − ${alreadyBooked}h booked); this job needs ${need}h.`;
+    }
+    return null;
+  }, [staffByName, fields.alloc, fields.start, fields.hrs, entriesByKey, holidays_, jobs, job.id]);
 
   // Map a customer name parsed from a PDF onto the catalogue: return the canonical
   // catalogue name if one matches (case/punctuation-insensitive), otherwise create a new
@@ -204,8 +237,19 @@ export function JobModal({ job, open, people, jobTypes, customers, businessUnits
             </Field>
             <Field label="Staff / Technician">
               <Select value={fields.alloc} onChange={(e) => set("alloc", e.target.value)}>
-                <option>Unassigned</option>{assignablePeople.map((p) => <option key={p}>{p}</option>)}
+                <option>Unassigned</option>
+                {assignablePeople.map((p) => {
+                  const reason = availability.get(p);
+                  // Keep the current assignee selectable even if now unavailable, so the job re-saves.
+                  const disabled = Boolean(reason) && p !== job.alloc;
+                  return <option key={p} value={p} disabled={disabled}>{reason ? `${p} — ${reason}` : p}</option>;
+                })}
               </Select>
+              {capacityWarning && (
+                <span className="mt-1 flex items-start gap-1 text-[0.7rem] font-semibold text-[var(--cal-leave)]">
+                  <AlertTriangle size={12} className="mt-px shrink-0" />{capacityWarning}
+                </span>
+              )}
             </Field>
             <Field label="Business Unit">
               <Select value={fields.bus} onChange={(e) => set("bus", e.target.value)}>{businessUnits.map((b) => <option key={b}>{b}</option>)}</Select>

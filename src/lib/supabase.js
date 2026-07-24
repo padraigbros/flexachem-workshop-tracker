@@ -9,6 +9,8 @@ export const SUPABASE_CUSTOMERS_TABLE = import.meta.env.VITE_SUPABASE_CUSTOMERS_
 export const SUPABASE_START_COLUMN = import.meta.env.VITE_SUPABASE_START_COLUMN || "start_date";
 export const SUPABASE_DUE_COLUMN = import.meta.env.VITE_SUPABASE_DUE_COLUMN || "due_date";
 export const SUPABASE_PROFILES_TABLE = import.meta.env.VITE_SUPABASE_PROFILES_TABLE || "profiles";
+export const SUPABASE_CALENDAR_TABLE = import.meta.env.VITE_SUPABASE_CALENDAR_TABLE || "staff_calendar";
+export const SUPABASE_HOLIDAYS_TABLE = import.meta.env.VITE_SUPABASE_HOLIDAYS_TABLE || "public_holidays";
 export const PDF_BUCKET = import.meta.env.VITE_SUPABASE_PDF_BUCKET || "job-files";
 
 export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;

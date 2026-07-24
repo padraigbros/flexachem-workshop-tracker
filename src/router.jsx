@@ -4,6 +4,7 @@ import { AppShell } from "./components/layout/AppShell";
 import { RequireAuth, RequireAdmin, RedirectIfAuthed } from "./components/layout/guards";
 import { RouteErrorBoundary } from "./components/layout/RouteErrorBoundary";
 import { LoginView } from "./views/LoginView";
+import { InviteView } from "./views/InviteView";
 import { DashboardView } from "./views/DashboardView";
 import { ScheduleView } from "./views/ScheduleView";
 import { Skeleton } from "./components/ui/primitives";
@@ -36,6 +37,8 @@ export const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
     children: [
       { path: "/login", element: <RedirectIfAuthed><LoginView /></RedirectIfAuthed> },
+      // Public: a Supabase invite link establishes a session here so the invitee can set a password.
+      { path: "/invite", element: <InviteView /> },
       {
         path: "/",
         element: <RequireAuth><AppShell /></RequireAuth>,

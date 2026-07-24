@@ -1,44 +1,62 @@
 import { useMemo, useState } from "react";
-import { UserPlus, Trash2, Star } from "lucide-react";
+import { UserPlus, Trash2, Star, CalendarDays } from "lucide-react";
 import { useWorkshop } from "../state/WorkshopProvider";
 import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useAuthCtx } from "../state/AuthProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { supabase } from "../lib/supabase";
 import { makeGroups } from "../lib/jobs";
-import { Card, PanelHeader, Button, Input, Select, EmptyState, Chip, cx } from "../components/ui/primitives";
+import { WEEK_CAPACITY } from "../lib/constants";
+import { Card, PanelHeader, Button, Input, Select, Field, IconButton, EmptyState, Chip, cx } from "../components/ui/primitives";
 import { Avatar, Meter } from "../components/ui/dataviz";
 import { StatusChip } from "../components/ui/StatusChip";
-import { ConfirmDialog } from "../components/ui/overlay";
+import { ConfirmDialog, Modal, ModalHeader } from "../components/ui/overlay";
 import { MiniJob } from "../components/jobs/JobBits";
+import { StaffCalendarModal } from "../components/staff/StaffCalendarModal";
 
-const WEEK_CAPACITY = 40;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function StaffView() {
   const {
     filteredJobs: jobs, activeJobs, staff, people, activePeople, profiles,
+    calendar, holidays, setCalendarEntry, inviteStaff,
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs, updateProfile,
   } = useWorkshop();
   const { requestStatusChange } = useStatusPrompt();
   const { user } = useAuthCtx();
   const { openJob } = useJobDrawer();
 
-  const [newName, setNewName] = useState("");
-  const [newRole, setNewRole] = useState("Workshop technician");
+  const [addOpen, setAddOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", role: "staff" });
+  const [addSubmitted, setAddSubmitted] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [reassignTargets, setReassignTargets] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [calendarMember, setCalendarMember] = useState(null);
 
   const groups = makeGroups(jobs, (j) => j.alloc);
   const staffByName = useMemo(() => new Map(staff.map((m) => [m.name, m])), [staff]);
   const activeCount = staff.filter((m) => m.active).length;
   const inactiveCount = staff.filter((m) => !m.active).length;
 
-  const submit = (e) => {
+  const emailError = form.email && !EMAIL_RE.test(form.email.trim()) ? "Enter a valid email" : null;
+  const resetForm = () => { setForm({ name: "", email: "", role: "staff" }); setAddSubmitted(false); };
+
+  const submit = async (e) => {
     e.preventDefault();
-    const name = newName.trim();
-    if (!name) return;
-    addStaffMember({ name, role: newRole.trim() || "Workshop technician", active: true });
-    setNewName(""); setNewRole("Workshop technician");
+    setAddSubmitted(true);
+    const name = form.name.trim();
+    const email = form.email.trim();
+    if (!name || !email || emailError) return;
+    setInviting(true);
+    addStaffMember({ name, email, role: "Workshop technician", active: true });
+    try {
+      await inviteStaff({ email, name, role: form.role });
+    } finally {
+      setInviting(false);
+      setAddOpen(false);
+      resetForm();
+    }
   };
 
   return (
@@ -46,14 +64,14 @@ export function StaffView() {
       <Card>
         <PanelHeader
           title="Staff management"
-          subtitle="Deactivate leavers to remove them from future assignment, or add new technicians."
-          action={<div className="flex gap-1.5"><Chip>{activeCount} active</Chip><Chip>{inactiveCount} inactive</Chip></div>}
+          subtitle="Deactivate leavers to remove them from future assignment, or invite new technicians."
+          action={(
+            <div className="flex items-center gap-1.5">
+              <Chip>{activeCount} active</Chip><Chip>{inactiveCount} inactive</Chip>
+              <Button variant="primary" size="sm" className="gap-1.5" onClick={() => { resetForm(); setAddOpen(true); }}><UserPlus size={15} />Add staff</Button>
+            </div>
+          )}
         />
-        <form className="mb-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_auto]" onSubmit={submit}>
-          <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New staff member name" />
-          <Input value={newRole} onChange={(e) => setNewRole(e.target.value)} placeholder="Role" />
-          <Button type="submit" variant="primary" className="gap-1.5"><UserPlus size={16} />Add staff</Button>
-        </form>
         <div className="grid gap-2.5">
           {staff.map((member) => {
             const openJobs = activeJobs.filter((j) => j.alloc === member.name && j.status !== "Complete");
@@ -73,6 +91,7 @@ export function StaffView() {
                   <Chip>{openJobs.length} open</Chip>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                  <IconButton label={`${member.name}'s calendar`} className="h-9 w-9" onClick={() => setCalendarMember(member)}><CalendarDays size={16} /></IconButton>
                   <Select className="w-auto min-w-[130px]" value={target} onChange={(e) => setReassignTargets((p) => ({ ...p, [member.name]: e.target.value }))}>
                     <option>Unassigned</option>{choices.map((n) => <option key={n}>{n}</option>)}
                   </Select>
@@ -104,7 +123,9 @@ export function StaffView() {
                   <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.66rem] font-bold", profile.role === "admin" ? "bg-[var(--status-active-bg)] text-[var(--status-active)]" : "bg-[var(--surface-sunken)] text-[var(--ink-muted)]")}>
                     {profile.role === "admin" && <Star size={10} />}{profile.role === "admin" ? "Admin" : "Staff"}
                   </span>
-                  <StatusChip status={profile.active === false ? "Not Started" : "Complete"} size="sm" />
+                  {profile.onboarded === false
+                    ? <Chip>Pending</Chip>
+                    : <StatusChip status={profile.active === false ? "Not Started" : "Complete"} size="sm" />}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                   <Button size="sm" variant="secondary" onClick={() => {
@@ -166,6 +187,44 @@ export function StaffView() {
         onConfirm={() => confirmDelete && deleteStaffMember(confirmDelete.id)}
         onClose={() => setConfirmDelete(null)}
       />
+
+      <StaffCalendarModal
+        member={calendarMember}
+        open={Boolean(calendarMember)}
+        calendar={calendar}
+        holidays={holidays}
+        onSetEntry={setCalendarEntry}
+        onClose={() => setCalendarMember(null)}
+      />
+
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} size="md">
+        <form onSubmit={submit} className="flex flex-col">
+          <ModalHeader
+            eyebrow="Invite technician"
+            title="Add a staff member"
+            subtitle={supabase ? "They'll get an email invite to set a password — no separate verification step." : "Demo mode: the staff record is added; email invites need a connected Supabase project."}
+            onClose={() => setAddOpen(false)}
+          />
+          <div className="space-y-4 p-6">
+            <Field label="Name" error={addSubmitted && !form.name.trim() ? "Required" : null}>
+              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Full name" autoFocus />
+            </Field>
+            <Field label="Email address" error={(addSubmitted && !form.email.trim() ? "Required" : null) || emailError}>
+              <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="name@company.com" />
+            </Field>
+            <Field label="Role" hint="Admins get every section; staff see the Dashboard and Schedule.">
+              <Select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
+                <option value="staff">Staff</option>
+                <option value="admin">Admin</option>
+              </Select>
+            </Field>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-[var(--line)] bg-[var(--surface-card)] px-6 py-4">
+            <Button type="button" variant="subtle" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={inviting} className="gap-1.5"><UserPlus size={16} />{inviting ? "Sending…" : "Add & invite"}</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

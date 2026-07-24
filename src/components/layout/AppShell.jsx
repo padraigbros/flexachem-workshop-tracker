@@ -127,6 +127,10 @@ export function AppShell() {
           job={editingJob}
           open
           people={shop.activePeople}
+          staff={shop.staff}
+          calendar={shop.calendar}
+          holidays={shop.holidays}
+          jobs={shop.activeJobs}
           jobTypes={shop.activeJobTypes}
           customers={shop.activeCustomers}
           businessUnits={shop.businessUnits}
