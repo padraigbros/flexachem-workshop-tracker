@@ -22,7 +22,7 @@ import {
 import {
   normalizeCustomer, mergeCustomerLists, customerKey, toCustomerDbPayload,
 } from "../lib/customers";
-import { daysUntil, formatDate, parseISODate } from "../lib/dates";
+import { daysUntil, formatDate, parseISODate, parseInstant } from "../lib/dates";
 import {
   loadStoredJobs, saveStoredJobs, loadStoredStaff, saveStoredStaff,
   loadStoredJobTypes, saveStoredJobTypes, loadStoredCustomers, saveStoredCustomers,
@@ -192,7 +192,9 @@ export function WorkshopProvider({ children }) {
         setJobs((prev) => {
           const existing = prev.find((j) => j.id === incoming.id);
           if (!existing) return [incoming, ...prev].sort(jobSort);
-          const incomingNewer = (parseISODate(incoming.updatedAt)?.getTime() || 0) >= (parseISODate(existing.updatedAt)?.getTime() || 0);
+          // Compare full ISO instants (parseInstant), not parseISODate — the latter noon-anchors
+          // to the day, so same-day edits tie and a stale echo could clobber a fresh write.
+          const incomingNewer = (parseInstant(incoming.updatedAt)?.getTime() || 0) >= (parseInstant(existing.updatedAt)?.getTime() || 0);
           const base = incomingNewer ? incoming : existing;
           const merged = { ...base, notes: mergeNotes(existing.notes, incoming.notes) };
           return prev.map((j) => (j.id === incoming.id ? merged : j));
@@ -317,17 +319,19 @@ export function WorkshopProvider({ children }) {
 
   const deleteStaffMember = useCallback(async (id) => {
     const member = staff.find((item) => item.id === id);
+    // Snapshot the open jobs to unassign BEFORE removing the staff record.
+    const affected = member ? jobs.filter((job) => job.alloc === member.name && job.status !== "Complete") : [];
     setStaff((prev) => prev.filter((item) => item.id !== id));
     if (supabase) {
       const { error } = await supabase.from(SUPABASE_STAFF_TABLE).delete().eq("id", id);
       setStaffSyncState(error ? "error" : "synced");
     }
-    if (member) {
-      setJobs((prev) => prev.map((job) => (job.alloc === member.name ? normalizeJob({ ...job, alloc: "Unassigned", updatedAt: new Date().toISOString() }) : job)));
-    }
+    // Unassign their open jobs through patchJob so the change is PERSISTED to the DB — a
+    // local-only edit would be resurrected by the next refetch/realtime sync.
+    for (const job of affected) await patchJob(job.id, { alloc: "Unassigned" });
     // Drop the person's calendar entries locally (the DB cascades via the FK).
     setCalendar((prev) => prev.filter((e) => e.staffId !== id));
-  }, [staff]);
+  }, [staff, jobs, patchJob]);
 
   // Set (or clear) a staff member's status on a date. "Available" removes the row entirely —
   // Available is the absence of an entry. Public holidays are not user-settable here.
@@ -560,7 +564,7 @@ export function WorkshopProvider({ children }) {
   }, [filteredJobs]);
 
   const updates = useMemo(() => activeJobs.flatMap((job) => parseNotes(job.notes).map((note) => ({ ...note, job })))
-    .sort((a, b) => (parseISODate(b.at)?.getTime() || 0) - (parseISODate(a.at)?.getTime() || 0)), [activeJobs]);
+    .sort((a, b) => (parseInstant(b.at)?.getTime() || 0) - (parseInstant(a.at)?.getTime() || 0)), [activeJobs]);
 
   const updateFilter = useCallback((key, value) => setFilters((prev) => ({ ...prev, [key]: value })), []);
   const resetFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
