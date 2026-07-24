@@ -127,6 +127,51 @@ export function weekAvailableHours(staffId, isoDate, entriesByKey, holidaySet) {
   return Math.max(0, WEEK_CAPACITY - lost * DAY_HOURS);
 }
 
+// ---- Timeline (team availability) ---------------------------------------
+
+// Monday (ISO) of the week containing isoDate — the anchor for the horizontal timeline.
+export function mondayOf(isoDate) {
+  const d = parseISODate(isoDate);
+  if (!d) return "";
+  const offset = (d.getDay() + 6) % 7; // days since Monday (Mon→0 … Sun→6)
+  d.setDate(d.getDate() - offset);
+  return toISODate(d);
+}
+
+// isoDate shifted by n days (n may be negative), returned as an ISO date string.
+export function addDaysISO(isoDate, n) {
+  const d = parseISODate(isoDate);
+  if (!d) return "";
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+
+// The 7 ISO dates (Mon→Sun) of the week containing isoDate — the columns of the week view.
+export function weekDates(isoDate) {
+  const monday = mondayOf(isoDate);
+  return Array.from({ length: 7 }, (_, i) => addDaysISO(monday, i));
+}
+
+// Every ISO date in the given month — the columns of the month view.
+export function monthDates(year, month) {
+  const last = new Date(year, month + 1, 0).getDate();
+  return Array.from({ length: last }, (_, i) => toISODate(new Date(year, month, i + 1)));
+}
+
+// Available vs. total capacity across an arbitrary set of ISO dates: only weekdays count,
+// each available weekday is worth DAY_HOURS. Generalises weekAvailableHours() to any span
+// (a single week → 40h capacity, a month → weekdays × 8h) for the timeline's Hours column.
+export function availableHoursInRange(staffId, isoDates, entriesByKey, holidaySet) {
+  let available = 0;
+  let capacity = 0;
+  (isoDates || []).forEach((date) => {
+    if (!isWeekday(date)) return;
+    capacity += DAY_HOURS;
+    if (statusOn(staffId, date, entriesByKey, holidaySet) === "Available") available += DAY_HOURS;
+  });
+  return { available, capacity };
+}
+
 // ---- Assignment availability --------------------------------------------
 
 // Inclusive list of ISO dates from start..end (capped so a bad range can't loop forever).

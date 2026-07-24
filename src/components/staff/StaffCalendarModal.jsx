@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, X, GraduationCap, Palmtree, Thermometer, Landmark } from "lucide-react";
-import { CALENDAR_STATUSES, WEEK_CAPACITY } from "../../lib/constants";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { WEEK_CAPACITY } from "../../lib/constants";
 import {
   CALENDAR_STATUS_META, WEEKDAY_LABELS, monthGrid, indexEntries, holidayIndex,
   statusOn, weekAvailableHours,
@@ -8,63 +8,9 @@ import {
 import { today, toISODate } from "../../lib/dates";
 import { Modal, ModalHeader } from "../ui/overlay";
 import { Button, cx } from "../ui/primitives";
+import { STATUS_ICON, DayPicker, CalendarLegend } from "./calendarShared";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-// Icon per non-available status (Available has no glyph — its tint carries the meaning).
-const STATUS_ICON = {
-  Training: GraduationCap,
-  Leave: Palmtree,
-  Sick: Thermometer,
-  "Public Holiday": Landmark,
-};
-
-// A swatch that mirrors a calendar day cell (pale fill + ink accent) so the legend, the
-// picker, and the grid all read as the same colour language.
-function Swatch({ meta }) {
-  return (
-    <span
-      className="grid h-4 w-4 place-items-center rounded-md"
-      style={{ background: meta.bg, boxShadow: `inset 0 0 0 1px ${meta.ink}` }}
-    >
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: meta.ink }} />
-    </span>
-  );
-}
-
-// Small inline status picker shown when an editable day is tapped.
-function DayPicker({ current, onPick, onClose }) {
-  return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface-card)] p-2 shadow-[var(--shadow-float)]">
-      <div className="mb-1 flex items-center justify-between px-1">
-        <span className="text-[0.62rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Set status</span>
-        <button type="button" aria-label="Close picker" onClick={onClose} className="text-[var(--ink-muted)]"><X size={13} /></button>
-      </div>
-      <div className="grid grid-cols-2 gap-1">
-        {CALENDAR_STATUSES.map((status) => {
-          const meta = CALENDAR_STATUS_META[status];
-          const Icon = STATUS_ICON[status];
-          const active = current === status;
-          return (
-            <button
-              key={status}
-              type="button"
-              onClick={() => onPick(status)}
-              className={cx(
-                "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[0.72rem] font-semibold transition-[filter]",
-                active ? "" : "hover:brightness-95",
-              )}
-              style={{ color: meta.ink, background: meta.bg, ...(active ? { boxShadow: `inset 0 0 0 1.5px ${meta.ink}` } : null) }}
-            >
-              {Icon ? <Icon size={13} /> : <span className="h-2 w-2 rounded-full" style={{ background: meta.ink }} />}
-              {meta.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntry, onClose }) {
   const now = today();
@@ -182,14 +128,7 @@ export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntr
           </div>
 
           {/* Legend — every status, swatches matching the grid's colour language. */}
-          <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[var(--line)] pt-3">
-            {Object.entries(CALENDAR_STATUS_META).map(([key, meta]) => (
-              <span key={key} className="inline-flex items-center gap-1.5 text-[0.68rem] font-semibold text-[var(--ink-soft)]">
-                <Swatch meta={meta} />
-                {meta.label}
-              </span>
-            ))}
-          </div>
+          <CalendarLegend className="border-t border-[var(--line)] pt-3" />
           <p className="text-[0.7rem] text-[var(--ink-muted)]">
             Each non-available weekday deducts {WEEK_CAPACITY / 5}h from that week&apos;s {WEEK_CAPACITY}h capacity. Public holidays are read-only.
           </p>

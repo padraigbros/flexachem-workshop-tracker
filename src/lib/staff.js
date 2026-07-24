@@ -45,6 +45,32 @@ export function mergeStaffLists(...lists) {
   });
 }
 
+// Unified team roster: one row per person, reconciling the staff record (assignable to
+// jobs, has a calendar) with the login account/profile (role, sign-in status), matched by
+// email. Shared by the Staff list view and the Team Availability calendar so both agree on
+// who exists, their role, and whether they're active. (Logic lifted from StaffView.)
+export function buildRoster(staff, profiles) {
+  const byEmail = new Map();
+  const rows = [];
+  (staff || []).forEach((m) => {
+    const row = { key: m.id, staff: m, profile: null, name: m.name, email: m.email || "" };
+    const k = String(m.email || "").toLowerCase();
+    if (k) byEmail.set(k, row);
+    rows.push(row);
+  });
+  (profiles || []).forEach((p) => {
+    const k = String(p.email || "").toLowerCase();
+    const existing = k && byEmail.get(k);
+    if (existing) existing.profile = p;
+    else rows.push({ key: `profile-${p.id}`, staff: null, profile: p, name: p.name || p.email, email: p.email || "" });
+  });
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export const rosterRole = (row) => (row.profile?.role === "admin" ? "admin" : "staff");
+export const rosterActive = (row) => (row.profile ? row.profile.active !== false : row.staff ? row.staff.active : true);
+export const rosterPending = (row) => row.profile?.onboarded === false;
+
 export function jobTypeKey(name) {
   return String(name || "job-type").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job-type";
 }

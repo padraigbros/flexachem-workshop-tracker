@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { UserPlus, Trash2, Star, CalendarDays, Send } from "lucide-react";
+import { UserPlus, Trash2, Star, CalendarDays, Send, LayoutList, CalendarRange } from "lucide-react";
 import { useWorkshop } from "../state/WorkshopProvider";
 import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useAuthCtx } from "../state/AuthProvider";
 import { useJobDrawer } from "../state/useJobDrawer";
 import { supabase } from "../lib/supabase";
 import { makeGroups } from "../lib/jobs";
+import { buildRoster, rosterRole, rosterActive, rosterPending } from "../lib/staff";
 import { WEEK_CAPACITY } from "../lib/constants";
 import { Card, PanelHeader, Button, Input, Select, Field, IconButton, EmptyState, Chip, cx } from "../components/ui/primitives";
 import { Avatar, Meter } from "../components/ui/dataviz";
@@ -13,6 +14,7 @@ import { StatusChip } from "../components/ui/StatusChip";
 import { ConfirmDialog, Modal, ModalHeader } from "../components/ui/overlay";
 import { MiniJob } from "../components/jobs/JobBits";
 import { StaffCalendarModal } from "../components/staff/StaffCalendarModal";
+import { TeamAvailabilityView } from "../components/staff/TeamAvailabilityView";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const cloud = Boolean(supabase);
@@ -35,33 +37,19 @@ export function StaffView() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [calendarMember, setCalendarMember] = useState(null);
   const [resending, setResending] = useState(null);
+  const [viewMode, setViewMode] = useState("list"); // "list" | "calendar"
 
   const groups = makeGroups(jobs, (j) => j.alloc);
   const staffByName = useMemo(() => new Map(staff.map((m) => [m.name, m])), [staff]);
 
   // Unified roster: one row per person, reconciling the staff record (assignable to jobs,
   // has a calendar) with the login account/profile (role, sign-in status). Matched by email.
-  const roster = useMemo(() => {
-    const byEmail = new Map();
-    const rows = [];
-    staff.forEach((m) => {
-      const row = { key: m.id, staff: m, profile: null, name: m.name, email: m.email || "" };
-      const k = String(m.email || "").toLowerCase();
-      if (k) byEmail.set(k, row);
-      rows.push(row);
-    });
-    profiles.forEach((p) => {
-      const k = String(p.email || "").toLowerCase();
-      const existing = k && byEmail.get(k);
-      if (existing) existing.profile = p;
-      else rows.push({ key: `profile-${p.id}`, staff: null, profile: p, name: p.name || p.email, email: p.email || "" });
-    });
-    return rows.sort((a, b) => a.name.localeCompare(b.name));
-  }, [staff, profiles]);
+  // Shared with the Team Availability calendar via buildRoster.
+  const roster = useMemo(() => buildRoster(staff, profiles), [staff, profiles]);
 
-  const roleOf = (row) => (row.profile?.role === "admin" ? "admin" : "staff");
-  const isActiveRow = (row) => (row.profile ? row.profile.active !== false : row.staff ? row.staff.active : true);
-  const isPending = (row) => row.profile?.onboarded === false;
+  const roleOf = rosterRole;
+  const isActiveRow = rosterActive;
+  const isPending = rosterPending;
 
   const staffCount = roster.filter((r) => roleOf(r) !== "admin").length;
   const adminCount = roster.filter((r) => roleOf(r) === "admin").length;
@@ -118,10 +106,28 @@ export function StaffView() {
               <Chip>{staffCount} staff</Chip>
               {cloud && <Chip>{adminCount} admin</Chip>}
               {pendingCount > 0 && <Chip>{pendingCount} pending</Chip>}
+              <div className="inline-flex rounded-[var(--radius-field)] bg-[var(--surface-sunken)] p-0.5">
+                {[["list", "List", LayoutList], ["calendar", "Calendar", CalendarRange]].map(([id, label, Icon]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setViewMode(id)}
+                    className={cx(
+                      "inline-flex items-center gap-1.5 rounded-[calc(var(--radius-field)-2px)] px-2.5 py-1.5 text-[0.78rem] font-semibold transition-colors",
+                      viewMode === id ? "bg-[var(--surface-card)] text-[var(--ink)] shadow-[var(--shadow-card)]" : "text-[var(--ink-muted)]",
+                    )}
+                  >
+                    <Icon size={14} />{label}
+                  </button>
+                ))}
+              </div>
               <Button variant="primary" size="sm" className="gap-1.5" onClick={() => { resetForm(); setAddOpen(true); }}><UserPlus size={15} />Add person</Button>
             </div>
           )}
         />
+        {viewMode === "calendar" ? (
+          <TeamAvailabilityView onOpenFullCalendar={setCalendarMember} />
+        ) : (
         <div className="grid gap-2.5">
           {roster.length ? roster.map((row) => {
             const admin = roleOf(row) === "admin";
@@ -171,8 +177,10 @@ export function StaffView() {
             );
           }) : <EmptyState text="No one on the team yet. Use “Add person” to invite your first staff member or admin." />}
         </div>
+        )}
       </Card>
 
+      {viewMode === "list" && (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {people.map((person) => {
           const items = groups[person] || [];
@@ -209,6 +217,7 @@ export function StaffView() {
           );
         })}
       </div>
+      )}
 
       <ConfirmDialog
         open={Boolean(confirmDelete)}
