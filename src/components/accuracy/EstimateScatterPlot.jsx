@@ -54,7 +54,7 @@ export function EstimateScatterPlot({ rows, onSelect }) {
 
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full rounded-[var(--radius-card)] bg-[var(--surface-sunken)]"
+        className="mx-auto block w-full max-w-[640px] rounded-[var(--radius-card)] bg-[var(--surface-sunken)]"
         role="img"
         aria-label={`Estimate versus actual hours for ${rows.length} completed jobs`}
       >
