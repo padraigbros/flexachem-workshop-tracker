@@ -84,6 +84,8 @@ export function Modal({ open, onClose, children, className, size = "lg" }) {
         <div className="fixed inset-0 z-[95] grid place-items-center sm:p-5">
           <Backdrop onClick={onClose} />
           <motion.div
+            role="dialog"
+            aria-modal="true"
             className={cx(
               "relative z-[96] flex max-h-[100dvh] w-full flex-col overflow-hidden bg-[var(--surface-page)] shadow-[var(--shadow-float)] pt-safe sm:pt-0",
               "sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-[1.6rem]",

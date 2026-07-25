@@ -1,15 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { seedUser } from "./helpers.js";
+import { seedUser, addStaffMember } from "./helpers.js";
 
 test.beforeEach(async ({ page }) => { await seedUser(page); });
 
 test("@-mention in a note raises a notification the bell surfaces", async ({ page }) => {
   // No staff are seeded by default (demo or cloud) — add a technician ourselves so the
   // mention picker has someone to suggest, rather than relying on any built-in name.
-  await page.goto("/staff");
-  await page.getByPlaceholder(/new staff member name/i).fill("Priya Shah");
-  await page.getByRole("button", { name: /add staff/i }).click();
-  await expect(page.locator("strong", { hasText: "Priya Shah" }).first()).toBeVisible();
+  await addStaffMember(page, "Priya Shah", "priya.shah@flexachem.com");
 
   await page.goto("/schedule?job=demo-1");
   const drawer = page.locator("aside").filter({ hasText: "A007563" });
