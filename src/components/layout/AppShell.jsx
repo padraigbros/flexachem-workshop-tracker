@@ -11,6 +11,7 @@ import { uploadJobPdf } from "../../lib/files";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { Topbar } from "./Topbar";
+import { WriteErrorBanner } from "./WriteErrorBanner";
 import { CommandPalette } from "./CommandPalette";
 import { JobDrawer } from "../jobs/JobDrawer";
 import { UpdatesDrawer } from "../jobs/UpdatesDrawer";
@@ -41,19 +42,29 @@ export function AppShell() {
   const shellValue = { newJob, editJob, askDelete, openJob };
   const selectedJob = jobId ? shop.getJob(jobId) : null;
 
+  // Returns the write result to JobModal so a rejected save keeps the modal — and the user's
+  // typed work — on screen. Closing unconditionally is what made the 29 Jul 2026 data loss
+  // invisible: the job vanished into a failed insert while the UI acted like it had saved.
   const saveJob = async (fieldsIn) => {
     const { attachmentFile, attachment: keptAttachment, ...rest } = fieldsIn;
     let attachment = keptAttachment || null;
     let label;
     if (attachmentFile) {
-      attachment = await uploadJobPdf(attachmentFile, shop.auditBy);
+      try {
+        attachment = await uploadJobPdf(attachmentFile, shop.auditBy);
+      } catch (err) {
+        return { ok: false, message: `The PDF couldn't be uploaded: ${err?.message || String(err)}` };
+      }
       label = `Attached ${attachmentFile.name}`;
     } else if (editingJob.id && editingJob.attachment && !attachment) {
       label = "Attachment removed";
     }
-    if (editingJob.id) await shop.auditPatch(editingJob.id, { ...rest, attachment }, label);
-    else await shop.createJob({ ...rest, attachment }, attachmentFile?.name);
+    const result = editingJob.id
+      ? await shop.auditPatch(editingJob.id, { ...rest, attachment }, label)
+      : await shop.createJob({ ...rest, attachment }, attachmentFile?.name);
+    if (result && result.ok === false) return result;
     setEditingJob(null);
+    return result;
   };
 
   return (
@@ -62,6 +73,7 @@ export function AppShell() {
         <Sidebar />
         <div className="flex min-w-0 flex-col">
           <Topbar onNewJob={newJob} onOpenPalette={() => setPaletteOpen(true)} />
+          <WriteErrorBanner />
           <main className="flex-1 px-[var(--spacing-gutter)] pb-28 pt-5 lg:pb-8">
             <AnimatePresence mode="wait">
               <motion.div

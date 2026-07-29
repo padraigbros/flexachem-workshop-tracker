@@ -37,10 +37,19 @@ export function Chip({ className, icon: Icon, children, ...props }) {
   );
 }
 
-export function Field({ label, hint, error, children, className }) {
+// `required` marks the field before the user tries to save, rather than only revealing it as
+// a validation error afterwards. The marker is an asterisk, NOT the word "Required" — that
+// string is reserved for the post-submit error text, and duplicating it would make the
+// inline error indistinguishable from the up-front hint.
+export function Field({ label, hint, error, required, children, className }) {
   return (
     <label className={cx("block", className)}>
-      {label && <span className="field-label">{label}</span>}
+      {label && (
+        <span className="field-label">
+          {label}
+          {required && <span className="ml-1 text-[var(--danger)]" title="Required">*</span>}
+        </span>
+      )}
       {children}
       {hint && !error && <span className="mt-1 block text-[0.7rem] text-[var(--ink-muted)]">{hint}</span>}
       {error && <span className="mt-1 block text-[0.7rem] font-semibold text-[var(--danger)]">{error}</span>}

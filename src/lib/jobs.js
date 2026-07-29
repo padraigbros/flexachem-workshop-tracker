@@ -118,6 +118,12 @@ export function toDbPayload(job) {
     type: job.type,
     owner: job.owner,
     alloc: job.alloc,
+    // Write BOTH assignment columns. normalizeJob reads `allocated_to` first (see its
+    // fallback chain), but until 29 Jul 2026 only `alloc` was ever written — a legacy
+    // database trigger bridged the two. When that bridge stopped populating it, every insert
+    // failed with `23502 null value in column "allocated_to"` and two jobs were lost. The app
+    // now fills the column itself, so no trigger has to exist for a job to save.
+    allocated_to: job.alloc,
     hrs: Number(job.hrs) || 0,
     actual_hours: Number(job.actualHrs) || 0,
     status: job.status,

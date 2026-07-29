@@ -28,3 +28,5 @@ playwright-report/
 # Supabase CLI local working state (project ref/pooler host cache, not secrets, but
 # transient local metadata that doesn't belong in version control).
 supabase/.temp/
+
+dist-e2e-cloud

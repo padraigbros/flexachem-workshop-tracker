@@ -12,7 +12,7 @@ import logoUrl from "../../assets/flexachem-logo.png";
 // Desktop sidebar (hidden < lg — the mobile tab bar takes over).
 export function Sidebar() {
   const { user, isAdmin, logout } = useAuthCtx();
-  const { syncState, staffSyncState } = useWorkshop();
+  const { syncState, staffSyncState, jobTypeSyncState, customerSyncState } = useWorkshop();
   const items = NAV_ITEMS.filter((item) => !item.admin || isAdmin);
 
   return (
@@ -55,7 +55,7 @@ export function Sidebar() {
 
       <div className="relative mt-auto grid gap-3">
         <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-3">
-          <SyncBadge jobsState={syncState} staffState={staffSyncState} />
+          <SyncBadge jobsState={syncState} staffState={staffSyncState} jobTypeState={jobTypeSyncState} customerState={customerSyncState} />
         </div>
 
         <div className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-black/20 p-3">

@@ -23,6 +23,7 @@ import {
   normalizeCustomer, mergeCustomerLists, customerKey, toCustomerDbPayload,
 } from "../lib/customers";
 import { daysUntil, formatDate, parseISODate, parseInstant } from "../lib/dates";
+import { runWrite, LOCAL_OK } from "../lib/writes";
 import {
   loadStoredJobs, saveStoredJobs, loadStoredStaff, saveStoredStaff,
   loadStoredJobTypes, saveStoredJobTypes, loadStoredCustomers, saveStoredCustomers,
@@ -49,6 +50,9 @@ export function WorkshopProvider({ children }) {
   const [staffSyncState, setStaffSyncState] = useState(supabase ? "syncing" : "local");
   const [jobTypeSyncState, setJobTypeSyncState] = useState(supabase ? "syncing" : "local");
   const [customerSyncState, setCustomerSyncState] = useState(supabase ? "syncing" : "local");
+  // Reason for the most recent failed write, surfaced by WriteErrorBanner. Null when the last
+  // write succeeded — a stale red banner trains people to ignore it.
+  const [lastWriteError, setLastWriteError] = useState(null);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   // With RLS enabled, queries only return rows for an authenticated session — wait for login.
@@ -224,11 +228,27 @@ export function WorkshopProvider({ children }) {
   }, [userId, fetchJobs]);
 
   // ---- Mutations -------------------------------------------------------
+  //
+  // Every mutation below returns { ok, error, message } and UNDOES its optimistic update when
+  // the write fails. Do not add a write that returns undefined — a caller with no way to know
+  // it failed is how two jobs were silently lost on 29 Jul 2026. See lib/writes.js.
+  //
+  // `fail` records the reason for the app-wide banner; `succeed` clears it.
+  const fail = useCallback((result) => {
+    setLastWriteError({ message: result.message, at: Date.now(), retryable: result.retryable });
+    return result;
+  }, []);
+
+  const dismissWriteError = useCallback(() => setLastWriteError(null), []);
+
   const patchJob = useCallback(async (id, patch) => {
     const updatedAt = new Date().toISOString();
     let nextJob = null;
+    // Snapshot the row as it was so a rejected write can put it back exactly.
+    let priorJob = null;
     setJobs((prev) => prev.map((job) => {
       if (job.id !== id) return job;
+      priorJob = job;
       const merged = { ...job, ...patch, updatedAt };
       // Stamp/clear the completion time as the job crosses into or out of "Complete".
       // Re-completing (status unchanged) leaves completed_at stable so the weekly window
@@ -252,41 +272,59 @@ export function WorkshopProvider({ children }) {
           setJobs((prev) => prev.map((job) => (job.id === id ? normalizeJob({ ...job, notes: merged, updatedAt }) : job)));
         }
       }
-      const { error } = await supabase.from(SUPABASE_TABLE).update(payload).eq("id", id);
-      setSyncState(error ? "error" : "synced");
+      const result = await runWrite(() => supabase.from(SUPABASE_TABLE).update(payload).eq("id", id));
+      if (!result.ok) {
+        // Put the job back the way it was — a board showing an edit the database rejected is
+        // worse than no edit at all.
+        if (priorJob) setJobs((prev) => prev.map((job) => (job.id === id ? priorJob : job)));
+        setSyncState("error");
+        return fail(result);
+      }
+      setSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [fail]);
 
   const addJob = useCallback(async (fields) => {
     const localJob = normalizeJob({ ...fields, id: crypto.randomUUID?.() || `job-${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: Array.isArray(fields.notes) ? fields.notes : [] });
     setJobs((prev) => [localJob, ...prev]);
     if (supabase) {
-      const { data, error } = await supabase.from(SUPABASE_TABLE).insert(toDbPayload(localJob)).select("*").single();
-      if (error) {
+      const result = await runWrite(() => supabase.from(SUPABASE_TABLE).insert(toDbPayload(localJob)).select("*").single());
+      if (!result.ok) {
+        // Drop the optimistic card. Because `jobs` state drives the localStorage mirror, this
+        // also stops the phantom surviving a reload and looking saved.
+        setJobs((prev) => prev.filter((job) => job.id !== localJob.id));
         setSyncState("error");
-      } else if (data) {
-        const savedJob = normalizeJob(data);
-        setJobs((prev) => prev.map((job) => (job.id === localJob.id ? savedJob : job)));
-        setSyncState("synced");
+        return fail(result);
       }
+      if (result.data) {
+        const savedJob = normalizeJob(result.data);
+        setJobs((prev) => prev.map((job) => (job.id === localJob.id ? savedJob : job)));
+      }
+      setSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [fail]);
 
   const addNote = useCallback(async (id, noteText, nextStatus, by) => {
     const current = jobs.find((job) => job.id === id);
-    if (!current || !noteText.trim()) return;
+    if (!current || !noteText.trim()) return LOCAL_OK;
     const note = { at: new Date().toISOString(), by: by || "Workshop", kind: "note", txt: noteText.trim(), status: nextStatus || current.status };
     const patch = {
       notes: [note, ...parseNotes(current.notes)],
       status: nextStatus || current.status,
       updatedAt: note.at,
     };
-    await patchJob(id, patch);
+    return patchJob(id, patch);
   }, [jobs, patchJob]);
 
   const addStaffMember = useCallback(async (fields) => {
     const name = String(fields.name || "").trim();
-    if (!name) return;
+    if (!name) return LOCAL_OK;
     const existing = staff.find((member) => staffKey(member.name) === staffKey(name));
     const localMember = normalizeStaff({
       ...(existing || {}),
@@ -296,26 +334,47 @@ export function WorkshopProvider({ children }) {
       active: fields.active ?? true,
       updatedAt: new Date().toISOString(),
     });
+    const priorStaff = staff;
     setStaff((prev) => mergeStaffLists(prev.filter((member) => member.id !== localMember.id), [localMember]));
     if (supabase) {
-      const { data, error } = await supabase.from(SUPABASE_STAFF_TABLE).upsert(toStaffDbPayload(localMember)).select("*").single();
-      if (error) setStaffSyncState("error");
-      else if (data) { setStaff((prev) => mergeStaffLists(prev.filter((member) => member.id !== localMember.id), [data])); setStaffSyncState("synced"); }
+      const result = await runWrite(() => supabase.from(SUPABASE_STAFF_TABLE).upsert(toStaffDbPayload(localMember)).select("*").single());
+      if (!result.ok) {
+        setStaff(priorStaff);
+        setStaffSyncState("error");
+        toast.error("Could not add that person", { description: result.message });
+        return fail(result);
+      }
+      if (result.data) setStaff((prev) => mergeStaffLists(prev.filter((member) => member.id !== localMember.id), [result.data]));
+      setStaffSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, [staff]);
+    return LOCAL_OK;
+  }, [staff, fail]);
 
   const updateStaffMember = useCallback(async (id, patch) => {
     let nextMember = null;
+    let priorMember = null;
     setStaff((prev) => mergeStaffLists(prev.map((member) => {
       if (member.id !== id) return member;
+      priorMember = member;
       nextMember = normalizeStaff({ ...member, ...patch, updatedAt: new Date().toISOString() });
       return nextMember;
     })));
     if (supabase && nextMember) {
-      const { error } = await supabase.from(SUPABASE_STAFF_TABLE).update(toStaffDbPayload(nextMember)).eq("id", id);
-      setStaffSyncState(error ? "error" : "synced");
+      const result = await runWrite(() => supabase.from(SUPABASE_STAFF_TABLE).update(toStaffDbPayload(nextMember)).eq("id", id));
+      if (!result.ok) {
+        if (priorMember) setStaff((prev) => mergeStaffLists(prev.map((member) => (member.id === id ? priorMember : member))));
+        setStaffSyncState("error");
+        toast.error("Could not update that person", { description: result.message });
+        return fail(result);
+      }
+      setStaffSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [fail]);
 
   const deleteStaffMember = useCallback(async (id) => {
     const member = staff.find((item) => item.id === id);
@@ -323,56 +382,96 @@ export function WorkshopProvider({ children }) {
     const affected = member ? jobs.filter((job) => job.alloc === member.name && job.status !== "Complete") : [];
     setStaff((prev) => prev.filter((item) => item.id !== id));
     if (supabase) {
-      const { error } = await supabase.from(SUPABASE_STAFF_TABLE).delete().eq("id", id);
-      setStaffSyncState(error ? "error" : "synced");
+      const result = await runWrite(() => supabase.from(SUPABASE_STAFF_TABLE).delete().eq("id", id));
+      if (!result.ok) {
+        // Put the person back, and DON'T unassign their jobs or prune their calendar — those
+        // used to run even when the delete failed, quietly mangling data around a no-op.
+        if (member) setStaff((prev) => mergeStaffLists(prev, [member]));
+        setStaffSyncState("error");
+        toast.error("Could not remove that person", { description: result.message });
+        return fail(result);
+      }
+      setStaffSyncState("synced");
+      setLastWriteError(null);
     }
     // Unassign their open jobs through patchJob so the change is PERSISTED to the DB — a
     // local-only edit would be resurrected by the next refetch/realtime sync.
     for (const job of affected) await patchJob(job.id, { alloc: "Unassigned" });
     // Drop the person's calendar entries locally (the DB cascades via the FK).
     setCalendar((prev) => prev.filter((e) => e.staffId !== id));
-  }, [staff, jobs, patchJob]);
+    return LOCAL_OK;
+  }, [staff, jobs, patchJob, fail]);
 
   // Set (or clear) a staff member's status on a date. "Available" removes the row entirely —
   // Available is the absence of an entry. Public holidays are not user-settable here.
   const setCalendarEntry = useCallback(async (staffId, date, status) => {
     const iso = String(date).slice(0, 10);
-    if (!staffId || !iso) return;
+    if (!staffId || !iso) return LOCAL_OK;
     const id = calendarEntryKey(staffId, iso);
+    const priorEntry = calendar.find((e) => e.id === id) || null;
     if (status === "Available") {
       setCalendar((prev) => prev.filter((e) => e.id !== id));
       if (supabase) {
-        const { error } = await supabase.from(SUPABASE_CALENDAR_TABLE).delete().eq("id", id);
-        if (error) toast.error("Could not update calendar", { description: error.message });
+        const result = await runWrite(() => supabase.from(SUPABASE_CALENDAR_TABLE).delete().eq("id", id));
+        if (!result.ok) {
+          if (priorEntry) setCalendar((prev) => [...prev.filter((e) => e.id !== id), priorEntry]);
+          toast.error("Could not update calendar", { description: result.message });
+          return fail(result);
+        }
+        setLastWriteError(null);
+        return result;
       }
-      return;
+      return LOCAL_OK;
     }
     const entry = normalizeCalendarEntry({ id, staffId, date: iso, status, updatedAt: new Date().toISOString() });
     setCalendar((prev) => [...prev.filter((e) => e.id !== id), entry]);
     if (supabase) {
-      const { error } = await supabase.from(SUPABASE_CALENDAR_TABLE).upsert(toCalendarDbPayload(entry));
-      if (error) toast.error("Could not update calendar", { description: error.message });
+      const result = await runWrite(() => supabase.from(SUPABASE_CALENDAR_TABLE).upsert(toCalendarDbPayload(entry)));
+      if (!result.ok) {
+        setCalendar((prev) => (priorEntry ? [...prev.filter((e) => e.id !== id), priorEntry] : prev.filter((e) => e.id !== id)));
+        toast.error("Could not update calendar", { description: result.message });
+        return fail(result);
+      }
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [calendar, fail]);
 
   const addHoliday = useCallback(async (fields) => {
     const holiday = normalizeHoliday(fields);
-    if (!holiday.date) return;
+    if (!holiday.date) return LOCAL_OK;
+    const priorHolidays = holidays;
     setHolidays((prev) => [...prev.filter((h) => h.date !== holiday.date), holiday].sort((a, b) => a.date.localeCompare(b.date)));
     if (supabase) {
-      const { error } = await supabase.from(SUPABASE_HOLIDAYS_TABLE).upsert(toHolidayDbPayload(holiday));
-      if (error) toast.error("Could not save holiday", { description: error.message });
+      const result = await runWrite(() => supabase.from(SUPABASE_HOLIDAYS_TABLE).upsert(toHolidayDbPayload(holiday)));
+      if (!result.ok) {
+        setHolidays(priorHolidays);
+        toast.error("Could not save holiday", { description: result.message });
+        return fail(result);
+      }
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [holidays, fail]);
 
   const deleteHoliday = useCallback(async (date) => {
     const iso = String(date).slice(0, 10);
+    const priorHolidays = holidays;
     setHolidays((prev) => prev.filter((h) => h.date !== iso));
     if (supabase) {
-      const { error } = await supabase.from(SUPABASE_HOLIDAYS_TABLE).delete().eq("date", iso);
-      if (error) toast.error("Could not remove holiday", { description: error.message });
+      const result = await runWrite(() => supabase.from(SUPABASE_HOLIDAYS_TABLE).delete().eq("date", iso));
+      if (!result.ok) {
+        setHolidays(priorHolidays);
+        toast.error("Could not remove holiday", { description: result.message });
+        return fail(result);
+      }
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [holidays, fail]);
 
   // Send a Supabase invite email via the invite-user edge function (admin-only, service role).
   // No-op with a message in demo mode (no Supabase configured).
@@ -406,7 +505,7 @@ export function WorkshopProvider({ children }) {
 
   const addJobType = useCallback(async (fields) => {
     const name = String(fields.name || "").trim();
-    if (!name) return;
+    if (!name) return LOCAL_OK;
     const existing = jobTypes.find((jobType) => jobTypeKey(jobType.name) === jobTypeKey(name));
     const localJobType = normalizeJobType({
       ...(existing || {}),
@@ -416,38 +515,69 @@ export function WorkshopProvider({ children }) {
       active: fields.active ?? true,
       updatedAt: new Date().toISOString(),
     });
+    const priorJobTypes = jobTypes;
     setJobTypes((prev) => mergeJobTypeLists(prev.filter((jobType) => jobType.id !== localJobType.id), [localJobType]));
     if (supabase) {
-      const { data, error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).upsert(toJobTypeDbPayload(localJobType)).select("*").single();
-      if (error) setJobTypeSyncState("error");
-      else if (data) { setJobTypes((prev) => mergeJobTypeLists(prev.filter((jobType) => jobType.id !== localJobType.id), [data])); setJobTypeSyncState("synced"); }
+      const result = await runWrite(() => supabase.from(SUPABASE_JOB_TYPES_TABLE).upsert(toJobTypeDbPayload(localJobType)).select("*").single());
+      if (!result.ok) {
+        setJobTypes(priorJobTypes);
+        setJobTypeSyncState("error");
+        toast.error("Could not save that job type", { description: result.message });
+        return fail(result);
+      }
+      if (result.data) setJobTypes((prev) => mergeJobTypeLists(prev.filter((jobType) => jobType.id !== localJobType.id), [result.data]));
+      setJobTypeSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, [jobTypes]);
+    return LOCAL_OK;
+  }, [jobTypes, fail]);
 
   const updateJobType = useCallback(async (id, patch) => {
     let nextJobType = null;
+    let priorJobType = null;
     setJobTypes((prev) => mergeJobTypeLists(prev.map((jobType) => {
       if (jobType.id !== id) return jobType;
+      priorJobType = jobType;
       nextJobType = normalizeJobType({ ...jobType, ...patch, updatedAt: new Date().toISOString() });
       return nextJobType;
     })));
     if (supabase && nextJobType) {
-      const { error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).update(toJobTypeDbPayload(nextJobType)).eq("id", id);
-      setJobTypeSyncState(error ? "error" : "synced");
+      const result = await runWrite(() => supabase.from(SUPABASE_JOB_TYPES_TABLE).update(toJobTypeDbPayload(nextJobType)).eq("id", id));
+      if (!result.ok) {
+        if (priorJobType) setJobTypes((prev) => mergeJobTypeLists(prev.map((jobType) => (jobType.id === id ? priorJobType : jobType))));
+        setJobTypeSyncState("error");
+        toast.error("Could not update that job type", { description: result.message });
+        return fail(result);
+      }
+      setJobTypeSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [fail]);
 
   const deleteJobType = useCallback(async (id) => {
+    const priorJobType = jobTypes.find((jobType) => jobType.id === id) || null;
     setJobTypes((prev) => prev.filter((jobType) => jobType.id !== id));
     if (supabase) {
-      const { error } = await supabase.from(SUPABASE_JOB_TYPES_TABLE).delete().eq("id", id);
-      setJobTypeSyncState(error ? "error" : "synced");
+      const result = await runWrite(() => supabase.from(SUPABASE_JOB_TYPES_TABLE).delete().eq("id", id));
+      if (!result.ok) {
+        if (priorJobType) setJobTypes((prev) => mergeJobTypeLists(prev, [priorJobType]));
+        setJobTypeSyncState("error");
+        toast.error("Could not remove that job type", { description: result.message });
+        return fail(result);
+      }
+      setJobTypeSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [jobTypes, fail]);
 
   const addCustomer = useCallback(async (fields) => {
     const name = String(fields.name || "").trim();
-    if (!name) return;
+    if (!name) return LOCAL_OK;
     const existing = customers.find((customer) => customerKey(customer.name) === customerKey(name));
     const localCustomer = normalizeCustomer({
       ...(existing || {}),
@@ -457,42 +587,85 @@ export function WorkshopProvider({ children }) {
       active: fields.active ?? true,
       updatedAt: new Date().toISOString(),
     });
+    const priorCustomers = customers;
     setCustomers((prev) => mergeCustomerLists(prev.filter((customer) => customer.id !== localCustomer.id), [localCustomer]));
     if (supabase) {
-      const { data, error } = await supabase.from(SUPABASE_CUSTOMERS_TABLE).upsert(toCustomerDbPayload(localCustomer)).select("*").single();
-      if (error) setCustomerSyncState("error");
-      else if (data) { setCustomers((prev) => mergeCustomerLists(prev.filter((customer) => customer.id !== localCustomer.id), [data])); setCustomerSyncState("synced"); }
+      const result = await runWrite(() => supabase.from(SUPABASE_CUSTOMERS_TABLE).upsert(toCustomerDbPayload(localCustomer)).select("*").single());
+      if (!result.ok) {
+        setCustomers(priorCustomers);
+        setCustomerSyncState("error");
+        toast.error("Could not save that customer", { description: result.message });
+        return fail(result);
+      }
+      if (result.data) setCustomers((prev) => mergeCustomerLists(prev.filter((customer) => customer.id !== localCustomer.id), [result.data]));
+      setCustomerSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, [customers]);
+    return LOCAL_OK;
+  }, [customers, fail]);
 
   const updateCustomer = useCallback(async (id, patch) => {
     let nextCustomer = null;
+    let priorCustomer = null;
     setCustomers((prev) => mergeCustomerLists(prev.map((customer) => {
       if (customer.id !== id) return customer;
+      priorCustomer = customer;
       nextCustomer = normalizeCustomer({ ...customer, ...patch, updatedAt: new Date().toISOString() });
       return nextCustomer;
     })));
     if (supabase && nextCustomer) {
-      const { error } = await supabase.from(SUPABASE_CUSTOMERS_TABLE).update(toCustomerDbPayload(nextCustomer)).eq("id", id);
-      setCustomerSyncState(error ? "error" : "synced");
+      const result = await runWrite(() => supabase.from(SUPABASE_CUSTOMERS_TABLE).update(toCustomerDbPayload(nextCustomer)).eq("id", id));
+      if (!result.ok) {
+        if (priorCustomer) setCustomers((prev) => mergeCustomerLists(prev.map((customer) => (customer.id === id ? priorCustomer : customer))));
+        setCustomerSyncState("error");
+        toast.error("Could not update that customer", { description: result.message });
+        return fail(result);
+      }
+      setCustomerSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [fail]);
 
   const deleteCustomer = useCallback(async (id) => {
+    const priorCustomer = customers.find((customer) => customer.id === id) || null;
     setCustomers((prev) => prev.filter((customer) => customer.id !== id));
     if (supabase) {
-      const { error } = await supabase.from(SUPABASE_CUSTOMERS_TABLE).delete().eq("id", id);
-      setCustomerSyncState(error ? "error" : "synced");
+      const result = await runWrite(() => supabase.from(SUPABASE_CUSTOMERS_TABLE).delete().eq("id", id));
+      if (!result.ok) {
+        if (priorCustomer) setCustomers((prev) => mergeCustomerLists(prev, [priorCustomer]));
+        setCustomerSyncState("error");
+        toast.error("Could not remove that customer", { description: result.message });
+        return fail(result);
+      }
+      setCustomerSyncState("synced");
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [customers, fail]);
 
   const updateProfile = useCallback(async (id, patch) => {
-    setProfiles((prev) => prev.map((profile) => (profile.id === id ? { ...profile, ...patch } : profile)));
+    let priorProfile = null;
+    setProfiles((prev) => prev.map((profile) => {
+      if (profile.id !== id) return profile;
+      priorProfile = profile;
+      return { ...profile, ...patch };
+    }));
     if (supabase) {
-      const { error } = await supabase.from(SUPABASE_PROFILES_TABLE).update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
-      if (error) toast.error("Could not update account", { description: error.message });
+      const result = await runWrite(() => supabase.from(SUPABASE_PROFILES_TABLE).update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id));
+      if (!result.ok) {
+        if (priorProfile) setProfiles((prev) => prev.map((profile) => (profile.id === id ? priorProfile : profile)));
+        toast.error("Could not update account", { description: result.message });
+        return fail(result);
+      }
+      setLastWriteError(null);
+      return result;
     }
-  }, []);
+    return LOCAL_OK;
+  }, [fail]);
 
   // ---- Derived data (moved verbatim from App) --------------------------
   const activeJobs = useMemo(() => jobs.filter((job) => !job.deleted), [jobs]);
@@ -574,7 +747,7 @@ export function WorkshopProvider({ children }) {
   // Central audited mutation: computes field diffs and prepends an audit entry to the job's notes.
   const auditPatch = useCallback(async (id, patch, actionLabel) => {
     const job = jobs.find((j) => j.id === id);
-    if (!job) return;
+    if (!job) return LOCAL_OK;
     const changes = [];
     Object.entries(patch).forEach(([key, after]) => {
       if (!(key in AUDIT_LABELS) || AUDIT_LABELS[key] === null) return;
@@ -600,26 +773,43 @@ export function WorkshopProvider({ children }) {
       txt: sourcePdfName ? `Job created · imported from ${sourcePdfName}` : "Job created",
       status: fields.status || "Not Started",
     };
-    await addJob({ ...fields, notes: [entry] });
+    return addJob({ ...fields, notes: [entry] });
   }, [addJob, auditBy]);
+
+  // Batch moves run job-by-job. A failure partway through used to be invisible, leaving some
+  // jobs moved and some not with nothing said — report the tally instead.
+  const runBatch = useCallback(async (affected, apply, what) => {
+    const failures = [];
+    for (const job of affected) {
+      const result = await apply(job);
+      if (result && !result.ok) failures.push({ job, result });
+    }
+    if (failures.length) {
+      toast.error(`${failures.length} of ${affected.length} jobs could not be ${what}`, {
+        description: failures[0].result.message,
+      });
+      return { ok: false, failures, message: failures[0].result.message };
+    }
+    return LOCAL_OK;
+  }, []);
 
   const reassignStaffJobs = useCallback(async (fromName, toName) => {
     const target = toName || "Unassigned";
     const affected = jobs.filter((job) => job.alloc === fromName && job.status !== "Complete");
-    for (const job of affected) await auditPatch(job.id, { alloc: target }, "Batch reassignment");
-  }, [jobs, auditPatch]);
+    return runBatch(affected, (job) => auditPatch(job.id, { alloc: target }, "Batch reassignment"), "reassigned");
+  }, [jobs, auditPatch, runBatch]);
 
   const reassignJobTypeJobs = useCallback(async (fromType, toType) => {
-    if (!toType || toType === fromType) return;
+    if (!toType || toType === fromType) return LOCAL_OK;
     const affected = jobs.filter((job) => job.type === fromType);
-    for (const job of affected) await auditPatch(job.id, { type: toType }, "Batch job-type move");
-  }, [jobs, auditPatch]);
+    return runBatch(affected, (job) => auditPatch(job.id, { type: toType }, "Batch job-type move"), "moved");
+  }, [jobs, auditPatch, runBatch]);
 
   const reassignCustomerJobs = useCallback(async (fromName, toName) => {
-    if (!toName || toName === fromName) return;
+    if (!toName || toName === fromName) return LOCAL_OK;
     const affected = jobs.filter((job) => job.cust === fromName);
-    for (const job of affected) await auditPatch(job.id, { cust: toName }, "Batch customer move");
-  }, [jobs, auditPatch]);
+    return runBatch(affected, (job) => auditPatch(job.id, { cust: toName }, "Batch customer move"), "moved");
+  }, [jobs, auditPatch, runBatch]);
 
   // Manual close-out: archive a completed job off the board early (or return it).
   const setJobArchived = useCallback((id, archived) => (
@@ -629,6 +819,7 @@ export function WorkshopProvider({ children }) {
   const value = useMemo(() => ({
     jobs, staff, jobTypes, customers, calendar, holidays, profiles, loading,
     syncState, staffSyncState, jobTypeSyncState, customerSyncState,
+    lastWriteError, dismissWriteError,
     activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes, activeCustomers,
     filters, filteredJobs, metrics, updates, auditBy,
     updateFilter, resetFilters, refetch: fetchJobs,
@@ -641,6 +832,7 @@ export function WorkshopProvider({ children }) {
     getJob: (id) => jobs.find((j) => j.id === id) || null,
   }), [
     jobs, staff, jobTypes, customers, calendar, holidays, profiles, loading, syncState, staffSyncState, jobTypeSyncState, customerSyncState,
+    lastWriteError, dismissWriteError,
     activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes, activeCustomers,
     filters, filteredJobs, metrics, updates, auditBy,
     updateFilter, resetFilters, fetchJobs, patchJob, addNote, addJob, createJob,
