@@ -8,9 +8,17 @@
 // told you: the mismatch lived in the gap between the schema and the client.
 //
 // Run it after ANY database change. It needs a SECRET key — the API root that describes the
-// schema refuses publishable/anon keys ("Only secret API keys can be used for this endpoint"):
+// schema refuses publishable/anon keys ("Only secret API keys can be used for this endpoint").
 //
-//   SUPABASE_KEY=sb_secret_xxx node tools/check-schema.mjs
+//   PowerShell (this project's usual shell — NO inline env-var prefix exists here):
+//     $env:SUPABASE_KEY = "sb_secret_xxx"
+//     node tools/check-schema.mjs
+//
+//   bash / zsh:
+//     SUPABASE_KEY=sb_secret_xxx node tools/check-schema.mjs
+//
+// Paste ONLY the key between the quotes — not `SUPABASE_KEY=sb_secret_…`, which sends the
+// prefix as part of the key and returns a confusing "Invalid API key".
 //
 // Get one from Dashboard → Project Settings → API keys. Pass it on the command line or via
 // the environment; do NOT put it in .env.local, which is bundled into the client build.

@@ -109,6 +109,10 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
   const errors = {
     asm: !fields.asm.trim() ? "Required" : null,
     cust: !fields.cust.trim() ? "Required" : null,
+    // jobs.due_date is NOT NULL in the database, and toDbPayload sends `job.due || null` —
+    // so clearing this field produced a raw 23502 from Postgres instead of a field error.
+    // Catch it here, where we can point at the actual input.
+    due: !fields.due ? "Required" : null,
     // Same gate the status-change prompt applies. Without it the Status dropdown here is a
     // back door to completing a job with no hours, and it drops out of the dashboard's
     // estimate-vs-actual figures with no indication anything is missing.
@@ -158,7 +162,7 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
   const submit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
-    if (errors.asm || errors.cust || errors.actualHrs) return;
+    if (errors.asm || errors.cust || errors.due || errors.actualHrs) return;
     if (saving) return;
     setSaving(true);
     setSaveError(null);
@@ -292,7 +296,9 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
 
           <Section title="Schedule">
             <Field label="Start / To be done"><Input type="date" value={fields.start} onChange={(e) => set("start", e.target.value)} /></Field>
-            <Field label="Due date"><Input type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} /></Field>
+            <Field label="Due date" required error={showError("due")}>
+              <Input type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} onBlur={() => blur("due")} className={cx(showError("due") && "border-[var(--danger)]")} />
+            </Field>
             <Field label="Estimated hours"><Input type="number" step={HOURS_STEP} min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
             {/* Conditionally required: the asterisk appears as soon as Status is set to
                 Complete, so the hours gate is visible before the save is attempted. */}

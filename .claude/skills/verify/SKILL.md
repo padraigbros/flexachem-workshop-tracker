@@ -15,10 +15,27 @@ ship that silently broke job creation — two jobs were lost and nobody knew for
 After ANY change to a table, column, RLS policy, grant, trigger or function — even when no
 `src/` file was touched — do all three:
 
-- [ ] **Schema contract check.** `SUPABASE_KEY=sb_secret_xxx node tools/check-schema.mjs`
-      (secret key from Dashboard → Project Settings → API keys; the publishable key is
-      rejected by the schema endpoint). Zero gaps expected. This catches a NOT NULL column
-      the app never writes — the exact `jobs.allocated_to` mismatch behind that incident.
+- [ ] **Schema contract check.** Catches a NOT NULL column the app never writes — the exact
+      `jobs.allocated_to` mismatch behind that incident. Expect zero rows that aren't `id`,
+      `created_at` or `updated_at` (the database fills those itself).
+
+      **Preferred: run this in the Supabase SQL Editor.** No key, no shell, no setup.
+      ```sql
+      select table_name, column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name in ('jobs','staff','job_types','customers','staff_calendar','public_holidays')
+        and is_nullable = 'NO'
+        and column_default is null
+      order by table_name, column_name;
+      ```
+      Compare the result against what the payload builders send (`toDbPayload` in
+      `src/lib/jobs.js` and the `to*DbPayload` functions in `staff.js` / `customers.js` /
+      `calendar.js`). Any column in the query result that no builder writes is a gap.
+
+      Alternative: `tools/check-schema.mjs` does the same diff automatically, but needs a
+      SECRET API key in the environment and is fiddly to invoke on Windows. Use it for CI;
+      for a manual check after a migration, the SQL above is faster and harder to get wrong.
 - [ ] **Create a job in the real app**, signed in against the live project. Then **reload the
       page** and confirm it is still there. A job that only survives until a refetch was never
       saved — that is precisely what the incident looked like from the user's side.
