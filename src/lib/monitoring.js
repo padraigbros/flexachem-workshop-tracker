@@ -94,4 +94,33 @@ export function captureWriteFailure({ action, jobLabel, result, user }) {
   });
 }
 
+// A failed auth attempt (sign-in, sign-up, password reset, invite onboarding).
+//
+// These are caught in try/catch and shown as a message, so they NEVER reach Sentry on their
+// own — which is why the sign-up email-quota outage on 30 Jul 2026 was invisible until a user
+// sent a screenshot. Reported explicitly here instead.
+//
+// Deliberately NOT reported: wrong password, unconfirmed email, an email already registered.
+// Those are normal user error, they happen constantly, and burying the real signal under them
+// is how an alerting channel becomes worthless.
+const EXPECTED_AUTH_ERRORS = /invalid login credentials|email not confirmed|already registered|password should be at least|enter your email/i;
+
+export function captureAuthFailure({ action, err, email }) {
+  if (!DSN || !err) return;
+  const message = err.message || String(err);
+  if (EXPECTED_AUTH_ERRORS.test(message)) return;
+
+  Sentry.withScope((scope) => {
+    scope.setLevel("error");
+    scope.setTag("failure_kind", "auth");
+    scope.setTag("auth_action", action);
+    scope.setTag("auth_code", err.code || err.status || "unknown");
+    // The login page is pre-auth, so there is no user context — carry the domain (not the
+    // full address) so you can tell staff attempts from strangers without storing addresses.
+    scope.setContext("auth", { action, domain: String(email || "").split("@")[1] || "none", message });
+    scope.setFingerprint(["auth", action, err.code || err.status || "unknown"]);
+    Sentry.captureMessage(`Auth ${action} failed: ${message}`);
+  });
+}
+
 export { Sentry };

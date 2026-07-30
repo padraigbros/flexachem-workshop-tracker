@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { captureAuthFailure } from "../lib/monitoring";
 import { useAuthCtx } from "../state/AuthProvider";
 import { BrandMark } from "../components/layout/Sidebar";
 import { Button, Field, Input, cx } from "../components/ui/primitives";
@@ -65,6 +66,7 @@ export function LoginView() {
         }
       }
     } catch (err) {
+      captureAuthFailure({ action: mode, err, email });
       setMessage({ tone: "error", text: friendlyAuthError(err) });
     } finally {
       setBusy(false);
@@ -79,6 +81,7 @@ export function LoginView() {
       if (error) throw error;
       setMessage({ tone: "info", text: "Password reset link sent — check your email." });
     } catch (err) {
+      captureAuthFailure({ action: "reset-password", err, email });
       setMessage({ tone: "error", text: friendlyAuthError(err) });
     } finally {
       setBusy(false);
