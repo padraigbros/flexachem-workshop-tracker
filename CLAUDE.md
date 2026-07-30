@@ -105,8 +105,14 @@ in no migration file, so nothing in the repo will tell you about them.
 - **People are split across two tables**: `accounts` (login: role, active, theme, onboarded;
   PK = `auth.users.id`; renamed from `profiles` on 30 Jul 2026) and `staff` (assignable
   technician + calendar). Matched **by email**. Admins deliberately get **no** `staff` row and
-  are not assignable. A `security_invoker` view named `profiles` remains as a deploy-window
-  shim — drop it once the current build is confirmed live.
+  are not assignable. The `profiles` compatibility view was dropped once the new build went
+  live — nothing named `profiles` exists any more.
+- **The alerting safety net from the 29 Jul retrospective is NOT fully installed.**
+  `supabase/alerts-setup.sql` has never been applied: there is **no `job_alerts` table** and
+  **no AFTER INSERT alert trigger on `jobs`** (the only triggers there are the two sync ones
+  above). Consequences: the server-side "job created" email never fires; the client-reported
+  failure path still emails, but its `job_alerts` insert fails silently and the hourly rate
+  cap counts zero, so it can never engage. Do not assume alerting covers you.
 - Deleting a `staff` row does not delete the `accounts` row or the `auth.users` account. To
   free an email for re-invite, delete the user in Dashboard → Authentication → Users.
 - **Supabase JWT signing key must stay Legacy HS256.** ES256 breaks the `invite-user` edge
