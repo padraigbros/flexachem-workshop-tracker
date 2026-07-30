@@ -7,12 +7,23 @@ import { BrandMark } from "../components/layout/Sidebar";
 import { Button, Field, Input, cx } from "../components/ui/primitives";
 
 // Turn raw Supabase auth errors into something a workshop user can act on.
+//
+// The distinction that matters: can the person in front of the screen fix this by trying
+// again, or not? Telling someone to "wait a moment and try again" when the real cause is a
+// project-wide email quota sends them into a loop that cannot succeed — the same mistake that
+// made the 29 Jul write failures so expensive. See src/lib/writes.js.
 function friendlyAuthError(err) {
   const msg = err?.message || String(err || "");
+  const code = err?.code || "";
   if (/invalid login credentials/i.test(msg)) return "Email or password is incorrect.";
   if (/email not confirmed/i.test(msg)) return "Check your inbox and confirm your email first, then sign in.";
-  if (/user already registered/i.test(msg)) return "An account with this email already exists — try signing in.";
-  if (/rate limit|too many/i.test(msg)) return "Too many attempts. Wait a moment and try again.";
+  if (/user already registered|already been registered/i.test(msg)) return "An account with this email already exists — try signing in.";
+  // Project-wide email quota. Nothing the user does will clear this; it needs custom SMTP
+  // configuring, or email confirmation turning off. Say so instead of implying a retry.
+  if (code === "over_email_send_rate_limit" || /email rate limit|email send rate/i.test(msg)) {
+    return "The system can't send any more emails right now — this is a setup limit, not something you did. Ask an admin to add you instead of signing up.";
+  }
+  if (/rate limit|too many|429/i.test(msg)) return "Too many attempts from this device. Wait a minute, then try again.";
   if (/password should be at least/i.test(msg)) return "Password must be at least 8 characters.";
   return msg;
 }
