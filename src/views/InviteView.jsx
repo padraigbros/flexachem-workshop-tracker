@@ -52,7 +52,7 @@ export function InviteView() {
     try {
       const { error: updErr } = await supabase.auth.updateUser({ password });
       if (updErr) throw updErr;
-      // Flip the profile to onboarded (scoped RPC — profiles UPDATE is otherwise admin-only).
+      // Flip the account to onboarded (scoped RPC — accounts UPDATE is otherwise admin-only).
       await supabase.rpc("complete_onboarding");
       toast.success("Account ready — welcome to Flexachem.");
       navigate("/", { replace: true });

@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import {
-  supabase, SUPABASE_TABLE, SUPABASE_STAFF_TABLE, SUPABASE_JOB_TYPES_TABLE, SUPABASE_CUSTOMERS_TABLE, SUPABASE_PROFILES_TABLE,
+  supabase, SUPABASE_TABLE, SUPABASE_STAFF_TABLE, SUPABASE_JOB_TYPES_TABLE, SUPABASE_CUSTOMERS_TABLE, SUPABASE_ACCOUNTS_TABLE,
   SUPABASE_CALENDAR_TABLE, SUPABASE_HOLIDAYS_TABLE,
 } from "../lib/supabase";
 import {
@@ -18,6 +18,7 @@ import {
   normalizeStaff, mergeStaffLists, staffKey,
   normalizeJobType, mergeJobTypeLists, jobTypeKey,
   toStaffDbPayload, toJobTypeDbPayload,
+  staffRecordForAccount, missingStaffAccounts,
 } from "../lib/staff";
 import {
   normalizeCustomer, mergeCustomerLists, customerKey, toCustomerDbPayload,
@@ -44,7 +45,7 @@ export function WorkshopProvider({ children }) {
   const [customers, setCustomers] = useState(loadStoredCustomers);
   const [calendar, setCalendar] = useState(loadStoredCalendar);
   const [holidays, setHolidays] = useState(loadStoredHolidays);
-  const [profiles, setProfiles] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [syncState, setSyncState] = useState(supabase ? "syncing" : "local");
   const [staffSyncState, setStaffSyncState] = useState(supabase ? "syncing" : "local");
@@ -162,17 +163,43 @@ export function WorkshopProvider({ children }) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  // All authenticated users load profiles — needed for @-mention suggestions, not just admins.
+  // All authenticated users load accounts — needed for @-mention suggestions, not just admins.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!supabase || !userId) return;
-      const { data, error } = await supabase.from(SUPABASE_PROFILES_TABLE).select("*").order("name", { ascending: true });
+      const { data, error } = await supabase.from(SUPABASE_ACCOUNTS_TABLE).select("*").order("name", { ascending: true });
       if (cancelled) return;
-      if (!error && Array.isArray(data)) setProfiles(data);
+      if (!error && Array.isArray(data)) setAccounts(data);
     })();
     return () => { cancelled = true; };
   }, [userId]);
+
+  // Self-heal the split between the two tables. Being on the team is recorded in `accounts`
+  // (the login account), but being *assignable to jobs and having a calendar* lives in
+  // `staff`. Only the "Add person → Staff" flow ever wrote both, so anyone who arrived any
+  // other way (invited as admin and later demoted, signed up via an invite link, seeded
+  // directly in the DB) appeared in the roster with no calendar button, no job assignment and
+  // no availability row. Backfill the missing staff records once both tables have loaded.
+  // Admin-only: the staff table's RLS policy only allows admins to write.
+  const backfilledStaff = useRef(false);
+  useEffect(() => {
+    if (!supabase || user?.role !== "admin" || backfilledStaff.current) return;
+    if (staffSyncState !== "synced" || !accounts.length) return;
+    const missing = missingStaffAccounts(staff, accounts);
+    if (!missing.length) return;
+    backfilledStaff.current = true;
+    (async () => {
+      const rows = missing.map(staffRecordForAccount);
+      const result = await runWrite(() => supabase.from(SUPABASE_STAFF_TABLE).upsert(rows.map(toStaffDbPayload)).select("*"));
+      if (!result.ok) {
+        // Let a later render retry rather than leaving the team permanently unassignable.
+        backfilledStaff.current = false;
+        return;
+      }
+      setStaff((prev) => mergeStaffLists(prev, result.data?.length ? result.data : rows));
+    })();
+  }, [user?.role, staffSyncState, accounts, staff]);
 
   useEffect(() => { saveStoredJobs(jobs); }, [jobs]);
   useEffect(() => { saveStoredStaff(staff); }, [staff]);
@@ -655,17 +682,17 @@ export function WorkshopProvider({ children }) {
     return LOCAL_OK;
   }, [customers, fail]);
 
-  const updateProfile = useCallback(async (id, patch) => {
-    let priorProfile = null;
-    setProfiles((prev) => prev.map((profile) => {
-      if (profile.id !== id) return profile;
-      priorProfile = profile;
-      return { ...profile, ...patch };
+  const updateAccount = useCallback(async (id, patch) => {
+    let priorAccount = null;
+    setAccounts((prev) => prev.map((account) => {
+      if (account.id !== id) return account;
+      priorAccount = account;
+      return { ...account, ...patch };
     }));
     if (supabase) {
-      const result = await runWrite(() => supabase.from(SUPABASE_PROFILES_TABLE).update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id));
+      const result = await runWrite(() => supabase.from(SUPABASE_ACCOUNTS_TABLE).update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id));
       if (!result.ok) {
-        if (priorProfile) setProfiles((prev) => prev.map((profile) => (profile.id === id ? priorProfile : profile)));
+        if (priorAccount) setAccounts((prev) => prev.map((account) => (account.id === id ? priorAccount : account)));
         toast.error("Could not update account", { description: result.message });
         return fail(result);
       }
@@ -688,8 +715,8 @@ export function WorkshopProvider({ children }) {
   // Emails of accounts with the admin role — admins manage the shop but are NOT assignable
   // to jobs (only staff-role people are). Matched to staff records by email.
   const adminEmails = useMemo(
-    () => new Set(profiles.filter((p) => p.role === "admin").map((p) => String(p.email || "").toLowerCase()).filter(Boolean)),
-    [profiles],
+    () => new Set(accounts.filter((p) => p.role === "admin").map((p) => String(p.email || "").toLowerCase()).filter(Boolean)),
+    [accounts],
   );
 
   // No DEFAULT_STAFF fallback here — cloud staff state (see fetch effect above) is
@@ -825,7 +852,7 @@ export function WorkshopProvider({ children }) {
   ), [auditPatch]);
 
   const value = useMemo(() => ({
-    jobs, staff, jobTypes, customers, calendar, holidays, profiles, loading,
+    jobs, staff, jobTypes, customers, calendar, holidays, accounts, loading,
     syncState, staffSyncState, jobTypeSyncState, customerSyncState,
     lastWriteError, dismissWriteError,
     activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes, activeCustomers,
@@ -836,10 +863,10 @@ export function WorkshopProvider({ children }) {
     setCalendarEntry, addHoliday, deleteHoliday, inviteStaff,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
     addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs,
-    setJobArchived, updateProfile, auditPatch,
+    setJobArchived, updateAccount, auditPatch,
     getJob: (id) => jobs.find((j) => j.id === id) || null,
   }), [
-    jobs, staff, jobTypes, customers, calendar, holidays, profiles, loading, syncState, staffSyncState, jobTypeSyncState, customerSyncState,
+    jobs, staff, jobTypes, customers, calendar, holidays, accounts, loading, syncState, staffSyncState, jobTypeSyncState, customerSyncState,
     lastWriteError, dismissWriteError,
     activeJobs, deletedJobs, people, activePeople, businessUnits, activeJobTypes, activeCustomers,
     filters, filteredJobs, metrics, updates, auditBy,
@@ -847,7 +874,7 @@ export function WorkshopProvider({ children }) {
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs,
     setCalendarEntry, addHoliday, deleteHoliday, inviteStaff,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
-    addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs, setJobArchived, updateProfile, auditPatch,
+    addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs, setJobArchived, updateAccount, auditPatch,
   ]);
 
   return <WorkshopContext.Provider value={value}>{children}</WorkshopContext.Provider>;

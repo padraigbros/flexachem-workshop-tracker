@@ -52,12 +52,12 @@ Deno.serve(async (req) => {
   if (userErr || !userData?.user) return json({ error: "not authenticated" }, 401);
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-  const { data: profile } = await admin
-    .from("profiles")
+  const { data: account } = await admin
+    .from("accounts")
     .select("role, active")
     .eq("id", userData.user.id)
     .maybeSingle();
-  if (!profile || profile.role !== "admin" || profile.active === false) {
+  if (!account || account.role !== "admin" || account.active === false) {
     return json({ error: "admin only" }, 403);
   }
 
@@ -81,9 +81,9 @@ Deno.serve(async (req) => {
   });
   if (error) return json({ error: error.message }, 400);
 
-  // 4. Belt-and-braces: ensure the profile carries the chosen role even if the trigger raced.
+  // 4. Belt-and-braces: ensure the account carries the chosen role even if the trigger raced.
   if (data?.user?.id) {
-    await admin.from("profiles").update({ role, onboarded: false }).eq("id", data.user.id);
+    await admin.from("accounts").update({ role, onboarded: false }).eq("id", data.user.id);
   }
 
   return json({ ok: true, userId: data?.user?.id || null });

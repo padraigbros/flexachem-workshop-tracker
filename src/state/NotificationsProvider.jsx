@@ -11,13 +11,13 @@ const NotificationsContext = createContext(null);
 
 export function NotificationsProvider({ children }) {
   const { user, cloud } = useAuthCtx();
-  const { profiles, activePeople } = useWorkshop();
+  const { accounts, activePeople } = useWorkshop();
   const [notifications, setNotifications] = useState(() => (cloud ? [] : loadStoredNotifications()));
   const userId = user?.id || (user ? "local" : null);
 
   const mentionables = useMemo(
-    () => mentionCandidates(profiles, activePeople, cloud),
-    [profiles, activePeople, cloud],
+    () => mentionCandidates(accounts, activePeople, cloud),
+    [accounts, activePeople, cloud],
   );
 
   // Persist demo notifications locally (cloud rows live in Postgres).

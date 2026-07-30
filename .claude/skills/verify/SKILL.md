@@ -137,13 +137,13 @@ code reading. `npx vite build` must pass at the end.
 ### Team roster, calendar, availability & invitations
 - [ ] `/staff` is a **single unified "Team" card** (the old separate "Staff management" +
       "Login accounts" cards were merged). One row per person, reconciling the staff record
-      (assignable, has a calendar) with its login account/profile (role, sign-in status),
+      (assignable, has a calendar) with its login account row in `accounts` (role, sign-in status),
       **matched by email**. Row shows: avatar, name, email, **Admin/Staff** badge, status
       (Active / Pending / Inactive), open-jobs count (staff only). Actions: calendar + reassign
       (staff only), Make admin/staff (accounts only), Resend (pending only), Deactivate, Remove.
 - [ ] **Only Staff-role people are assignable.** `activePeople` excludes any staff whose
-      email matches an admin-role profile, so admins never appear in the JobModal assignment
-      dropdown or the per-person job cards. Demo mode has no profiles → everyone is staff.
+      email matches an admin-role account, so admins never appear in the JobModal assignment
+      dropdown or the per-person job cards. Demo mode has no accounts → everyone is staff.
 - [ ] Each staff row has a **calendar icon** → month calendar (Modal) with prev/next + Today.
       Clicking an editable weekday opens a status picker (Available / Training / Leave / Sick);
       setting a status colours the day (icon, not truncated text), drops that week's trailing
@@ -171,7 +171,7 @@ code reading. `npx vite build` must pass at the end.
       always adds a record so the person is visible. Cloud invokes the `invite-user` Edge
       Function; demo toasts that invites need Supabase. `/invite` (public route) establishes
       the invite session and asks for a password only (no email re-verification), then
-      `complete_onboarding` flips the profile to onboarded (drops the "Pending" chip).
+      `complete_onboarding` flips the account to onboarded (drops the "Pending" chip).
       Invite errors surface the **real** function message (dug out of `error.context`, not the
       generic non-2xx) and an already-registered email gets a friendly toast. Requires SMTP +
       `<APP_URL>/invite` in the Auth redirect allowlist (see supabase-setup.sql + function comments).
@@ -230,7 +230,7 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Filters (staff/unit/status/horizon + search) narrow every view; Reset appears when active.
 - [ ] Theme toggle flips instantly, persists across reload (key `flexachem_theme_v3`),
       updates `<meta theme-color>`. New visitors default to LIGHT. Signed-in users:
-      toggle mirrors to `profiles.theme` via the `set_my_theme` RPC and follows the account.
+      toggle mirrors to `accounts.theme` via the `set_my_theme` RPC and follows the account.
 - [ ] Auth: staff-role users are redirected from admin routes (`/staff` → `/`); demo mode
       auto-grants admin; logout returns to `/login`. Desktop signs out from the sidebar card;
       **mobile** signs out from the Topbar account (avatar) sheet — the only mobile sign-out.
@@ -269,6 +269,23 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-30: **`profiles` renamed to `accounts`, and every staff-role person now gets a
+  `staff` record.** Root cause of "I can't assign jobs or a calendar to anyone but Padraig
+  Test": being on the team lived in `profiles`, but being *assignable* lives in `staff`, and
+  only the "Add person → Staff" flow ever wrote both — so anyone invited as an admin and later
+  demoted, or created any other way, had no staff row and therefore no calendar button, no
+  reassign dropdown and no availability. Fixes: `WorkshopProvider` self-heals on load (admin
+  sessions only — the staff table's RLS is admin-write), `StaffView.toggleRole` creates the
+  staff record when demoting an admin to staff, and
+  `supabase/migrations/001-rename-profiles-to-accounts.sql` backfills existing data.
+  **Admins still deliberately get NO staff record** and remain unassignable.
+  Migration gotchas worth remembering: `alter table ... rename` carries rows, PK, FKs, indexes
+  and policies, but does NOT rewrite function bodies — all five SECURITY DEFINER functions
+  (`handle_new_user`, `private.is_admin`, `set_my_theme`, `complete_onboarding`,
+  `notify_mentions`) name the table as plain text and had to be recreated, or login and every
+  RLS policy break. The `invite-user` edge function needs redeploying separately from the
+  frontend. A `security_invoker` view named `profiles` is left over `accounts` as a
+  deploy-window shim — drop it once the new build is verified live.
 - 2026-07-29: **Failed writes now stop the user instead of failing silently.** Incident: two
   jobs created against production appeared on the board and never reached the database (insert
   rejected with `23502 null value in column "allocated_to"`); the only signal was the sidebar

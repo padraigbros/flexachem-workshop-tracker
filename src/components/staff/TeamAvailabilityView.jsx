@@ -43,8 +43,8 @@ function cellTooltip(status, isHoliday, holidayName, hasJob) {
 
 export function TeamAvailabilityView({ onOpenFullCalendar }) {
   const {
-    staff, profiles, calendar, holidays, activeJobs, loading,
-    setCalendarEntry, reassignStaffJobs, updateProfile, activePeople,
+    staff, accounts, calendar, holidays, activeJobs, loading,
+    setCalendarEntry, reassignStaffJobs, updateAccount, activePeople,
   } = useWorkshop();
   const { openJob } = useJobDrawer();
   const { requestStatusChange } = useStatusPrompt();
@@ -116,7 +116,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
   }, [activeJobs, days]);
 
   // Roster → only people with a staff record (they have a calendar), grouped Admins→Staff.
-  const roster = useMemo(() => buildRoster(staff, profiles).filter((r) => r.staff), [staff, profiles]);
+  const roster = useMemo(() => buildRoster(staff, accounts).filter((r) => r.staff), [staff, accounts]);
 
   const rows = useMemo(() => {
     const term = filters.search.trim().toLowerCase();
@@ -446,7 +446,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
         moveTargets={detail ? activePeople.filter((n) => n !== detail.name) : []}
         onOpenFullCalendar={onOpenFullCalendar}
         onMoveJobs={reassignStaffJobs}
-        onToggleRole={updateProfile}
+        onToggleRole={updateAccount}
         openJob={openJob}
         onStatus={requestStatusChange}
       />
@@ -516,7 +516,7 @@ function StaffDetailDrawer({ row, open, onClose, workload, weekCapacity = WEEK_C
   const openCount = workload?.open || 0;
   const blocked = workload?.blocked || 0;
   const jobs = workload?.jobs || [];
-  const hasProfile = Boolean(row.profile);
+  const hasAccount = Boolean(row.account);
 
   const header = (
     <DrawerHeader>
@@ -570,9 +570,9 @@ function StaffDetailDrawer({ row, open, onClose, workload, weekCapacity = WEEK_C
           <Button
             variant="secondary"
             className="w-full"
-            disabled={!hasProfile}
-            title={hasProfile ? undefined : "This person has no login account yet"}
-            onClick={() => row.profile && onToggleRole?.(row.profile.id, { role: admin ? "staff" : "admin" })}
+            disabled={!hasAccount}
+            title={hasAccount ? undefined : "This person has no login account yet"}
+            onClick={() => row.account && onToggleRole?.(row.account.id, { role: admin ? "staff" : "admin" })}
           >
             {admin ? "Make staff" : "Make admin"}
           </Button>

@@ -75,7 +75,7 @@ export async function seedCloudSession(page, { onInsertJob, onPatchJob, jobs = [
     if (method === "PATCH" && table === "jobs" && onPatchJob) return onPatchJob(route, request);
 
     if (method === "GET") {
-      const body = table === "profiles" ? [ADMIN_PROFILE] : table === "jobs" ? jobs : [];
+      const body = table === "accounts" ? [ADMIN_PROFILE] : table === "jobs" ? jobs : [];
       // PostgREST returns a bare object (not an array) when the client asks for one row.
       const single = (request.headers()["accept"] || "").includes("vnd.pgrst.object");
       return route.fulfill({

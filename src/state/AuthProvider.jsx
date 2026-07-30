@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { supabase, SUPABASE_PROFILES_TABLE } from "../lib/supabase";
+import { supabase, SUPABASE_ACCOUNTS_TABLE } from "../lib/supabase";
 import { USER_KEY, THEMES } from "../lib/constants";
 import { getInitialUser } from "../lib/storage";
 import { useTheme } from "./ThemeProvider";
@@ -32,9 +32,9 @@ export function AuthProvider({ children }) {
         }
         return;
       }
-      const { data: profile } = await supabase.from(SUPABASE_PROFILES_TABLE).select("*").eq("id", session.user.id).maybeSingle();
+      const { data: account } = await supabase.from(SUPABASE_ACCOUNTS_TABLE).select("*").eq("id", session.user.id).maybeSingle();
       if (cancelled) return;
-      if (profile && profile.active === false) {
+      if (account && account.active === false) {
         setUser(null);
         setChecking(false);
         await supabase.auth.signOut();
@@ -44,13 +44,13 @@ export function AuthProvider({ children }) {
       setUser({
         id: session.user.id,
         email: session.user.email,
-        name: profile?.name || session.user.user_metadata?.name || session.user.email,
-        role: profile?.role || "staff",
+        name: account?.name || session.user.user_metadata?.name || session.user.email,
+        role: account?.role || "staff",
       });
       // Apply the account's saved theme once per sign-in (persist:false = no echo write).
-      if (THEMES.includes(profile?.theme) && themedForUser.current !== session.user.id) {
+      if (THEMES.includes(account?.theme) && themedForUser.current !== session.user.id) {
         themedForUser.current = session.user.id;
-        setTheme(profile.theme, { persist: false });
+        setTheme(account.theme, { persist: false });
       }
       setChecking(false);
     }
@@ -70,7 +70,7 @@ export function AuthProvider({ children }) {
     if (!supabase && user) localStorage.setItem(USER_KEY, JSON.stringify({ name: user.name, email: user.email }));
   }, [user]);
 
-  const loginLocal = useCallback((profile) => setUser({ ...profile, role: "admin" }), []);
+  const loginLocal = useCallback((account) => setUser({ ...account, role: "admin" }), []);
   const logout = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
     localStorage.removeItem(USER_KEY);

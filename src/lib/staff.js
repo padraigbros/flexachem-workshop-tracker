@@ -46,30 +46,58 @@ export function mergeStaffLists(...lists) {
 }
 
 // Unified team roster: one row per person, reconciling the staff record (assignable to
-// jobs, has a calendar) with the login account/profile (role, sign-in status), matched by
+// jobs, has a calendar) with the login account (role, sign-in status), matched by
 // email. Shared by the Staff list view and the Team Availability calendar so both agree on
 // who exists, their role, and whether they're active. (Logic lifted from StaffView.)
-export function buildRoster(staff, profiles) {
+export function buildRoster(staff, accounts) {
   const byEmail = new Map();
   const rows = [];
   (staff || []).forEach((m) => {
-    const row = { key: m.id, staff: m, profile: null, name: m.name, email: m.email || "" };
+    const row = { key: m.id, staff: m, account: null, name: m.name, email: m.email || "" };
     const k = String(m.email || "").toLowerCase();
     if (k) byEmail.set(k, row);
     rows.push(row);
   });
-  (profiles || []).forEach((p) => {
+  (accounts || []).forEach((p) => {
     const k = String(p.email || "").toLowerCase();
     const existing = k && byEmail.get(k);
-    if (existing) existing.profile = p;
-    else rows.push({ key: `profile-${p.id}`, staff: null, profile: p, name: p.name || p.email, email: p.email || "" });
+    if (existing) existing.account = p;
+    else rows.push({ key: `account-${p.id}`, staff: null, account: p, name: p.name || p.email, email: p.email || "" });
   });
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export const rosterRole = (row) => (row.profile?.role === "admin" ? "admin" : "staff");
-export const rosterActive = (row) => (row.profile ? row.profile.active !== false : row.staff ? row.staff.active : true);
-export const rosterPending = (row) => row.profile?.onboarded === false;
+// A person is only assignable to jobs and only has an availability calendar once they have a
+// row in the staff table — a login account on its own is not enough. Build the
+// staff record that should accompany a staff-role account.
+export function staffRecordForAccount(account) {
+  const name = String(account?.name || account?.email || "").trim();
+  return normalizeStaff({
+    id: `staff-${staffKey(name)}-${String(account?.id || "").slice(0, 8)}`,
+    name,
+    email: account?.email || "",
+    role: "Workshop technician",
+    active: account?.active !== false,
+  });
+}
+
+// Staff-role accounts that have no matching staff record (matched by email, falling back to
+// name for records with no email). These are the people who show up in the roster but can't
+// be given work or a calendar.
+export function missingStaffAccounts(staff, accounts) {
+  const emails = new Set((staff || []).map((m) => String(m.email || "").toLowerCase()).filter(Boolean));
+  const names = new Set((staff || []).map((m) => staffKey(m.name)));
+  return (accounts || [])
+    .filter((p) => p.role !== "admin" && p.active !== false && (p.name || p.email))
+    .filter((p) => {
+      const email = String(p.email || "").toLowerCase();
+      return email ? !emails.has(email) : !names.has(staffKey(p.name));
+    });
+}
+
+export const rosterRole = (row) => (row.account?.role === "admin" ? "admin" : "staff");
+export const rosterActive = (row) => (row.account ? row.account.active !== false : row.staff ? row.staff.active : true);
+export const rosterPending = (row) => row.account?.onboarded === false;
 
 export function jobTypeKey(name) {
   return String(name || "job-type").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job-type";

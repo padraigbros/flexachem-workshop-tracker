@@ -23,9 +23,9 @@ const cloud = Boolean(supabase);
 
 export function StaffView() {
   const {
-    filteredJobs: jobs, activeJobs, staff, people, activePeople, profiles,
+    filteredJobs: jobs, activeJobs, staff, people, activePeople, accounts,
     calendar, holidays, setCalendarEntry, inviteStaff,
-    addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs, updateProfile,
+    addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs, updateAccount,
   } = useWorkshop();
   const { requestStatusChange } = useStatusPrompt();
   const { user } = useAuthCtx();
@@ -51,9 +51,9 @@ export function StaffView() {
   const todayISO = toISODate(today());
 
   // Unified roster: one row per person, reconciling the staff record (assignable to jobs,
-  // has a calendar) with the login account/profile (role, sign-in status). Matched by email.
+  // has a calendar) with the login account (role, sign-in status). Matched by email.
   // Shared with the Team Availability calendar via buildRoster.
-  const roster = useMemo(() => buildRoster(staff, profiles), [staff, profiles]);
+  const roster = useMemo(() => buildRoster(staff, accounts), [staff, accounts]);
 
   const roleOf = rosterRole;
   const isActiveRow = rosterActive;
@@ -87,14 +87,20 @@ export function StaffView() {
 
   const setPersonActive = (row, active) => {
     if (row.staff) updateStaffMember(row.staff.id, { active });
-    if (row.profile) updateProfile(row.profile.id, { active });
+    if (row.account) updateAccount(row.account.id, { active });
   };
 
   const toggleRole = (row) => {
-    const p = row.profile;
+    const p = row.account;
     if (!p) return;
     if (p.id === user?.id && !window.confirm("Change your own role? You will lose admin access immediately.")) return;
-    updateProfile(p.id, { role: p.role === "admin" ? "staff" : "admin" });
+    const nextRole = p.role === "admin" ? "staff" : "admin";
+    updateAccount(p.id, { role: nextRole });
+    // Becoming staff means becoming assignable — which needs a staff record, not just the
+    // account role. Without this an admin demoted to staff got no calendar and no jobs.
+    if (nextRole === "staff" && !row.staff) {
+      addStaffMember({ name: row.name, email: row.email, role: "Workshop technician", active: true });
+    }
   };
 
   const resend = async (row) => {
@@ -127,7 +133,7 @@ export function StaffView() {
             const openJobs = member ? activeJobs.filter((j) => j.alloc === member.name && j.status !== "Complete") : [];
             const choices = activePeople.filter((n) => n !== row.name);
             const target = reassignTargets[row.name] || "Unassigned";
-            const isSelf = row.profile?.id === user?.id;
+            const isSelf = row.account?.id === user?.id;
             return (
               <div key={row.key} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.3fr)] lg:items-center", !active && "opacity-70")}>
                 <div className="flex items-center gap-3 min-w-0">
@@ -157,7 +163,7 @@ export function StaffView() {
                   {pending && row.email && (
                     <Button size="sm" variant="secondary" className="gap-1" disabled={resending === row.key} onClick={() => resend(row)}><Send size={13} />{resending === row.key ? "Sending…" : "Resend"}</Button>
                   )}
-                  {row.profile && (
+                  {row.account && (
                     <Button size="sm" variant="secondary" onClick={() => toggleRole(row)}>{admin ? "Make staff" : "Make admin"}</Button>
                   )}
                   <Button size="sm" variant="ghost" disabled={isSelf} onClick={() => setPersonActive(row, !active)}>{active ? "Deactivate" : "Reactivate"}</Button>

@@ -20,13 +20,18 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 ```
 
+> **Upgrading an existing project?** The table formerly called `profiles` is now `accounts`.
+> Run [`supabase/migrations/001-rename-profiles-to-accounts.sql`](supabase/migrations/001-rename-profiles-to-accounts.sql)
+> once, before deploying this build. It backs both tables up, renames in place (no data moves),
+> and gives every staff-role account the staff record that makes them assignable to jobs.
+
 Then, **one-time setup** for auth, the audit-friendly schema and PDF attachments:
 
-1. **Run [`supabase-setup.sql`](supabase-setup.sql)** in the Supabase SQL editor. It creates the `profiles` table (+ signup trigger), adds `attachment`/`deleted` columns to `jobs`, creates the private `job-files` storage bucket, and enables Row Level Security on all tables.
+1. **Run [`supabase-setup.sql`](supabase-setup.sql)** in the Supabase SQL editor. It creates the `accounts` table — one row per login account, admins and staff alike — (+ signup trigger), adds `attachment`/`deleted` columns to `jobs`, creates the private `job-files` storage bucket, and enables Row Level Security on all tables.
 2. **Enable the Email provider** under Authentication → Providers. For an internal tool, consider disabling "Confirm email"; if you keep it on, set the Site URL (Authentication → URL Configuration) to your deployed app URL so confirmation/reset links come back to the app.
 3. **Sign up in the app**, then bootstrap your admin account in the SQL editor:
    ```sql
-   update public.profiles set role = 'admin' where email = 'you@example.com';
+   update public.accounts set role = 'admin' where email = 'you@example.com';
    ```
    (Refresh the app afterwards.) From then on, admins can promote/disable accounts from **Staff → Login accounts**.
 
@@ -40,7 +45,7 @@ Then, **one-time setup** for auth, the audit-friendly schema and PDF attachments
 | Staff, Job Types, Business Units, Due Dates, Master List | ✓ | — |
 | Manage login accounts | ✓ | — |
 
-New signups start as **staff**. Security note: the table-level rules (who can insert/delete jobs, who can write staff/job types/profiles/storage) are enforced by RLS in the database; the finer "staff can only change status/notes" rule is enforced in the app UI.
+New signups start as **staff**. Security note: the table-level rules (who can insert/delete jobs, who can write staff/job types/accounts/storage) are enforced by RLS in the database; the finer "staff can only change status/notes" rule is enforced in the app UI.
 
 ### Audit trail
 

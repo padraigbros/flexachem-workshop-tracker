@@ -30,12 +30,12 @@ export function extractMentions(text, candidates) {
     .filter((c) => (seen.has(c.id) ? false : seen.add(c.id)));
 }
 
-// People who can be @-mentioned. In cloud mode these are login accounts (profiles),
+// People who can be @-mentioned. In cloud mode these are login accounts (accounts),
 // since only they can receive a notification. In demo mode we fall back to staff
 // names purely so the composer is exercisable — demo notifications are self-stored.
-export function mentionCandidates(profiles, staffNames, cloud) {
+export function mentionCandidates(accounts, staffNames, cloud) {
   if (cloud) {
-    return (profiles || [])
+    return (accounts || [])
       .filter((p) => p.active !== false && (p.name || p.email))
       .map((p) => ({ id: p.id, name: p.name || p.email, email: p.email }));
   }

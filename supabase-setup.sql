@@ -13,9 +13,9 @@
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
--- 1. Profiles: one row per login account, carrying the app role.
+-- 1. Accounts: one row per login account (admins and staff), carrying the app role.
 -- ---------------------------------------------------------------------------
-create table if not exists public.profiles (
+create table if not exists public.accounts (
   id uuid primary key references auth.users (id) on delete cascade,
   email text,
   name text,
@@ -27,9 +27,9 @@ create table if not exists public.profiles (
 
 -- Onboarding state. Existing/self-signup accounts are onboarded (true); an invited account
 -- (created by the invite-user Edge Function) is false until they set a password on /invite.
-alter table public.profiles add column if not exists onboarded boolean not null default true;
+alter table public.accounts add column if not exists onboarded boolean not null default true;
 
--- Auto-create a profile when someone signs up OR is invited. Name/role/onboarding come from
+-- Auto-create an account row when someone signs up OR is invited. Name/role/onboarding come from
 -- the auth user metadata: self-signup carries {name}; an invite carries {name, role, invited}.
 create or replace function public.handle_new_user()
 returns trigger
@@ -40,7 +40,7 @@ declare
   meta_role text := new.raw_user_meta_data->>'role';
   was_invited boolean := coalesce((new.raw_user_meta_data->>'invited')::boolean, false);
 begin
-  insert into public.profiles (id, email, name, role, onboarded)
+  insert into public.accounts (id, email, name, role, onboarded)
   values (
     new.id,
     new.email,
@@ -58,8 +58,8 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Helper used by RLS policies. SECURITY DEFINER so it can read profiles
--- without recursing through profiles' own RLS.
+-- Helper used by RLS policies. SECURITY DEFINER so it can read accounts
+-- without recursing through the accounts table's own RLS.
 --
 -- It lives in `private`, NOT `public`, deliberately: PostgREST only exposes
 -- functions in the API schemas, so keeping it out of `public` means there is
@@ -76,7 +76,7 @@ stable
 security definer set search_path = public
 as $$
   select exists (
-    select 1 from public.profiles
+    select 1 from public.accounts
     where id = auth.uid() and role = 'admin' and active
   );
 $$;
@@ -255,7 +255,7 @@ alter table public.jobs enable row level security;
 alter table public.staff enable row level security;
 alter table public.job_types enable row level security;
 alter table public.customers enable row level security;
-alter table public.profiles enable row level security;
+alter table public.accounts enable row level security;
 alter table public.staff_calendar enable row level security;
 alter table public.public_holidays enable row level security;
 
@@ -299,11 +299,11 @@ create policy "public_holidays select authenticated" on public.public_holidays f
 drop policy if exists "public_holidays write admin" on public.public_holidays;
 create policy "public_holidays write admin" on public.public_holidays for all to authenticated using (private.is_admin()) with check (private.is_admin());
 
--- profiles
-drop policy if exists "profiles select authenticated" on public.profiles;
-create policy "profiles select authenticated" on public.profiles for select to authenticated using (true);
-drop policy if exists "profiles update admin" on public.profiles;
-create policy "profiles update admin" on public.profiles for update to authenticated using (private.is_admin()) with check (private.is_admin());
+-- accounts
+drop policy if exists "accounts select authenticated" on public.accounts;
+create policy "accounts select authenticated" on public.accounts for select to authenticated using (true);
+drop policy if exists "accounts update admin" on public.accounts;
+create policy "accounts update admin" on public.accounts for update to authenticated using (private.is_admin()) with check (private.is_admin());
 
 -- storage: job-files bucket (read for signed-in users, writes for admins)
 drop policy if exists "job files read" on storage.objects;
@@ -319,15 +319,15 @@ create policy "job files delete admin" on storage.objects for delete to authenti
 -- 5. Bootstrap the first admin AFTER signing up in the app.
 --    Replace the email if needed, then run:
 -- ---------------------------------------------------------------------------
--- update public.profiles set role = 'admin' where email = 'padraigbrosnan@gmail.com';
+-- update public.accounts set role = 'admin' where email = 'padraigbrosnan@gmail.com';
 
 -- ---------------------------------------------------------------------------
 -- 6. Per-account theme preference.
---    profiles UPDATE stays admin-only (users must not change their own role).
+--    accounts UPDATE stays admin-only (users must not change their own role).
 --    Non-admins persist their theme through a SECURITY DEFINER RPC that can only
 --    touch auth.uid()'s own theme column. Run this whole block in the SQL editor.
 -- ---------------------------------------------------------------------------
-alter table public.profiles
+alter table public.accounts
   add column if not exists theme text not null default 'light'
   check (theme in ('light', 'dark', 'system'));
 
@@ -340,7 +340,7 @@ begin
   if new_theme is null or new_theme not in ('light', 'dark', 'system') then
     raise exception 'invalid theme: %', new_theme;
   end if;
-  update public.profiles
+  update public.accounts
      set theme = new_theme, updated_at = now()
    where id = auth.uid();
 end;
@@ -349,8 +349,8 @@ $$;
 revoke all on function public.set_my_theme(text) from public;
 grant execute on function public.set_my_theme(text) to authenticated;
 
--- Let an invited user flip their OWN profile to onboarded after setting a password on /invite.
--- profiles UPDATE is admin-only, so onboarding completion goes through this SECURITY DEFINER
+-- Let an invited user flip their OWN account to onboarded after setting a password on /invite.
+-- accounts UPDATE is admin-only, so onboarding completion goes through this SECURITY DEFINER
 -- RPC scoped to auth.uid() (it can only ever touch the caller's own row).
 create or replace function public.complete_onboarding()
 returns void
@@ -359,7 +359,7 @@ security definer set search_path = public
 as $$
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
-  update public.profiles set onboarded = true, updated_at = now() where id = auth.uid();
+  update public.accounts set onboarded = true, updated_at = now() where id = auth.uid();
 end;
 $$;
 
@@ -381,7 +381,7 @@ alter publication supabase_realtime add table public.jobs;
 -- ---------------------------------------------------------------------------
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles (id) on delete cascade,
+  user_id uuid not null references public.accounts (id) on delete cascade,
   actor text not null default '',
   job_id text,
   job_label text,
@@ -412,12 +412,12 @@ as $$
 declare actor_name text;
 begin
   if auth.uid() is null then raise exception 'not authenticated'; end if;
-  select coalesce(name, email, 'Workshop') into actor_name from public.profiles where id = auth.uid();
+  select coalesce(name, email, 'Workshop') into actor_name from public.accounts where id = auth.uid();
   insert into public.notifications (user_id, actor, job_id, job_label, excerpt)
   select distinct t, actor_name, p_job_id, p_job_label, left(coalesce(p_excerpt, ''), 200)
   from unnest(target_ids) as t
   where t <> auth.uid()
-    and exists (select 1 from public.profiles p where p.id = t and p.active);
+    and exists (select 1 from public.accounts p where p.id = t and p.active);
 end;
 $$;
 
@@ -439,7 +439,7 @@ end $$;
 -- ---------------------------------------------------------------------------
 create table if not exists public.push_tokens (
   token text primary key,
-  user_id uuid not null references public.profiles (id) on delete cascade,
+  user_id uuid not null references public.accounts (id) on delete cascade,
   platform text not null default 'android',
   updated_at timestamptz not null default now()
 );
