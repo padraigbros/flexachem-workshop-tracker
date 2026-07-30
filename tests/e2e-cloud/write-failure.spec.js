@@ -89,6 +89,30 @@ test("a successful insert still saves and closes", async ({ page }) => {
   await expect(page.locator("article").filter({ hasText: "A008344" })).toBeVisible();
 });
 
+test("a rejected insert emails an alert naming the job and the code", async ({ page }) => {
+  const alertCalls = [];
+  await seedCloudSession(page, {
+    alertCalls,
+    onInsertJob: (route) => route.fulfill(notNullViolation("allocated_to")),
+  });
+
+  const dialog = await openNewJobModal(page);
+  await fillMinimum(dialog);
+  await page.getByRole("button", { name: /create job/i }).click();
+  await dialog.getByRole("alert").waitFor();
+
+  // A failed insert leaves no row, so the database cannot alert on it — the client is the
+  // only witness. Nobody outside the room finds out unless this call happens.
+  await expect.poll(() => alertCalls.length).toBeGreaterThan(0);
+  const alert = alertCalls.find((c) => c.kind === "failed");
+  expect(alert).toBeTruthy();
+  expect(alert.action).toBe("create");
+  expect(alert.jobLabel).toBe("A008344");
+  expect(alert.code).toBe("23502");
+  // The email says whether a retry can possibly work. A not-null violation cannot.
+  expect(alert.retryable).toBe(false);
+});
+
 test("a dropped connection is reported as retryable", async ({ page }) => {
   let attempts = 0;
   await seedCloudSession(page, {

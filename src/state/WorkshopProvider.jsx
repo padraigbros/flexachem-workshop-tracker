@@ -23,7 +23,7 @@ import {
   normalizeCustomer, mergeCustomerLists, customerKey, toCustomerDbPayload,
 } from "../lib/customers";
 import { daysUntil, formatDate, parseISODate, parseInstant } from "../lib/dates";
-import { runWrite, LOCAL_OK } from "../lib/writes";
+import { runWrite, LOCAL_OK, reportWriteFailure } from "../lib/writes";
 import {
   loadStoredJobs, saveStoredJobs, loadStoredStaff, saveStoredStaff,
   loadStoredJobTypes, saveStoredJobTypes, loadStoredCustomers, saveStoredCustomers,
@@ -233,11 +233,19 @@ export function WorkshopProvider({ children }) {
   // the write fails. Do not add a write that returns undefined — a caller with no way to know
   // it failed is how two jobs were silently lost on 29 Jul 2026. See lib/writes.js.
   //
-  // `fail` records the reason for the app-wide banner; `succeed` clears it.
-  const fail = useCallback((result) => {
+  // `fail` records the reason for the app-wide banner AND emails an admin. The email is the
+  // only way a rejected write becomes visible to anyone not sitting at the screen it happened
+  // on — a failed insert leaves no row for the database to trigger on. Fire-and-forget.
+  const fail = useCallback((result, context = {}) => {
     setLastWriteError({ message: result.message, at: Date.now(), retryable: result.retryable });
+    reportWriteFailure(supabase, {
+      action: context.action || "write",
+      jobLabel: context.label || "",
+      result,
+      user: user?.name || user?.email || "unknown",
+    });
     return result;
-  }, []);
+  }, [user?.name, user?.email]);
 
   const dismissWriteError = useCallback(() => setLastWriteError(null), []);
 
@@ -278,7 +286,7 @@ export function WorkshopProvider({ children }) {
         // worse than no edit at all.
         if (priorJob) setJobs((prev) => prev.map((job) => (job.id === id ? priorJob : job)));
         setSyncState("error");
-        return fail(result);
+        return fail(result, { action: "edit", label: priorJob?.asm || `#${id}` });
       }
       setSyncState("synced");
       setLastWriteError(null);
@@ -297,7 +305,7 @@ export function WorkshopProvider({ children }) {
         // also stops the phantom surviving a reload and looking saved.
         setJobs((prev) => prev.filter((job) => job.id !== localJob.id));
         setSyncState("error");
-        return fail(result);
+        return fail(result, { action: "create", label: localJob.asm || "new job" });
       }
       if (result.data) {
         const savedJob = normalizeJob(result.data);

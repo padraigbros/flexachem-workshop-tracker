@@ -80,3 +80,32 @@ export async function runWrite(fn) {
 // Result for a write that was skipped because there is no cloud to write to (demo mode).
 // Callers treat it as success — local state is the source of truth there.
 export const LOCAL_OK = { ok: true, data: null, error: null, message: "", retryable: false, local: true };
+
+// Email an admin about a write the database rejected.
+//
+// Successful creations are alerted by a database trigger (supabase/alerts-setup.sql), which
+// is reliable because a row exists to trigger on. A FAILED write leaves nothing behind — no
+// row, no trace outside the Supabase logs — so the client is the only thing that knows it
+// happened. That is the gap this closes.
+//
+// Strictly fire-and-forget: it never throws, never blocks, and its own failure is swallowed.
+// Alerting must not be able to break the app it is watching.
+export function reportWriteFailure(supabase, { action, jobLabel, result, user }) {
+  if (!supabase || !result?.error) return;
+  try {
+    supabase.functions.invoke("notify-job-event", {
+      body: {
+        source: "client",
+        kind: "failed",
+        action,
+        jobLabel,
+        user,
+        code: result.error.code || "",
+        message: result.message || result.error.message || "",
+        retryable: result.retryable === true,
+      },
+    }).catch(() => {});
+  } catch {
+    /* never let alerting break a write path */
+  }
+}

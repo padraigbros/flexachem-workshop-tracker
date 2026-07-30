@@ -40,7 +40,7 @@ const ADMIN_PROFILE = {
 // Sign in as an admin without touching the network, and answer every read with an empty
 // table. `onInsertJob` decides what POST /rest/v1/jobs returns — that is the whole point of
 // this suite.
-export async function seedCloudSession(page, { onInsertJob, onPatchJob, jobs = [] }) {
+export async function seedCloudSession(page, { onInsertJob, onPatchJob, jobs = [], alertCalls }) {
   await page.addInitScript(
     ({ key, session }) => localStorage.setItem(key, JSON.stringify(session)),
     { key: AUTH_STORAGE_KEY, session: sessionFixture() },
@@ -48,6 +48,22 @@ export async function seedCloudSession(page, { onInsertJob, onPatchJob, jobs = [
 
   // Realtime: let the websocket fail quietly rather than hang the page.
   await page.route("**/realtime/v1/**", (route) => route.abort());
+
+  // Edge functions. Pass an `alertCalls` array to capture what the app tried to send —
+  // that is how we assert the failure-alert email was triggered without sending one.
+  await page.route("**/functions/v1/**", async (route) => {
+    if (alertCalls) {
+      try {
+        alertCalls.push(JSON.parse(route.request().postData() || "{}"));
+      } catch { /* not JSON — ignore */ }
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify({ ok: true }),
+    });
+  });
 
   await page.route("**/rest/v1/**", async (route) => {
     const request = route.request();
