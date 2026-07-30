@@ -107,14 +107,21 @@ in no migration file, so nothing in the repo will tell you about them.
   technician + calendar). Matched **by email**. Admins deliberately get **no** `staff` row and
   are not assignable. The `profiles` compatibility view was dropped once the new build went
   live — nothing named `profiles` exists any more.
-- **Alerting is failure-only, and partly still inert.** As of 30 Jul 2026 `job_alerts` exists
-  and `sweep-job-errors` is scheduled hourly via `pg_cron`. The `on_job_created` trigger is
-  deliberately **not** installed — no per-job confirmation email is wanted. Still outstanding:
-  the sweeper returns `500 SUPABASE_MGMT_TOKEN / SUPABASE_PROJECT_REF not set` until those
-  function secrets exist, and `RESEND_API_KEY` / `ALERT_EMAIL_TO` / `ALERT_WEBHOOK_SECRET` are
-  unverified. **A scheduled job that fails reports nothing about itself** — the only trace is
+- **Alerting: Sentry is the live channel; the Resend email path has never worked.**
+  As of 30 Jul 2026, Sentry is wired and verified end-to-end (org `padraigbrosnan`, project
+  `flexachem-workshop-tracker`, region `https://de.sentry.io`; `VITE_SENTRY_DSN` set on Vercel
+  for Production+Preview). It covers JS crashes, rejected DB writes (`captureWriteFailure`)
+  and auth failures, and its default rule emails on new high-priority issues.
+  **The Resend/`notify-job-event` email path has never sent an email**: `RESEND_API_KEY` and
+  `ALERT_EMAIL_TO` are not set (Edge Function Secrets holds only `PUSH_WEBHOOK_SECRET`,
+  `FCM_SERVICE_ACCOUNT`, `APP_URL`), so `sendEmail()` returns early every time. Likewise
+  `sweep-job-errors` returns `500 SUPABASE_MGMT_TOKEN / SUPABASE_PROJECT_REF not set` and is
+  scheduled hourly, so it fails hourly in silence. Sentry now covers most of what the Resend
+  path was for — do not assume both are running.
+  **A scheduled job that fails reports nothing about itself** — the only trace is
   `select id, status_code, left(content,200) from net._http_response order by id desc limit 5;`
   Check that after touching anything cron- or webhook-driven.
+- `on_job_created` (the per-job confirmation email) is deliberately **not** installed.
 - **`sweep-job-errors` is publicly triggerable**: deployed with `verify_jwt = false` and it
   performs no auth check of its own. It only reads logs and mails `ALERT_EMAIL_TO`, but that
   is an inbox-flood vector. `notify-job-event` guards itself with an `x-alert-secret` header;
