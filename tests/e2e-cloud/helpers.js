@@ -40,7 +40,7 @@ const ADMIN_PROFILE = {
 // Sign in as an admin without touching the network, and answer every read with an empty
 // table. `onInsertJob` decides what POST /rest/v1/jobs returns — that is the whole point of
 // this suite.
-export async function seedCloudSession(page, { onInsertJob }) {
+export async function seedCloudSession(page, { onInsertJob, onPatchJob, jobs = [] }) {
   await page.addInitScript(
     ({ key, session }) => localStorage.setItem(key, JSON.stringify(session)),
     { key: AUTH_STORAGE_KEY, session: sessionFixture() },
@@ -55,10 +55,11 @@ export async function seedCloudSession(page, { onInsertJob }) {
     const table = url.pathname.replace("/rest/v1/", "").split("?")[0];
     const method = request.method();
 
-    if (method === "POST" && table === "jobs") return onInsertJob(route, request);
+    if (method === "POST" && table === "jobs" && onInsertJob) return onInsertJob(route, request);
+    if (method === "PATCH" && table === "jobs" && onPatchJob) return onPatchJob(route, request);
 
     if (method === "GET") {
-      const body = table === "profiles" ? [ADMIN_PROFILE] : [];
+      const body = table === "profiles" ? [ADMIN_PROFILE] : table === "jobs" ? jobs : [];
       // PostgREST returns a bare object (not an array) when the client asks for one row.
       const single = (request.headers()["accept"] || "").includes("vnd.pgrst.object");
       return route.fulfill({
@@ -77,6 +78,34 @@ export async function seedCloudSession(page, { onInsertJob }) {
       body: "[]",
     });
   });
+}
+
+// A minimal jobs row in DB shape for tests that need an existing job to edit. Numeric id on
+// purpose — normalizeJob must String() it or the drawer and edit modal silently no-op.
+export function jobRow(overrides = {}) {
+  return {
+    id: 30,
+    asm: "A007563",
+    so: "298000",
+    cust: "Eli Lilly",
+    customer: "Eli Lilly",
+    type: "Valve Assembly",
+    job_type: "Valve Assembly",
+    alloc: "Unassigned",
+    allocated_to: "Unassigned",
+    bus: "Valves",
+    status: "In Progress",
+    priority: "Normal",
+    hrs: 8,
+    actual_hours: 0,
+    start_date: "2026-07-20",
+    due_date: "2026-08-10",
+    notes: [],
+    deleted: false,
+    archived: false,
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  };
 }
 
 // The exact shape PostgREST returns for the not-null violation that lost two jobs on
