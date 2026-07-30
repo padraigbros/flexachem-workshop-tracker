@@ -66,6 +66,9 @@ export default defineConfig({
           vendor: ['react', 'react-dom', 'react-router-dom'],
           motion: ['motion'],
           supabase: ['@supabase/supabase-js'],
+          // Its own chunk so error monitoring never sits on the critical path of the
+          // app's first paint.
+          sentry: ['@sentry/react'],
         },
       },
     },

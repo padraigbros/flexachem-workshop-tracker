@@ -10,6 +10,7 @@ import { WorkshopProvider } from "./state/WorkshopProvider";
 import { StatusPromptProvider } from "./state/StatusPromptProvider";
 import { NotificationsProvider } from "./state/NotificationsProvider";
 import { RecoveryModal } from "./components/jobs/RecoveryModal";
+import { initMonitoring, identifyUser } from "./lib/monitoring";
 import { initNativeShell, setStatusBarTheme } from "./lib/native";
 import { initPush, teardownPush } from "./lib/push";
 import { useAuthCtx } from "./state/AuthProvider";
@@ -22,6 +23,9 @@ function NativeBridge() {
   const { user } = useAuthCtx();
   useEffect(() => { setStatusBarTheme(resolved); }, [resolved]);
   useEffect(() => { initNativeShell(router.navigate); }, []);
+  // Attach the signed-in account to every error report, so "is this everyone or just Anna?"
+  // is answerable without asking anyone.
+  useEffect(() => { identifyUser(user); }, [user?.id, user?.email, user?.name]);
   useEffect(() => {
     if (!user?.id) return;
     initPush(user.id, router.navigate);
@@ -40,6 +44,9 @@ function ThemedToaster() {
 // then reloads the page onto the new assets. This is the main defence against the "Failed
 // to fetch dynamically imported module" crash, where a tab left open across a deploy tries
 // to lazy-load a chunk the CDN no longer serves. RouteErrorBoundary is the safety net.
+// Before anything else, so an exception thrown during boot is still captured.
+initMonitoring();
+
 const UPDATE_CHECK_MS = 60 * 60 * 1000;
 
 registerSW({

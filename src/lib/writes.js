@@ -1,3 +1,5 @@
+import { captureWriteFailure } from "./monitoring";
+
 // Every Supabase write in the app funnels through here.
 //
 // Why this exists: on 29 Jul 2026 two jobs were created against production, appeared on the
@@ -91,7 +93,11 @@ export const LOCAL_OK = { ok: true, data: null, error: null, message: "", retrya
 // Strictly fire-and-forget: it never throws, never blocks, and its own failure is swallowed.
 // Alerting must not be able to break the app it is watching.
 export function reportWriteFailure(supabase, { action, jobLabel, result, user }) {
-  if (!supabase || !result?.error) return;
+  if (!result?.error) return;
+  // Sentry first, and unconditionally: it works in every mode, groups repeats by Postgres
+  // code, and is where you look for "has this happened before?". The email is the page.
+  captureWriteFailure({ action, jobLabel, result, user });
+  if (!supabase) return;
   try {
     supabase.functions.invoke("notify-job-event", {
       body: {

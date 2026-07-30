@@ -50,11 +50,14 @@ create policy "job_alerts select admin" on public.job_alerts
 -- ---------------------------------------------------------------------------
 create extension if not exists pg_net with schema extensions;
 
--- Store the function URL and key in Vault rather than inlining a service key
+-- Store the function URL and the shared secret in Vault rather than inlining them
 -- in the trigger body. Set these once (replace the values):
 --
 --   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/notify-job-event', 'job_alert_url');
---   select vault.create_secret('<your anon key>', 'job_alert_key');
+--   select vault.create_secret('<same value as ALERT_WEBHOOK_SECRET>', 'job_alert_secret');
+--
+-- job_alert_secret must match the ALERT_WEBHOOK_SECRET function secret exactly —
+-- the function rejects the call otherwise and no success emails arrive.
 --
 -- Re-running create_secret with an existing name errors; use vault.update_secret
 -- to change one. Read them back with:
@@ -67,15 +70,15 @@ security definer set search_path = public, extensions
 as $$
 declare
   fn_url text;
-  fn_key text;
+  fn_secret text;
 begin
   -- Any failure in here must NOT take the insert down with it, so the whole
   -- body is wrapped and errors are swallowed. A missed alert is an
   -- inconvenience; a job that won't save is an outage.
   begin
     select decrypted_secret into fn_url from vault.decrypted_secrets where name = 'job_alert_url';
-    select decrypted_secret into fn_key from vault.decrypted_secrets where name = 'job_alert_key';
-    if fn_url is null or fn_key is null then
+    select decrypted_secret into fn_secret from vault.decrypted_secrets where name = 'job_alert_secret';
+    if fn_url is null or fn_secret is null then
       return new;
     end if;
 
@@ -83,7 +86,7 @@ begin
       url := fn_url,
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || fn_key
+        'x-alert-secret', fn_secret
       ),
       body := jsonb_build_object(
         'source', 'db_trigger',

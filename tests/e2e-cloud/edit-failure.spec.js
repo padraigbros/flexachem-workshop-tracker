@@ -6,6 +6,20 @@ import { seedCloudSession, notNullViolation, jobRow } from "./helpers.js";
 // status control, note and edit in the app lands here, so a silent failure on this path would
 // be just as damaging as the one that lost two jobs on 29 Jul 2026.
 
+// Use the card's explicit "Edit job" button rather than double-clicking the card. Both open
+// the modal, but a dblclick also fires the single-click handler that opens the drawer, and
+// under parallel load the race between them made these tests flaky.
+async function openEditModal(page) {
+  await page.goto("/schedule");
+  const card = page.locator("article").filter({ hasText: "A007563" });
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: /edit job/i }).click();
+  const dialog = page.locator("form").filter({ hasText: /A007563/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel(/^Assembly \/ Tag/)).toHaveValue("A007563");
+  return dialog;
+}
+
 test("a rejected edit keeps the modal open and reverts the job", async ({ page }) => {
   let patchAttempts = 0;
   await seedCloudSession(page, {
@@ -16,13 +30,7 @@ test("a rejected edit keeps the modal open and reverts the job", async ({ page }
     },
   });
 
-  await page.goto("/schedule");
-  const card = page.locator("article").filter({ hasText: "A007563" });
-  await expect(card).toBeVisible();
-  await card.dblclick(); // admin double-click opens the edit modal
-
-  const dialog = page.locator("form").filter({ hasText: /A007563/ });
-  await expect(dialog).toBeVisible();
+  const dialog = await openEditModal(page);
   await dialog.getByLabel(/^Assembly \/ Tag/).fill("A007563-EDITED");
   await page.getByRole("button", { name: /save changes/i }).click();
 
@@ -48,10 +56,7 @@ test("a rejected write raises a banner in the app shell, not just the modal", as
     onPatchJob: (route) => route.fulfill(notNullViolation("customer")),
   });
 
-  await page.goto("/schedule");
-  const card = page.locator("article").filter({ hasText: "A007563" });
-  await card.dblclick();
-  const dialog = page.locator("form").filter({ hasText: /A007563/ });
+  const dialog = await openEditModal(page);
   await dialog.getByLabel(/^Assembly \/ Tag/).fill("A007563-EDITED");
   await page.getByRole("button", { name: /save changes/i }).click();
   await dialog.getByRole("alert").waitFor();

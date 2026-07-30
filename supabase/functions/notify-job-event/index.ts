@@ -9,9 +9,21 @@
 //                           rejected. A failed insert leaves no row behind, so the
 //                           database cannot detect this on its own.
 //
+// AUTH: deployed with --no-verify-jwt, because the platform's built-in check expects a JWT
+// and this project uses the newer sb_publishable_/sb_secret_ key format, which are not JWTs.
+// Rather than depend on how the gateway treats those, the function authorises callers itself:
+//
+//   - the database trigger sends `x-alert-secret`, matched against ALERT_WEBHOOK_SECRET
+//   - the app sends the signed-in user's JWT, which is verified against auth
+//
+// A request with neither is rejected. Without this, the trigger's call could be silently
+// refused and success emails would simply never arrive — a broken feature that looks like a
+// quiet one.
+//
 // Required function secrets (supabase secrets set ...):
-//   RESEND_API_KEY   — from resend.com. Free tier: 100 emails/day, 3,000/month.
-//   ALERT_EMAIL_TO   — where alerts go, e.g. padraigbrosnan@gmail.com
+//   RESEND_API_KEY        — from resend.com. Free tier: 100 emails/day, 3,000/month.
+//   ALERT_EMAIL_TO        — where alerts go, e.g. padraigbrosnan@gmail.com
+//   ALERT_WEBHOOK_SECRET  — any long random string; also stored in Vault for the trigger
 //   ALERT_EMAIL_FROM — optional. Defaults to Resend's shared sender, which can only
 //                      deliver to the address that owns the Resend account. Set this to
 //                      something on a verified domain to send anywhere.
@@ -131,11 +143,26 @@ Deno.serve(async (req) => {
     return json({ error: "body must be JSON" }, 400);
   }
 
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const admin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // --- authorise the caller (see the header note) ---------------------------
+  const sharedSecret = Deno.env.get("ALERT_WEBHOOK_SECRET") || "";
+  const presented = req.headers.get("x-alert-secret") || "";
+  let authorised = Boolean(sharedSecret) && presented === sharedSecret;
+
+  if (!authorised) {
+    // Fall back to a signed-in user (the client-reported failure path).
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    if (token) {
+      const { data } = await admin.auth.getUser(token);
+      authorised = Boolean(data?.user);
+    }
+  }
+  if (!authorised) return json({ error: "not authorised" }, 401);
+
   const kind = body.kind === "failed" ? "failed" : "created";
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
 
   // Rate cap. Count what we have already emailed in the trailing hour for this kind.
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();

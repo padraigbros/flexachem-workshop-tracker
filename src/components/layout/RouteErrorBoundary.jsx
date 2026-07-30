@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouteError, isRouteErrorResponse } from "react-router-dom";
 import { RefreshCw, Home } from "lucide-react";
 import { BrandMark } from "./Sidebar";
+import { Sentry } from "../../lib/monitoring";
 import { Button } from "../ui/primitives";
 
 // After a new deploy, an already-open tab's index.html still points at the OLD
@@ -30,6 +31,16 @@ export function RouteErrorBoundary() {
     sessionStorage.setItem(RELOAD_GUARD_KEY, "1");
     window.location.reload();
   }, [chunkError, alreadyTried]);
+
+  // Report anything that actually reached this screen. A stale-chunk error that self-heals on
+  // the first reload is filtered out in monitoring.js (expected, not actionable); one that
+  // survives the reload is a genuine crash and lands here to be reported.
+  useEffect(() => {
+    if (chunkError && !alreadyTried) return;
+    Sentry.captureException(error, {
+      tags: { boundary: "route", stale_chunk: String(chunkError) },
+    });
+  }, [error, chunkError, alreadyTried]);
 
   if (reloading) {
     return (
