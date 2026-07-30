@@ -22,7 +22,12 @@ function Section({ title, children, cols = 2 }) {
 export function JobModal({ job, open, people, staff = [], calendar = [], holidays = [], jobs = [], jobTypes, customers, businessUnits, onClose, onSave, onAddCustomer }) {
   const assignablePeople = useMemo(() => {
     const set = new Set(people);
-    if (job.alloc) set.add(job.alloc);
+    // Keep the job's current assignee selectable even if they are no longer active, so the
+    // job re-saves unchanged. But `alloc` is one text column carrying two meanings — a
+    // person's name, or the literal "Unassigned" standing for nobody — and adding the latter
+    // as if it were a technician is what put TWO "Unassigned" entries in this dropdown
+    // (the hardcoded option below, plus this one) on all 12 unassigned jobs.
+    if (job.alloc && job.alloc.trim().toLowerCase() !== "unassigned") set.add(job.alloc);
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [people, job.alloc]);
 

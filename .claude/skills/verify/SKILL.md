@@ -140,7 +140,15 @@ code reading. `npx vite build` must pass at the end.
       (assignable, has a calendar) with its login account row in `accounts` (role, sign-in status),
       **matched by email**. Row shows: avatar, name, email, **Admin/Staff** badge, status
       (Active / Pending / Inactive), open-jobs count (staff only). Actions: calendar + reassign
-      (staff only), Make admin/staff (accounts only), Resend (pending only), Deactivate, Remove.
+      (staff only), Make admin/staff (accounts only), Resend (pending only), Deactivate, and
+      **Remove ONLY on a staff record with no login account behind it**. A staff record is
+      derived from an active staff-role account, so deleting one for a person who has an
+      account just gets it recreated on the next load — the button appeared broken because
+      the reconciler disagreed with the click. Removing such a person = Deactivate, or delete
+      the auth user in the dashboard.
+- [ ] **The Staff/Technician dropdown shows "Unassigned" exactly once.** `alloc` is one text
+      column meaning either a person or nobody; `JobModal` must not fold the literal
+      "Unassigned" into its list of technicians alongside the hardcoded option.
 - [ ] **Only Staff-role people are assignable.** `activePeople` excludes any staff whose
       email matches an admin-role account, so admins never appear in the JobModal assignment
       dropdown or the per-person job cards. Demo mode has no accounts → everyone is staff.
@@ -269,6 +277,17 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-30: **One source of truth for "is this person a technician": the login account.**
+  An active `accounts.role='staff'` row always implies a `staff` record, enforced by the
+  reconciler in `WorkshopProvider`. Consequence, and the reason for the change: deleting a
+  staff row for someone who has an account was not a stable state — the reconciler recreated
+  it on the next load, which is why "Remove" appeared to do nothing on PBTest2 (the row came
+  back 55 minutes later with a fresh `created_at`). Remove is now hidden for any row with an
+  account; removing such a person means Deactivate (revokes access, keeps history) or
+  deleting the auth user in the dashboard (erases them, frees the email). Remove still works
+  normally for a staff record with no login behind it, which the reconciler never touches.
+  Also fixed: `JobModal` folded the literal string "Unassigned" into the technician list,
+  duplicating the hardcoded option on every unassigned job (12 of them in production).
 - 2026-07-30: **`profiles` renamed to `accounts`, and every staff-role person now gets a
   `staff` record.** Root cause of "I can't assign jobs or a calendar to anyone but Padraig
   Test": being on the team lived in `profiles`, but being *assignable* lives in `staff`, and

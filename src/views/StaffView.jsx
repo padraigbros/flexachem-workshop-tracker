@@ -167,7 +167,17 @@ export function StaffView() {
                     <Button size="sm" variant="secondary" onClick={() => toggleRole(row)}>{admin ? "Make staff" : "Make admin"}</Button>
                   )}
                   <Button size="sm" variant="ghost" disabled={isSelf} onClick={() => setPersonActive(row, !active)}>{active ? "Deactivate" : "Reactivate"}</Button>
-                  {member && <Button size="sm" variant="danger" disabled={isSelf} onClick={() => setConfirmDelete(member)} className="gap-1"><Trash2 size={13} />Remove</Button>}
+                  {/* Remove deletes the staff record, and a staff record is derived from the
+                      login account: an active staff-role account always gets one (see the
+                      reconciler in WorkshopProvider). So for anyone WITH an account, deleting
+                      the row just gets it recreated on the next load — the button looked
+                      broken because the system disagreed with the click. Removing such a
+                      person means revoking their access: Deactivate above, or delete the auth
+                      user in the Supabase dashboard to erase them entirely. Remove therefore
+                      only appears for a staff record that has no login account behind it. */}
+                  {member && !row.account && (
+                    <Button size="sm" variant="danger" disabled={isSelf} onClick={() => setConfirmDelete(member)} className="gap-1"><Trash2 size={13} />Remove</Button>
+                  )}
                 </div>
               </div>
             );
