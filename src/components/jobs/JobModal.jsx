@@ -45,6 +45,8 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
   const [importBusy, setImportBusy] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   // Placeholder first, the active catalogue, plus the currently-selected value so any
   // customer (legacy, PDF-imported, or freshly created) always has a matching <option>.
@@ -107,6 +109,10 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
   const errors = {
     asm: !fields.asm.trim() ? "Required" : null,
     cust: !fields.cust.trim() ? "Required" : null,
+    // jobs.due_date is NOT NULL in the database, and toDbPayload sends `job.due || null` —
+    // so clearing this field produced a raw 23502 from Postgres instead of a field error.
+    // Catch it here, where we can point at the actual input.
+    due: !fields.due ? "Required" : null,
     // Same gate the status-change prompt applies. Without it the Status dropdown here is a
     // back door to completing a job with no hours, and it drops out of the dashboard's
     // estimate-vs-actual figures with no indication anything is missing.
@@ -151,12 +157,21 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
     }
   };
 
-  const submit = (e) => {
+  // The modal owns the outcome of the save. It stays open and keeps the typed values when the
+  // write is rejected — closing on a failed save is what let two jobs disappear on 29 Jul 2026.
+  const submit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
-    if (errors.asm || errors.cust || errors.actualHrs) return;
+    if (errors.asm || errors.cust || errors.due || errors.actualHrs) return;
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
     // Snapped to the half hour on save so a typed 1.25 can't slip past the stepper.
-    onSave({ ...fields, hrs: roundHours(fields.hrs), actualHrs: roundHours(fields.actualHrs), attachment, attachmentFile: pdfFile });
+    const result = await onSave({ ...fields, hrs: roundHours(fields.hrs), actualHrs: roundHours(fields.actualHrs), attachment, attachmentFile: pdfFile });
+    setSaving(false);
+    // A caller that returns nothing is treated as success so demo mode and any not-yet-migrated
+    // call site keep working.
+    if (result && result.ok === false) setSaveError(result);
   };
 
   const plannedSpan = Math.max(1, daysBetween(fields.start, fields.due) + 1);
@@ -172,6 +187,25 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
         />
 
         <div className="flex-1 space-y-5 overflow-y-auto p-6">
+          {/* Save failure. role="alert" so it is announced, not just drawn. */}
+          {saveError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[var(--danger-bg)] px-3.5 py-3"
+            >
+              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[var(--danger)]" />
+              <div className="min-w-0">
+                <div className="text-[0.82rem] font-bold text-[var(--danger)]">
+                  {job.id ? "Couldn't save your changes" : "Couldn't create this job"}
+                </div>
+                <div className="mt-0.5 text-[0.75rem] leading-snug text-[var(--danger)]">{saveError.message}</div>
+                <div className="mt-1 text-[0.7rem] leading-snug text-[var(--ink-muted)]">
+                  Nothing has been lost — your details are still here. This job is not on the board yet.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Import */}
           <div
             role="button"
@@ -213,12 +247,13 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
           )}
 
           <Section title="Identity">
-            <Field label="Assembly / Tag" error={showError("asm")}>
+            <Field label="Assembly / Tag" required error={showError("asm")}>
               <Input value={fields.asm} onChange={(e) => set("asm", e.target.value)} onBlur={() => blur("asm")} className={cx(showError("asm") && "border-[var(--danger)]")} />
             </Field>
             <Field label="Sales Order"><Input value={fields.so} onChange={(e) => set("so", e.target.value)} /></Field>
             <Field
               label="Customer"
+              required
               error={showError("cust")}
               hint={fields.cust && !(customers || []).includes(fields.cust) ? "Not in the catalogue — add it in Customers to reuse it." : undefined}
             >
@@ -261,9 +296,13 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
 
           <Section title="Schedule">
             <Field label="Start / To be done"><Input type="date" value={fields.start} onChange={(e) => set("start", e.target.value)} /></Field>
-            <Field label="Due date"><Input type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} /></Field>
+            <Field label="Due date" required error={showError("due")}>
+              <Input type="date" value={fields.due} onChange={(e) => set("due", e.target.value)} onBlur={() => blur("due")} className={cx(showError("due") && "border-[var(--danger)]")} />
+            </Field>
             <Field label="Estimated hours"><Input type="number" step={HOURS_STEP} min="0" value={fields.hrs} onChange={(e) => set("hrs", e.target.value)} /></Field>
-            <Field label="Actual hours" error={showError("actualHrs")}>
+            {/* Conditionally required: the asterisk appears as soon as Status is set to
+                Complete, so the hours gate is visible before the save is attempted. */}
+            <Field label="Actual hours" required={fields.status === "Complete"} error={showError("actualHrs")}>
               <Input type="number" step={HOURS_STEP} min="0" value={fields.actualHrs} onChange={(e) => set("actualHrs", e.target.value)} onBlur={() => blur("actualHrs")} className={cx(showError("actualHrs") && "border-[var(--danger)]")} />
             </Field>
             <Field label="Status"><Select value={fields.status} onChange={(e) => set("status", e.target.value)}>{STATUS_ORDER.map((s) => <option key={s}>{s}</option>)}</Select></Field>
@@ -284,8 +323,10 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
         <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] bg-[var(--surface-card)] px-6 py-4" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
           <span className="hidden text-[0.7rem] text-[var(--ink-muted)] sm:block">Press ⌘/Ctrl + Enter to save</span>
           <div className="flex flex-1 justify-end gap-2">
-            <Button type="button" variant="subtle" onClick={onClose}>Cancel</Button>
-            <Button type="submit" variant="primary">{job.id ? "Save changes" : "Create job"}</Button>
+            <Button type="button" variant="subtle" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={saving}>
+              {saving ? "Saving…" : saveError ? "Try again" : job.id ? "Save changes" : "Create job"}
+            </Button>
           </div>
         </div>
       </form>

@@ -11,7 +11,7 @@ import { SyncBadge } from "./SyncBadge";
 // sign-out, but below lg there was no way to sign out at all — this fills that gap.
 export function AccountSheet() {
   const { user, isAdmin, logout } = useAuthCtx();
-  const { syncState, staffSyncState } = useWorkshop();
+  const { syncState, staffSyncState, jobTypeSyncState, customerSyncState } = useWorkshop();
   const [open, setOpen] = useState(false);
 
   return (
@@ -47,7 +47,7 @@ export function AccountSheet() {
       >
         <div className="grid gap-4 p-5">
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3">
-            <SyncBadge jobsState={syncState} staffState={staffSyncState} />
+            <SyncBadge jobsState={syncState} staffState={staffSyncState} jobTypeState={jobTypeSyncState} customerState={customerSyncState} />
           </div>
           <Button variant="danger" size="md" onClick={logout} className="gap-2">
             <LogOut size={16} />Sign out

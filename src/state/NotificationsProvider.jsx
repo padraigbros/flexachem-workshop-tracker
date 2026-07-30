@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
 import { normalizeNotification, mentionCandidates, excerptOf } from "../lib/notifications";
 import { loadStoredNotifications, saveStoredNotifications } from "../lib/storage";
+import { runWrite, LOCAL_OK } from "../lib/writes";
 import { useAuthCtx } from "./AuthProvider";
 import { useWorkshop } from "./WorkshopProvider";
 
@@ -91,15 +92,33 @@ export function NotificationsProvider({ children }) {
     setNotifications((prev) => [row, ...prev]);
   }, [user?.id, user?.name, user?.email, userId]);
 
+  // Read flags roll back on failure like every other write. A bell that silently un-reads
+  // itself on the next refetch is a small lie, but it is the same class of lie that hid two
+  // lost jobs for hours — see lib/writes.js.
   const markRead = useCallback(async (id) => {
+    const prior = notifications.find((n) => n.id === id) || null;
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-    if (supabase && user?.id) await supabase.from("notifications").update({ read: true }).eq("id", id);
-  }, [user?.id]);
+    if (supabase && user?.id) {
+      const result = await runWrite(() => supabase.from("notifications").update({ read: true }).eq("id", id));
+      if (!result.ok && prior) setNotifications((prev) => prev.map((n) => (n.id === id ? prior : n)));
+      return result;
+    }
+    return LOCAL_OK;
+  }, [user?.id, notifications]);
 
   const markAllRead = useCallback(async () => {
+    const prior = notifications;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    if (supabase && user?.id) await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
-  }, [user?.id]);
+    if (supabase && user?.id) {
+      const result = await runWrite(() => supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false));
+      if (!result.ok) {
+        setNotifications(prior);
+        toast.error("Could not mark notifications read", { description: result.message });
+      }
+      return result;
+    }
+    return LOCAL_OK;
+  }, [user?.id, notifications]);
 
   const value = useMemo(
     () => ({ notifications, unreadCount, mentionables, notifyMentions, markRead, markAllRead }),

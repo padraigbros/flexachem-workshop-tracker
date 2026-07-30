@@ -1,9 +1,58 @@
 ---
 name: verify
-description: Regression checklist for the Flexachem Workshop Tracker. Run before committing any change that touches src/ — every behaviour listed here must still work. If a change intentionally alters one of these behaviours, update this file in the same commit and call the change out explicitly in the commit message and to the user.
+description: Regression checklist for the Flexachem Workshop Tracker. Run before committing any change that touches src/ — every behaviour listed here must still work. Also run the "Cloud write smoke test" section after ANY database, RLS, policy or function change, even when no src/ file was touched. If a change intentionally alters one of these behaviours, update this file in the same commit and call the change out explicitly in the commit message and to the user.
 ---
 
 # Flexachem Workshop Tracker — regression checklist
+
+## ⚠ Cloud write smoke test — REQUIRED after any database change
+
+**Demo mode cannot validate a database change.** `.env.test` sets the Supabase vars empty, so
+`supabase === null` and every write goes to localStorage. The entire Playwright suite below
+can pass with a completely broken database. On 29 Jul 2026 that gap let an RLS/schema change
+ship that silently broke job creation — two jobs were lost and nobody knew for hours.
+
+After ANY change to a table, column, RLS policy, grant, trigger or function — even when no
+`src/` file was touched — do all three:
+
+- [ ] **Schema contract check.** Catches a NOT NULL column the app never writes — the exact
+      `jobs.allocated_to` mismatch behind that incident. Expect zero rows that aren't `id`,
+      `created_at` or `updated_at` (the database fills those itself).
+
+      **Preferred: run this in the Supabase SQL Editor.** No key, no shell, no setup.
+      ```sql
+      select table_name, column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name in ('jobs','staff','job_types','customers','staff_calendar','public_holidays')
+        and is_nullable = 'NO'
+        and column_default is null
+      order by table_name, column_name;
+      ```
+      Compare the result against what the payload builders send (`toDbPayload` in
+      `src/lib/jobs.js` and the `to*DbPayload` functions in `staff.js` / `customers.js` /
+      `calendar.js`). Any column in the query result that no builder writes is a gap.
+
+      Alternative: `tools/check-schema.mjs` does the same diff automatically, but needs a
+      SECRET API key in the environment and is fiddly to invoke on Windows. Use it for CI;
+      for a manual check after a migration, the SQL above is faster and harder to get wrong.
+- [ ] **Create a job in the real app**, signed in against the live project. Then **reload the
+      page** and confirm it is still there. A job that only survives until a refetch was never
+      saved — that is precisely what the incident looked like from the user's side.
+      A NORMAL reload (F5) is enough: the service-worker deadlock that used to require
+      Ctrl+Shift+R was fixed on 2026-07-22 (`skipWaiting` + `clientsClaim`). If you ever find
+      a plain reload is not enough, that is a PWA regression — fix it, don't work around it.
+- [ ] **Sync indicator is green** ("Data synced") and no red "Your last change was not saved"
+      banner appears. If the banner shows, read it: it names the real Postgres reason.
+
+Then run the cloud-mode failure suite, which proves the app still *reports* a rejected write:
+
+```
+npm run test:cloud
+```
+
+3 tests, hermetic (stubbed Supabase, port 5174 — never 5173). If you change `addJob`'s
+rollback or `AppShell.saveJob`'s early return, these must go red.
 
 Start the dev server (`.claude/launch.json` → `dev`, port 5173). No `.env.local` = demo
 mode (localStorage, auto-admin). Test in the browser pane; prefer real interactions over
@@ -130,6 +179,24 @@ code reading. `npx vite build` must pass at the end.
       automation pane, open→close (Cancel/Close on any Modal, incl. ConfirmDialog) may appear
       stuck. Verify modal close in a real browser or the deployed app, not a headless pane.
 
+### Failed writes (never let one pass silently)
+- [ ] **A rejected save keeps the modal open with the typed data**, shows a `role="alert"`
+      banner naming the real reason, and the button reads "Try again". It must NOT close.
+      Covered by `npm run test:cloud`; the manual equivalent is to break a constraint in the
+      DB, try to create a job, and confirm nothing is lost.
+- [ ] **The optimistic card rolls back.** A job whose insert failed must disappear from the
+      board immediately — not linger looking saved until a refetch deletes it. NOTE: assert
+      this via CLIENT-SIDE navigation (click the nav link). A `page.goto()` triggers a
+      refetch that wipes the phantom either way, so a reload-based test proves nothing.
+- [ ] **Every mutation returns `{ ok, error, message }`** and undoes its optimistic update on
+      failure (`src/state/WorkshopProvider.jsx`, via `runWrite` in `src/lib/writes.js`). A
+      write that returns `undefined` has no way to tell its caller it failed — do not add one.
+- [ ] **Non-retryable errors don't offer a retry.** 23502 / 42703 / 42501 say "tell an admin";
+      only network-class failures get a Reload button (`isRetryable` in `src/lib/writes.js`).
+- [ ] **The red banner is visible on every breakpoint** (`WriteErrorBanner`, mounted in
+      AppShell above `<main>`). The sidebar `SyncBadge` is a secondary signal only — it is
+      hidden below `lg` and reads as "catching up", which is how the incident stayed invisible.
+
 ### Notifications
 - [ ] Bell in the Topbar (all breakpoints) shows an unread badge; clicking opens the
       notifications panel; a row click marks it read and opens the job. RLS: a user only ever
@@ -202,6 +269,19 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-29: **Failed writes now stop the user instead of failing silently.** Incident: two
+  jobs created against production appeared on the board and never reached the database (insert
+  rejected with `23502 null value in column "allocated_to"`); the only signal was the sidebar
+  "Sync issue" chip, so the loss went unnoticed for hours. All 19 Supabase writes now run
+  through `runWrite` (`src/lib/writes.js`), return `{ ok, error, message }`, and roll back
+  their optimistic update on failure. `JobModal` stays open with the typed values and a
+  "Try again" button; `AppShell.saveJob` no longer closes the modal unconditionally. New
+  app-wide `WriteErrorBanner`; `SyncBadge` now receives all four sync states (job types and
+  customers previously set an error state that was rendered nowhere) and its copy changed from
+  "Sync issue / Some changes may not be live yet" to "Not saved / Some changes did not reach
+  the server". New hermetic cloud-mode suite (`npm run test:cloud`, port 5174,
+  `tests/e2e-cloud/`) — the first tests in this project to exercise a Supabase write at all —
+  and `tools/check-schema.mjs` to catch NOT NULL columns the client never writes.
 - 2026-07-25: **New admin-only `/accuracy` route** (Estimate Accuracy) with a scatter plot of
   estimate-vs-actual per completed job and per-staff scorecards. Guarded by `RequireAdmin` and
   lazy-loaded like the other admin views; nav entry is `admin: true` and sits after Master List

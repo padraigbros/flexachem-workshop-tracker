@@ -60,7 +60,16 @@ create trigger on_auth_user_created
 
 -- Helper used by RLS policies. SECURITY DEFINER so it can read profiles
 -- without recursing through profiles' own RLS.
-create or replace function public.is_admin()
+--
+-- It lives in `private`, NOT `public`, deliberately: PostgREST only exposes
+-- functions in the API schemas, so keeping it out of `public` means there is
+-- no /rest/v1/rpc/is_admin endpoint for anon to probe. RLS quals are evaluated
+-- as the querying role, so `authenticated` still needs USAGE + EXECUTE here —
+-- revoking those would lock every admin out of the app.
+create schema if not exists private;
+grant usage on schema private to authenticated;
+
+create or replace function private.is_admin()
 returns boolean
 language sql
 stable
@@ -71,6 +80,9 @@ as $$
     where id = auth.uid() and role = 'admin' and active
   );
 $$;
+
+revoke all on function private.is_admin() from public, anon;
+grant execute on function private.is_admin() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 2. Jobs table: new columns for PDF attachments and soft delete.
@@ -95,8 +107,9 @@ alter table public.jobs add column if not exists actual_hours numeric not null d
 --     The app inserts jobs without supplying an id and reads back whatever id
 --     the database assigns. If jobs.id has no identity/default, every insert
 --     fails with 23502 (null id) and later edits fail with 22P02. We keep the
---     column as bigint (so the notes.job_id foreign key stays valid) and just
---     attach an identity sequence, advanced past any existing rows.
+--     column as bigint and just attach an identity sequence, advanced past any
+--     existing rows. (A legacy public.notes table used to hold a job_id FK
+--     against this column; it was dropped once notes moved onto jobs.notes.)
 --     Idempotent: skips if the column is already an identity column.
 -- ---------------------------------------------------------------------------
 do $$
@@ -252,55 +265,55 @@ create policy "jobs select authenticated" on public.jobs for select to authentic
 drop policy if exists "jobs update authenticated" on public.jobs;
 create policy "jobs update authenticated" on public.jobs for update to authenticated using (true) with check (true);
 drop policy if exists "jobs insert admin" on public.jobs;
-create policy "jobs insert admin" on public.jobs for insert to authenticated with check (public.is_admin());
+create policy "jobs insert admin" on public.jobs for insert to authenticated with check (private.is_admin());
 drop policy if exists "jobs delete admin" on public.jobs;
-create policy "jobs delete admin" on public.jobs for delete to authenticated using (public.is_admin());
+create policy "jobs delete admin" on public.jobs for delete to authenticated using (private.is_admin());
 
 -- staff
 drop policy if exists "staff select authenticated" on public.staff;
 create policy "staff select authenticated" on public.staff for select to authenticated using (true);
 drop policy if exists "staff write admin" on public.staff;
-create policy "staff write admin" on public.staff for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "staff write admin" on public.staff for all to authenticated using (private.is_admin()) with check (private.is_admin());
 
 -- job_types
 drop policy if exists "job_types select authenticated" on public.job_types;
 create policy "job_types select authenticated" on public.job_types for select to authenticated using (true);
 drop policy if exists "job_types write admin" on public.job_types;
-create policy "job_types write admin" on public.job_types for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "job_types write admin" on public.job_types for all to authenticated using (private.is_admin()) with check (private.is_admin());
 
 -- customers
 drop policy if exists "customers select authenticated" on public.customers;
 create policy "customers select authenticated" on public.customers for select to authenticated using (true);
 drop policy if exists "customers write admin" on public.customers;
-create policy "customers write admin" on public.customers for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "customers write admin" on public.customers for all to authenticated using (private.is_admin()) with check (private.is_admin());
 
 -- staff_calendar (read for all signed-in users; only admins edit)
 drop policy if exists "staff_calendar select authenticated" on public.staff_calendar;
 create policy "staff_calendar select authenticated" on public.staff_calendar for select to authenticated using (true);
 drop policy if exists "staff_calendar write admin" on public.staff_calendar;
-create policy "staff_calendar write admin" on public.staff_calendar for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "staff_calendar write admin" on public.staff_calendar for all to authenticated using (private.is_admin()) with check (private.is_admin());
 
 -- public_holidays (read for all signed-in users; only admins edit)
 drop policy if exists "public_holidays select authenticated" on public.public_holidays;
 create policy "public_holidays select authenticated" on public.public_holidays for select to authenticated using (true);
 drop policy if exists "public_holidays write admin" on public.public_holidays;
-create policy "public_holidays write admin" on public.public_holidays for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "public_holidays write admin" on public.public_holidays for all to authenticated using (private.is_admin()) with check (private.is_admin());
 
 -- profiles
 drop policy if exists "profiles select authenticated" on public.profiles;
 create policy "profiles select authenticated" on public.profiles for select to authenticated using (true);
 drop policy if exists "profiles update admin" on public.profiles;
-create policy "profiles update admin" on public.profiles for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "profiles update admin" on public.profiles for update to authenticated using (private.is_admin()) with check (private.is_admin());
 
 -- storage: job-files bucket (read for signed-in users, writes for admins)
 drop policy if exists "job files read" on storage.objects;
 create policy "job files read" on storage.objects for select to authenticated using (bucket_id = 'job-files');
 drop policy if exists "job files insert admin" on storage.objects;
-create policy "job files insert admin" on storage.objects for insert to authenticated with check (bucket_id = 'job-files' and public.is_admin());
+create policy "job files insert admin" on storage.objects for insert to authenticated with check (bucket_id = 'job-files' and private.is_admin());
 drop policy if exists "job files update admin" on storage.objects;
-create policy "job files update admin" on storage.objects for update to authenticated using (bucket_id = 'job-files' and public.is_admin());
+create policy "job files update admin" on storage.objects for update to authenticated using (bucket_id = 'job-files' and private.is_admin());
 drop policy if exists "job files delete admin" on storage.objects;
-create policy "job files delete admin" on storage.objects for delete to authenticated using (bucket_id = 'job-files' and public.is_admin());
+create policy "job files delete admin" on storage.objects for delete to authenticated using (bucket_id = 'job-files' and private.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- 5. Bootstrap the first admin AFTER signing up in the app.

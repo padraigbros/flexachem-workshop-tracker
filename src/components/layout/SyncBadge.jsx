@@ -8,13 +8,18 @@ const TONES = {
   local: "#94a3b8",
 };
 
-export function SyncBadge({ jobsState, staffState }) {
-  const states = [jobsState, staffState];
+// All four sync states, not just jobs+staff — job types and customers used to set an error
+// state that was never rendered anywhere, so those writes failed completely invisibly.
+//
+// The copy is deliberately blunt. "Sync issue / some changes may not be live yet" reads as a
+// delay; on 29 Jul 2026 it was actually two jobs that never reached the database.
+export function SyncBadge({ jobsState, staffState, jobTypeState, customerState }) {
+  const states = [jobsState, staffState, jobTypeState, customerState].filter(Boolean);
   const hasIssue = states.some((s) => s === "error");
   const isSyncing = states.some((s) => s === "syncing");
   const localOnly = !supabase || states.every((s) => s === "local");
-  const label = hasIssue ? "Sync issue" : isSyncing ? "Syncing…" : localOnly ? "Saved locally" : "Data synced";
-  const detail = hasIssue ? "Some changes may not be live yet."
+  const label = hasIssue ? "Not saved" : isSyncing ? "Syncing…" : localOnly ? "Saved locally" : "Data synced";
+  const detail = hasIssue ? "Some changes did not reach the server."
     : isSyncing ? "Checking the latest workshop data."
       : localOnly ? "Changes are saved on this device."
         : "Latest workshop data is available.";

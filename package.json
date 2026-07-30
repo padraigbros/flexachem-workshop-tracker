@@ -12,6 +12,9 @@
           "preview:test": "vite preview --mode test --port 5173 --strictPort",
           "test": "playwright test",
           "test:ui": "playwright test --ui",
+          "build:e2e-cloud": "vite build --mode e2e-cloud --outDir dist-e2e-cloud",
+          "preview:e2e-cloud": "vite preview --mode e2e-cloud --outDir dist-e2e-cloud --port 5174 --strictPort",
+          "test:cloud": "playwright test --config=playwright.cloud.config.js",
           "build:android": "vite build && cap sync android",
           "apk": "npm run build:android && cd android && .\\gradlew assembleDebug",
           "open:android": "cap open android"

@@ -118,6 +118,18 @@ export function toDbPayload(job) {
     type: job.type,
     owner: job.owner,
     alloc: job.alloc,
+    // The jobs table carries THREE pairs of duplicate columns: alloc/allocated_to,
+    // cust/customer and type/job_type. The app historically wrote only the short name of each
+    // pair and a legacy database trigger copied it across; `customer` and `job_type` are
+    // still NOT NULL, so that trigger was load-bearing for every single insert.
+    //
+    // When it stopped populating `allocated_to` on 29 Jul 2026, every insert failed with
+    // 23502 and two jobs were lost with no message. Writing both halves of each pair means
+    // no trigger has to exist — and a schema check can actually verify the contract.
+    // normalizeJob already reads either name, so nothing downstream changes.
+    allocated_to: job.alloc,
+    customer: job.cust,
+    job_type: job.type,
     hrs: Number(job.hrs) || 0,
     actual_hours: Number(job.actualHrs) || 0,
     status: job.status,
