@@ -4,7 +4,7 @@ import { UploadCloud, FileText, X, Check, AlertTriangle } from "lucide-react";
 import { JOB_TYPES, PRIORITIES, STATUS_ORDER, HOURS_STEP } from "../../lib/constants";
 import { roundHours } from "../../lib/jobs";
 import { offsetDate, daysBetween } from "../../lib/dates";
-import { indexEntries, holidayIndex, unavailableReason, weekAvailableHours, weekdaysOfWeek } from "../../lib/calendar";
+import { indexEntries, holidayIndex, unavailableReason, holidaysInRange, weekAvailableHours, weekdaysOfWeek } from "../../lib/calendar";
 import { customerKey } from "../../lib/customers";
 import { importAssemblyOrderPdf } from "../../lib/pdfImport";
 import { Modal, ModalHeader } from "../ui/overlay";
@@ -79,6 +79,14 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
     });
     return map;
   }, [assignablePeople, staffByName, entriesByKey, holidays_, fields.start, fields.due]);
+
+  // Public holidays in the job's range. Stated once, against the range they belong to —
+  // they close the shop for everyone, so they are context for the dates, not a mark against
+  // any individual (see unavailableReason in lib/calendar.js).
+  const rangeHolidays = useMemo(
+    () => holidaysInRange(fields.start, fields.due, holidays_),
+    [fields.start, fields.due, holidays_],
+  );
 
   // Non-blocking capacity check for the currently-selected assignee: their remaining hours for
   // the job's start-week, minus hours already booked to them that week, vs this job's hours.
@@ -285,6 +293,11 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
                   return <option key={p} value={p} disabled={disabled}>{reason ? `${p} — ${reason}` : p}</option>;
                 })}
               </Select>
+              {rangeHolidays.length > 0 && (
+                <span className="mt-1 block text-[0.7rem] font-semibold text-[var(--cal-holiday)]">
+                  Shop closed in this range: {rangeHolidays.join(", ")}
+                </span>
+              )}
               {capacityWarning && (
                 <span className="mt-1 flex items-start gap-1 text-[0.7rem] font-semibold text-[var(--cal-leave)]">
                   <AlertTriangle size={12} className="mt-px shrink-0" />{capacityWarning}

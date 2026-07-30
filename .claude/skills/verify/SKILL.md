@@ -277,6 +277,23 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-30: **Alerting is failure-only, and a public holiday no longer blocks assignment.**
+  - `job_alerts` installed and `sweep-job-errors` scheduled hourly (`pg_cron`), but the
+    `on_job_created` trigger deliberately NOT installed — no per-job confirmation email. Note
+    the sweeper still returns 500 until `SUPABASE_MGMT_TOKEN`/`SUPABASE_PROJECT_REF` are set
+    as function secrets; a scheduled job that 500s hourly reports nothing on its own, so check
+    `net._http_response` after changing it.
+  - `unavailableReason` (`src/lib/calendar.js`) no longer treats a public holiday as personal
+    unavailability. It closes the shop for everyone, so it cannot distinguish technicians —
+    and because `JobModal` disables any option that has a reason, EVERY option except the
+    current assignee was disabled, making any job spanning a holiday impossible to assign.
+    Holidays still shrink capacity via `weekAvailableHours`, and `holidaysInRange` states them
+    once against the job's date range ("Shop closed in this range: …").
+  - Staff rows use fixed grid tracks (`minmax(0,1fr) 13rem auto`, action slots
+    `2.25rem 11.5rem 5.5rem 6rem 6rem 5.5rem`) with empty placeholders for unused slots.
+    Each row is its own grid, so an `auto` track resolved per-row and pulled every control out
+    of line with the row above. Verified: all rows report an identical computed
+    `grid-template-columns` and identical control x-positions.
 - 2026-07-30: **One source of truth for "is this person a technician": the login account.**
   An active `accounts.role='staff'` row always implies a `staff` record, enforced by the
   reconciler in `WorkshopProvider`. Consequence, and the reason for the change: deleting a

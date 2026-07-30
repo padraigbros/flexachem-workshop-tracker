@@ -135,7 +135,12 @@ export function StaffView() {
             const target = reassignTargets[row.name] || "Unassigned";
             const isSelf = row.account?.id === user?.id;
             return (
-              <div key={row.key} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.3fr)] lg:items-center", !active && "opacity-70")}>
+              // Fixed tracks, not `auto`/`fr`, because each row is its OWN grid: an `auto`
+              // column resolves to that row's content width, so a longer badge group or a
+              // different set of buttons shifted every control to its right out of line with
+              // the row above. The badge track is a fixed width and the action cluster below
+              // is a fixed-width grid of slots, so every row resolves identically.
+              <div key={row.key} className={cx("grid gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-3.5 lg:grid-cols-[minmax(0,1fr)_13rem_auto] lg:items-center", !active && "opacity-70")}>
                 <div className="flex items-center gap-3 min-w-0">
                   <Avatar name={row.name} size={40} />
                   <div className="min-w-0">
@@ -150,23 +155,32 @@ export function StaffView() {
                   {pending ? <Chip>Pending</Chip> : <StatusChip status={active ? "Complete" : "Not Started"} size="sm" />}
                   {member && !admin && <Chip>{openJobs.length} open</Chip>}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  {member && !admin && (
+                {/* One fixed-width slot per control, in a fixed order, so the same control
+                    sits in the same column on every row. A row that doesn't use a slot
+                    renders an empty placeholder rather than collapsing it — collapsing is
+                    what pulled the admin rows out of line with the staff rows. Below `lg`
+                    this reverts to the wrapping flex row. */}
+                <div className="flex flex-wrap items-center gap-2 lg:grid lg:grid-cols-[2.25rem_11.5rem_5.5rem_6rem_6rem_5.5rem] lg:gap-2">
+                  {member && !admin ? (
                     <>
                       <IconButton label={`${row.name}'s calendar`} className="h-9 w-9" onClick={() => setCalendarMember(member)}><CalendarDays size={16} /></IconButton>
-                      <Select className="w-auto min-w-[120px]" value={target} onChange={(e) => setReassignTargets((p) => ({ ...p, [row.name]: e.target.value }))}>
+                      <Select className="w-auto min-w-[120px] lg:w-full lg:min-w-0" value={target} onChange={(e) => setReassignTargets((p) => ({ ...p, [row.name]: e.target.value }))}>
                         <option>Unassigned</option>{choices.map((n) => <option key={n}>{n}</option>)}
                       </Select>
-                      <Button size="sm" variant="ghost" disabled={!openJobs.length} onClick={() => reassignStaffJobs(member.name, target)}>Move jobs</Button>
+                      <Button size="sm" variant="ghost" className="lg:w-full" disabled={!openJobs.length} onClick={() => reassignStaffJobs(member.name, target)}>Move jobs</Button>
                     </>
+                  ) : (
+                    <><span className="hidden lg:block" /><span className="hidden lg:block" /><span className="hidden lg:block" /></>
                   )}
+                  {row.account ? (
+                    <Button size="sm" variant="secondary" className="lg:w-full" onClick={() => toggleRole(row)}>{admin ? "Make staff" : "Make admin"}</Button>
+                  ) : <span className="hidden lg:block" />}
+                  <Button size="sm" variant="ghost" className="lg:w-full" disabled={isSelf} onClick={() => setPersonActive(row, !active)}>{active ? "Deactivate" : "Reactivate"}</Button>
+                  {/* Trailing slot: Resend (pending accounts) or Remove (staff records with no
+                      account). Mutually exclusive — pending implies an account exists. */}
                   {pending && row.email && (
-                    <Button size="sm" variant="secondary" className="gap-1" disabled={resending === row.key} onClick={() => resend(row)}><Send size={13} />{resending === row.key ? "Sending…" : "Resend"}</Button>
+                    <Button size="sm" variant="secondary" className="gap-1 lg:w-full" disabled={resending === row.key} onClick={() => resend(row)}><Send size={13} />{resending === row.key ? "Sending…" : "Resend"}</Button>
                   )}
-                  {row.account && (
-                    <Button size="sm" variant="secondary" onClick={() => toggleRole(row)}>{admin ? "Make staff" : "Make admin"}</Button>
-                  )}
-                  <Button size="sm" variant="ghost" disabled={isSelf} onClick={() => setPersonActive(row, !active)}>{active ? "Deactivate" : "Reactivate"}</Button>
                   {/* Remove deletes the staff record, and a staff record is derived from the
                       login account: an active staff-role account always gets one (see the
                       reconciler in WorkshopProvider). So for anyone WITH an account, deleting
@@ -176,7 +190,7 @@ export function StaffView() {
                       user in the Supabase dashboard to erase them entirely. Remove therefore
                       only appears for a staff record that has no login account behind it. */}
                   {member && !row.account && (
-                    <Button size="sm" variant="danger" disabled={isSelf} onClick={() => setConfirmDelete(member)} className="gap-1"><Trash2 size={13} />Remove</Button>
+                    <Button size="sm" variant="danger" disabled={isSelf} onClick={() => setConfirmDelete(member)} className="gap-1 lg:w-full"><Trash2 size={13} />Remove</Button>
                   )}
                 </div>
               </div>

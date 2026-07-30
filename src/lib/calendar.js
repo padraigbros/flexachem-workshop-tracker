@@ -190,18 +190,33 @@ export function datesInRange(startISO, endISO) {
   return out;
 }
 
-// The first non-available reason across a job's date range, or null if available throughout.
-// Weekends are ignored (no work scheduled), so only weekday conflicts block assignment.
+// The first reason THIS PERSON is unavailable across a job's date range, or null if they are
+// available throughout. Weekends are ignored (no work scheduled), so only weekday conflicts
+// count.
+//
+// Public holidays are deliberately NOT a reason here. A bank holiday closes the shop for
+// everyone, so it cannot distinguish one technician from another — and treating it as
+// personal unavailability disabled EVERY option in the assignment dropdown, making any job
+// spanning a holiday impossible to assign (found on jobs spanning Mon 3 Aug 2026). A holiday
+// belongs to the job's date range, not to a person: it still shrinks capacity via
+// weekAvailableHours, and holidaysInRange below surfaces it once against the range itself.
 export function unavailableReason(staffId, startISO, endISO, entriesByKey, holidaySet) {
   for (const date of datesInRange(startISO, endISO)) {
     if (!isWeekday(date)) continue;
     const status = statusOn(staffId, date, entriesByKey, holidaySet);
-    if (status !== "Available") {
-      const when = formatDate(date);
-      return status === "Public Holiday" ? `Public holiday (${when})` : `On ${status.toLowerCase()} (${when})`;
-    }
+    if (status === "Available" || status === "Public Holiday") continue;
+    return `On ${status.toLowerCase()} (${formatDate(date)})`;
   }
   return null;
+}
+
+// Public holidays falling on a weekday within a job's date range, as display strings. A
+// property of the range, so the UI can state it once rather than against every person.
+export function holidaysInRange(startISO, endISO, { set, names } = {}) {
+  if (!set?.size) return [];
+  return datesInRange(startISO, endISO)
+    .filter((date) => isWeekday(date) && set.has(date))
+    .map((date) => `${names?.get(date) || "Public holiday"} (${formatDate(date)})`);
 }
 
 // ---- Month grid ----------------------------------------------------------

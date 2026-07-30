@@ -107,12 +107,18 @@ in no migration file, so nothing in the repo will tell you about them.
   technician + calendar). Matched **by email**. Admins deliberately get **no** `staff` row and
   are not assignable. The `profiles` compatibility view was dropped once the new build went
   live — nothing named `profiles` exists any more.
-- **The alerting safety net from the 29 Jul retrospective is NOT fully installed.**
-  `supabase/alerts-setup.sql` has never been applied: there is **no `job_alerts` table** and
-  **no AFTER INSERT alert trigger on `jobs`** (the only triggers there are the two sync ones
-  above). Consequences: the server-side "job created" email never fires; the client-reported
-  failure path still emails, but its `job_alerts` insert fails silently and the hourly rate
-  cap counts zero, so it can never engage. Do not assume alerting covers you.
+- **Alerting is failure-only, and partly still inert.** As of 30 Jul 2026 `job_alerts` exists
+  and `sweep-job-errors` is scheduled hourly via `pg_cron`. The `on_job_created` trigger is
+  deliberately **not** installed — no per-job confirmation email is wanted. Still outstanding:
+  the sweeper returns `500 SUPABASE_MGMT_TOKEN / SUPABASE_PROJECT_REF not set` until those
+  function secrets exist, and `RESEND_API_KEY` / `ALERT_EMAIL_TO` / `ALERT_WEBHOOK_SECRET` are
+  unverified. **A scheduled job that fails reports nothing about itself** — the only trace is
+  `select id, status_code, left(content,200) from net._http_response order by id desc limit 5;`
+  Check that after touching anything cron- or webhook-driven.
+- **`sweep-job-errors` is publicly triggerable**: deployed with `verify_jwt = false` and it
+  performs no auth check of its own. It only reads logs and mails `ALERT_EMAIL_TO`, but that
+  is an inbox-flood vector. `notify-job-event` guards itself with an `x-alert-secret` header;
+  the sweeper should do the same.
 - Deleting a `staff` row does not delete the `accounts` row or the `auth.users` account. To
   free an email for re-invite, delete the user in Dashboard → Authentication → Users.
 - **Supabase JWT signing key must stay Legacy HS256.** ES256 breaks the `invite-user` edge
