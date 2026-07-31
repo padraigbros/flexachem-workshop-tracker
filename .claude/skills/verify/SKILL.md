@@ -138,14 +138,28 @@ code reading. `npx vite build` must pass at the end.
 - [ ] `/staff` is a **single unified "Team" card** (the old separate "Staff management" +
       "Login accounts" cards were merged). One row per person, reconciling the staff record
       (assignable, has a calendar) with its login account row in `accounts` (role, sign-in status),
-      **matched by email**. Row shows: avatar, name, email, **Admin/Staff** badge, status
-      (Active / Pending / Inactive), open-jobs count (staff only). Actions: calendar + reassign
-      (staff only), Make admin/staff (accounts only), Resend (pending only), Deactivate, and
-      **Remove ONLY on a staff record with no login account behind it**. A staff record is
-      derived from an active staff-role account, so deleting one for a person who has an
-      account just gets it recreated on the next load — the button appeared broken because
-      the reconciler disagreed with the click. Removing such a person = Deactivate, or delete
-      the auth user in the dashboard.
+      **matched by email**. Row shows: avatar, name, email, **Admin/Staff** badge, and
+      **Pending** when an invited person has never signed in. Deliberately NOT shown: an
+      Active/Inactive chip (Deactivate/Reactivate says it, and the row dims) and the
+      open-jobs count.
+- [ ] **Exactly three action slots per row, fixed width `34px 106px 106px`:**
+      1. calendar (staff only; admins get an empty placeholder so columns still line up)
+      2. **role toggle OR Resend OR Remove** — mutually exclusive by construction, which is
+         why they share one slot and no gap is ever left: the role toggle needs an account,
+         Resend needs an account that has never signed in, and **Remove is only offered for a
+         staff record with NO account**. A staff record is derived from an active staff-role
+         account, so deleting one for a person who can log in just gets it recreated by the
+         reconciler — the button appeared broken because the system disagreed with the click.
+         Removing such a person = Deactivate, or delete the auth user in the dashboard.
+      3. Deactivate / Reactivate
+      Bulk reassign (Unassigned dropdown + Move jobs) lives ONLY in the Team Availability
+      drawer now, not on the roster row.
+- [ ] **The name column must never collapse.** The row grid is
+      `minmax(0,1fr) 9rem auto`, and `minmax(0,1fr)` will happily go to ZERO to satisfy the
+      fixed tracks. A wider action cluster (628px) did exactly that at the 1280px CI viewport:
+      every name rendered at 0px, Playwright reported it hidden, and `mentions.spec.js` failed
+      while the page looked fine at 1900px. **Check `/staff` at 1280 after any change here** —
+      `document.querySelector('.grid strong').getBoundingClientRect().width` must be > 0.
 - [ ] **The Staff/Technician dropdown shows "Unassigned" exactly once.** `alloc` is one text
       column meaning either a person or nobody; `JobModal` must not fold the literal
       "Unassigned" into its list of technicians alongside the hardcoded option.
@@ -277,6 +291,15 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-07-31: **Roster rows stripped back to three actions.** Removed from each row: the
+  reassign dropdown, Move jobs, the open-jobs count and the Active/Inactive chip. Remove now
+  shares the middle slot with the role toggle and Resend (they can never co-occur), so there
+  is no reserved empty slot and no gap. Bulk reassign survives only in the Team Availability
+  drawer. **This also fixed CI**: the previous 628px action cluster starved the
+  `minmax(0,1fr)` name column to 0px at the 1280px CI viewport, so every name was "hidden"
+  and `mentions.spec.js` failed — while looking perfectly fine on a 1900px monitor. Verified
+  after the change at 1280: names 110–136px wide, row template `448px 144px 262px`, action
+  slots `34px 106px 106px`, identical control x-positions on every row, no overflow at 375.
 - 2026-07-30: **Alerting is failure-only, and a public holiday no longer blocks assignment.**
   - `job_alerts` installed and `sweep-job-errors` scheduled hourly (`pg_cron`), but the
     `on_job_created` trigger deliberately NOT installed — no per-job confirmation email. Note
