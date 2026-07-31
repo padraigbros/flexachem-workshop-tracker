@@ -142,9 +142,9 @@ in no migration file, so nothing in the repo will tell you about them.
   **The Resend/`notify-job-event` email path has never sent an email**: `RESEND_API_KEY` and
   `ALERT_EMAIL_TO` are not set (Edge Function Secrets holds only `PUSH_WEBHOOK_SECRET`,
   `FCM_SERVICE_ACCOUNT`, `APP_URL`), so `sendEmail()` returns early every time. Likewise
-  `sweep-job-errors` returns `500 SUPABASE_MGMT_TOKEN / SUPABASE_PROJECT_REF not set` and is
-  scheduled hourly, so it fails hourly in silence. Sentry now covers most of what the Resend
-  path was for — do not assume both are running.
+  `sweep-job-errors` could never run at all (reserved-prefix secrets — open item 1) and was
+  unscheduled on 31 Jul. Sentry now covers most of what the Resend path was for — do not
+  assume both are running.
   **A scheduled job that fails reports nothing about itself** — the only trace is
   `select id, status_code, left(content,200) from net._http_response order by id desc limit 5;`
   Check that after touching anything cron- or webhook-driven.
@@ -168,6 +168,7 @@ Every migration applied to production is recorded in `supabase/migrations/`, in 
 | `001-rename-profiles-to-accounts.sql` | `profiles` → `accounts`, recreated the five SECURITY DEFINER functions, backfilled `staff` records, left a temporary compatibility view |
 | `002-drop-profiles-shim-and-pin-trigger-search-path.sql` | dropped the shim once the new build was live; pinned `search_path` on the two hand-written job/staff triggers |
 | `003-failure-only-alerting.sql` | created `job_alerts`; enabled `pg_cron` and scheduled `sweep-job-errors` hourly at `:07`. Deliberately did NOT install `on_job_created` |
+| `004-unschedule-sweep-job-errors.sql` | removed that cron — the function could never succeed (see open item 1). `job_alerts`, the function and `pg_cron` all stay |
 
 Add the file in the same change as the `apply_migration` call, so the repo and the database
 never disagree about what has run.
@@ -186,14 +187,20 @@ never disagree about what has run.
 
 Carried forward deliberately, not forgotten. Confirm each is still true before acting.
 
-1. **`sweep-job-errors` fails every hour, silently.** It is scheduled via `pg_cron` but
-   returns `500 SUPABASE_MGMT_TOKEN / SUPABASE_PROJECT_REF not set`. Either set both secrets
-   (the token is a personal access token the user must create), or unschedule the cron —
-   a job that cannot succeed is worse than no job. User's call, still pending.
+1. **`sweep-job-errors` is unscheduled (31 Jul, migration 004) and cannot be revived as-is.**
+   **Supabase rejects any Edge Function secret named `SUPABASE_*`** — the dashboard answers
+   *"Name must not start with the SUPABASE_ prefix"*. The function reads
+   `SUPABASE_MGMT_TOKEN` and `SUPABASE_PROJECT_REF`, so both were always unsettable and it
+   returned 500 on every invocation it ever had. Nobody skipped a setup step; the variable
+   names made it impossible. **Check this prefix rule before writing any function that reads
+   a custom secret.** To revive: derive the ref from the platform-provided `SUPABASE_URL`,
+   rename the token to `ALERT_MGMT_TOKEN`, add an auth check, then re-schedule (see 004).
+   Note a Supabase PAT is account-wide and full-access — weigh that against the coverage.
 2. **Resend email path**: set `RESEND_API_KEY` + `ALERT_EMAIL_TO`, or accept that Sentry is
    the only alerting channel and treat `notify-job-event` as dormant.
 3. **`sweep-job-errors` is publicly triggerable** (`verify_jwt = false`, no auth of its own).
-   Add the same `x-alert-secret` check `notify-job-event` uses.
+   Add the same `x-alert-secret` check `notify-job-event` uses — required before it is ever
+   re-scheduled.
 4. **Leaked-password protection is disabled** in Supabase Auth — a dashboard toggle.
 5. `jobs update authenticated` is `USING (true)` — flagged by `get_advisors`, but it is the
    documented design (staff change their own job statuses; the finer rule is enforced in the
