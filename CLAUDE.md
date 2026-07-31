@@ -17,7 +17,20 @@ unverified fact about the database or a deployment.
 | System | Identifier | Use it for |
 | --- | --- | --- |
 | Supabase (`mcp__*__*`) | project `pxekejsjwxlrnaufmjxo` (`flexachem-workshop`, PRODUCTION) | `execute_sql`, `list_tables`, `get_advisors`, `get_logs`, `apply_migration`, `deploy_edge_function` |
-| Vercel (`mcp__*__*`) | `flexachem-workshop-tracker` | `list_deployments`, `get_deployment_build_logs`, `get_runtime_errors`, `get_runtime_logs` |
+| Vercel (`mcp__*__*`) | project `flexachem-workshop-tracker`, team `team_UUR9CWM7KlNjKtGZUlhMfBsW` | `list_deployments`, `get_deployment_build_logs`, `get_runtime_errors`, `get_runtime_logs` |
+| Sentry (`mcp__*__*`) | org `padraigbrosnan`, project `flexachem-workshop-tracker`, region `https://de.sentry.io` | `search_issues`, `get_sentry_resource`, `update_issue`, `find_alert_rules` |
+
+**What the connectors cannot do — these need the dashboard, or the browser tools:**
+
+- **Supabase Edge Function secrets.** No MCP tool exists. Dashboard → Edge Functions → Secrets.
+- **Vercel environment variables.** No MCP tool exists either; use the `claude-in-chrome`
+  tools against the real browser (it holds the logged-in session).
+- **GitHub.** The `gh` CLI is **not installed** on this machine. To read CI results, drive
+  `github.com/padraigbros/flexachem-workshop-tracker/actions` with the browser tools.
+- The Vercel connector dropped out repeatedly on 30–31 Jul. If it returns
+  "connection invalidated", say so and fall back to the browser rather than guessing.
+- **Never create or handle credentials** (personal access tokens, API keys) — hand those back
+  to the user even when the surrounding task is yours.
 
 **Rules:**
 
@@ -67,6 +80,20 @@ Writes to production are the one place to slow down.
   and reload to confirm it persisted.
 - Report what you ran and what you did not. Never describe an unverified change as working.
 
+**Run what CI runs, at the size CI runs it.**
+
+- CI (`.github/workflows/ci.yml`, on every push) = `npm ci` → `npm run build` →
+  `npx playwright install chromium` → **`npm test`**. Reproduce failures locally with
+  `npx playwright test` — same suite, no GitHub round-trip needed.
+- **`npm test` runs at a 1280×800 desktop viewport and a Pixel 7 mobile viewport.** Verifying
+  a layout change only on a wide monitor proves nothing about either. On 31 Jul a change that
+  looked perfect at 1900px starved a `minmax(0,1fr)` column to **zero width** at 1280 and
+  broke three consecutive CI runs. **Measure at 1280 before pushing.**
+- `npm run test:cloud` is the separate hermetic write-failure suite (port 5174, stubbed
+  Supabase). Both must be green.
+- A green local run is the bar for pushing to `main` — pushing onto a red build hides
+  whichever failure comes next.
+
 ## 4. The team you have — use it
 
 Installed plugins (`~/.claude/plugins`, official marketplace):
@@ -98,10 +125,10 @@ in no migration file, so nothing in the repo will tell you about them.
     `actual_hours`/`act_hours`, `cust`/`customer`, `type`/`job_type`, `bus`/`business_unit`.
   - `flexachem_sync_job_staff()` — the same linkage in the other direction.
   - Consequence: **job→staff linkage is by NAME, not id.** Renaming a staff member, or having
-    no `staff` row for an assignee, silently leaves `staff_id` null. This is why the roster
-    split in §6 mattered more than it looked.
-  - Both have a **mutable `search_path`** (flagged by `get_advisors`) — worth fixing, and a
-    reminder that dashboard-authored SQL skips every repo safeguard.
+    no `staff` row for an assignee, silently leaves `staff_id` null. This is why the
+    accounts/staff split described below mattered more than it looked.
+  - Both had a **mutable `search_path`** until migration 002 pinned it — a standing reminder
+    that dashboard-authored SQL skips every safeguard the repo has.
 - **People are split across two tables**: `accounts` (login: role, active, theme, onboarded;
   PK = `auth.users.id`; renamed from `profiles` on 30 Jul 2026) and `staff` (assignable
   technician + calendar). Matched **by email**. Admins deliberately get **no** `staff` row and
@@ -132,11 +159,48 @@ in no migration file, so nothing in the repo will tell you about them.
   function with `invalid JWT: unrecognized JWT kid <nil> for algorithm ES256` — a Supabase
   platform issue, not an app bug.
 
-## 6. House style
+## 6. Applied migrations
+
+Every migration applied to production is recorded in `supabase/migrations/`, in order:
+
+| File | What it did |
+| --- | --- |
+| `001-rename-profiles-to-accounts.sql` | `profiles` → `accounts`, recreated the five SECURITY DEFINER functions, backfilled `staff` records, left a temporary compatibility view |
+| `002-drop-profiles-shim-and-pin-trigger-search-path.sql` | dropped the shim once the new build was live; pinned `search_path` on the two hand-written job/staff triggers |
+| `003-failure-only-alerting.sql` | created `job_alerts`; enabled `pg_cron` and scheduled `sweep-job-errors` hourly at `:07`. Deliberately did NOT install `on_job_created` |
+
+Add the file in the same change as the `apply_migration` call, so the repo and the database
+never disagree about what has run.
+
+## 7. House style
 
 - Match the surrounding code's comment density and idiom. Comments here explain *why*,
   especially where a naive change would reintroduce a fixed bug — keep that convention.
 - All colour via semantic tokens; no raw hex in `src/**/*.jsx`.
+- **Fixed grid tracks are a budget, and `minmax(0,1fr)` pays for them.** A `1fr` column will
+  collapse to zero rather than force overflow, so every pixel added to a fixed track is taken
+  from the flexible one — silently, and only at narrow widths. Anything added to a row of
+  fixed slots has to earn its width, and has to be re-measured at 1280 (§3).
+
+## 8. Open items (as of 31 Jul 2026)
+
+Carried forward deliberately, not forgotten. Confirm each is still true before acting.
+
+1. **`sweep-job-errors` fails every hour, silently.** It is scheduled via `pg_cron` but
+   returns `500 SUPABASE_MGMT_TOKEN / SUPABASE_PROJECT_REF not set`. Either set both secrets
+   (the token is a personal access token the user must create), or unschedule the cron —
+   a job that cannot succeed is worse than no job. User's call, still pending.
+2. **Resend email path**: set `RESEND_API_KEY` + `ALERT_EMAIL_TO`, or accept that Sentry is
+   the only alerting channel and treat `notify-job-event` as dormant.
+3. **`sweep-job-errors` is publicly triggerable** (`verify_jwt = false`, no auth of its own).
+   Add the same `x-alert-secret` check `notify-job-event` uses.
+4. **Leaked-password protection is disabled** in Supabase Auth — a dashboard toggle.
+5. `jobs update authenticated` is `USING (true)` — flagged by `get_advisors`, but it is the
+   documented design (staff change their own job statuses; the finer rule is enforced in the
+   UI). Do not "fix" it without asking.
+6. `VITE_SENTRY_DSN` on Vercel is flagged Sensitive, so its value can't be read back in the
+   dashboard. Harmless — a DSN ships in the client bundle anyway — but don't waste time
+   hunting for the value there; get it from the Sentry connector.
 - Every Supabase mutation returns `{ ok, error, message }` and rolls back its optimistic
   update on failure (`runWrite`, `src/lib/writes.js`). A write returning `undefined` cannot
   tell its caller it failed — do not add one.
