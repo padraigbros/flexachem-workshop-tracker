@@ -6,6 +6,8 @@ import { useWorkshop } from "../../state/WorkshopProvider";
 import { useJobDrawer } from "../../state/useJobDrawer";
 import { useStatusPrompt } from "../../state/StatusPromptProvider";
 import { WEEK_CAPACITY, DAY_HOURS } from "../../lib/constants";
+import { formatHours } from "../../lib/format";
+import { bookedHoursByName } from "../../lib/workload";
 import {
   CALENDAR_STATUS_META, indexEntries, holidayIndex, statusOn, weekAvailableHours,
   weekDates, monthDates, mondayOf, addDaysISO, availableHoursInRange, datesInRange, isWeekday,
@@ -25,20 +27,28 @@ const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // Column geometry — fixed pixel widths keep the date header and every staff row aligned
 // inside the horizontal scroll area (a month has ~31 columns, so the grid scrolls sideways).
 const INFO_W = 224;
-const HOURS_W = 96;
+// Wide enough for the worst MONTH-mode line ("247.5h AVAIL" ≈ 73px of glyphs), not the
+// week's. A month's capacity is weekdays × DAY_HOURS, so three digits plus ".5" is routine.
+const HOURS_W = 116;
+
+// Workload bands, derived from the week so a change to DAY_HOURS/WEEK_CAPACITY can never
+// leave the thresholds and their labels disagreeing — they used to be two hardcoded copies
+// of 20/35/40. Expressed in days of work rather than percentages of the week, because the
+// literal ratio translation gives "<18.75h", which reads as noise in a dropdown.
+const UNDER_MAX = DAY_HOURS * 2; // under two days of work booked
+const AT_MIN = WEEK_CAPACITY - DAY_HOURS; // within one day of a full week
 
 const WORKLOAD_FILTERS = {
-  under: { label: "Under-utilised", test: (h) => h < 20 },
-  at: { label: "At capacity", test: (h) => h >= 35 && h <= 40 },
-  over: { label: "Over capacity", test: (h) => h > 40 },
+  under: { label: `Under-utilised (<${formatHours(UNDER_MAX)}h)`, test: (h) => h < UNDER_MAX },
+  at: { label: `At capacity (${formatHours(AT_MIN)}–${formatHours(WEEK_CAPACITY)}h)`, test: (h) => h >= AT_MIN && h <= WEEK_CAPACITY },
+  over: { label: `Over capacity (>${formatHours(WEEK_CAPACITY)}h)`, test: (h) => h > WEEK_CAPACITY },
 };
 
 // Human tooltip for a day cell: status + the capacity it costs that week.
-function cellTooltip(status, isHoliday, holidayName, hasJob) {
-  const job = hasJob ? " · has open job" : "";
-  if (isHoliday) return `Public holiday${holidayName ? `: ${holidayName}` : ""} — ${DAY_HOURS}h deducted${job}`;
-  if (status === "Available") return `Available${job}`;
-  return `${status} — ${DAY_HOURS}h deducted${job}`;
+function cellTooltip(status, isHoliday, holidayName) {
+  if (isHoliday) return `Public holiday${holidayName ? `: ${holidayName}` : ""} — ${formatHours(DAY_HOURS)}h deducted`;
+  if (status === "Available") return "Available";
+  return `${status} — ${formatHours(DAY_HOURS)}h deducted`;
 }
 
 export function TeamAvailabilityView({ onOpenFullCalendar }) {
@@ -97,23 +107,12 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
     return map;
   }, [activeJobs]);
 
-  // Which visible days each person has an open job spanning (start..due) — the small job dot.
-  const jobDaysByName = useMemo(() => {
-    const daySet = new Set(days);
-    const map = new Map();
-    activeJobs.forEach((job) => {
-      if (job.status === "Complete" || !job.alloc) return;
-      const start = job.start || job.due;
-      const end = job.due || job.start;
-      if (!start && !end) return;
-      datesInRange(start || end, end || start).forEach((d) => {
-        if (!daySet.has(d)) return;
-        if (!map.has(job.alloc)) map.set(job.alloc, new Set());
-        map.get(job.alloc).add(d);
-      });
-    });
-    return map;
-  }, [activeJobs, days]);
+  // Hours booked against each person in the shown period — the Hours column's top line, the
+  // workload filter's input, and today's per-cell figure. Unlike workloadByName above this
+  // COUNTS completed jobs (at their actual hours): the column reports what a period held, not
+  // what is still outstanding. Safe from unbounded growth because bookedHoursByName anchors
+  // every job to exactly one period. `activeJobs` is all non-deleted jobs, Complete included.
+  const bookedByName = useMemo(() => bookedHoursByName(activeJobs, days), [activeJobs, days]);
 
   // Roster → only people with a staff record (they have a calendar), grouped Admins→Staff.
   const roster = useMemo(() => buildRoster(staff, accounts).filter((r) => r.staff), [staff, accounts]);
@@ -129,12 +128,15 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
         if (!hit) return false;
       }
       if (filters.workload !== "all") {
-        const hours = workloadByName.get(row.name)?.hours || 0;
+        // Tests the same period-scoped figure the row displays. Testing the all-time open
+        // estimate instead (what this used to do) meant "At capacity (30–37.5h)" could match
+        // a row reading 12h — the filter and the column disagreeing about what "booked" means.
+        const hours = bookedByName.get(row.name) || 0;
         if (!WORKLOAD_FILTERS[filters.workload].test(hours)) return false;
       }
       return true;
     });
-  }, [roster, filters, showInactive, days, entriesByKey, holidaySet, workloadByName]);
+  }, [roster, filters, showInactive, days, entriesByKey, holidaySet, bookedByName]);
 
   // Group into Admins then Staff, so the timeline reads role-first.
   const groups = useMemo(() => {
@@ -326,8 +328,11 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                 const active = rosterActive(row);
                 const admin = rosterRole(row) === "admin";
                 const { available, capacity } = availableHoursInRange(staffId, days, entriesByKey, holidaySet);
+                const booked = bookedByName.get(row.name) || 0;
+                // Two INDEPENDENT red conditions: booked can exceed available on a full week,
+                // and available can be short of capacity with nothing booked at all.
                 const reduced = available < capacity;
-                const jobDays = jobDaysByName.get(row.name);
+                const over = booked > available;
                 return (
                   <div key={row.key} className={cx("flex border-b border-[var(--line)] last:border-b-0", !active && "opacity-55")}>
                     {/* Sticky staff info — click opens the detail panel */}
@@ -357,18 +362,23 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                       const editable = isEditable(staffId, date, active);
                       const available_ = status === "Available";
                       const selected = selectedSet?.has(date) && selection.staffId === staffId;
-                      const hasJob = jobDays?.has(date);
                       const tinted = !weekend; // weekends get no status tint
+                      // Today's cell carries the booked figure; no other day does. Month-mode
+                      // cells are 32×36px and already hold a status icon — no room for text,
+                      // and the month's total is in the Hours column anyway.
+                      const showBooked = mode === "week" && date === todayISO && !weekend && booked > 0;
                       return (
                         <div key={date} className="flex items-center justify-center py-1" style={{ width: cellW }}>
                           <button
                             type="button"
                             disabled={!editable}
                             onClick={(e) => onDayClick(e, row, date, active)}
-                            title={weekend ? "Weekend" : cellTooltip(status, isHoliday, holidayNames.get(date), hasJob)}
+                            title={weekend ? "Weekend" : cellTooltip(status, isHoliday, holidayNames.get(date))}
                             className={cx(
                               "relative flex items-center justify-center rounded-lg border text-[0.7rem] font-semibold transition-colors",
-                              mode === "week" ? "h-9 w-[88px]" : "h-8 w-9",
+                              // h-11 (44px) leaves room for the booked line under "Available"
+                              // and meets the touch-target floor these cells always needed.
+                              mode === "week" ? "h-11 w-[88px]" : "h-8 w-9",
                               weekend ? "border-transparent opacity-40" : "border-[var(--line)]",
                               editable ? "cursor-pointer hover:border-[var(--color-brand-500)]" : "cursor-default",
                               selected && "ring-2 ring-[var(--color-brand-500)] ring-offset-1 ring-offset-[var(--surface-card)]",
@@ -380,27 +390,29 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                             {!available_ && Icon
                               ? <Icon size={mode === "week" ? 15 : 13} strokeWidth={2.4} style={{ color: meta.ink }} />
                               : mode === "week" && !weekend && <span className="text-[0.66rem] text-[var(--status-done)]">Available</span>}
-                            {hasJob && (
-                              <span
-                                className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-brand-500)]"
-                                aria-hidden
-                              />
+                            {showBooked && (
+                              <span className="absolute inset-x-0 bottom-0.5 text-center text-[0.56rem] font-bold leading-none text-[var(--color-brand-500)] tnum">
+                                {formatHours(booked)}h assigned
+                              </span>
                             )}
                           </button>
                         </div>
                       );
                     })}
 
-                    {/* Sticky hours */}
+                    {/* Sticky hours: work booked over hours available. The title carries the
+                        full derivation including capacity, which the two lines don't show. */}
                     <div
-                      className={cx(
-                        "sticky right-0 z-10 flex flex-col items-center justify-center border-l border-[var(--line)] bg-[var(--surface-card)] tnum",
-                        reduced ? "text-[var(--danger)]" : "text-[var(--ink-soft)]",
-                      )}
+                      className="sticky right-0 z-10 flex flex-col items-center justify-center gap-0.5 border-l border-[var(--line)] bg-[var(--surface-card)] tnum"
                       style={{ width: HOURS_W }}
+                      title={`${formatHours(booked)}h booked · ${formatHours(available)}h available of ${formatHours(capacity)}h capacity`}
                     >
-                      <strong className="text-[0.82rem] font-bold">{available}h</strong>
-                      <span className="text-[0.58rem] font-semibold text-[var(--ink-muted)]">of {capacity}h</span>
+                      <span className={cx("text-[0.78rem] font-bold", over ? "text-[var(--danger)]" : "text-[var(--ink)]")}>
+                        {formatHours(booked)}h <span className="text-[0.52rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">bkd</span>
+                      </span>
+                      <span className={cx("text-[0.78rem] font-bold", reduced ? "text-[var(--danger)]" : "text-[var(--ink-soft)]")}>
+                        {formatHours(available)}h <span className="text-[0.52rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">avail</span>
+                      </span>
                     </div>
                   </div>
                 );
@@ -414,9 +426,11 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
         {/* Legend + rule */}
         <div className="space-y-2 border-t border-[var(--line)] p-3.5">
           <CalendarLegend />
-          <p className="flex items-center gap-1.5 text-[0.68rem] text-[var(--ink-muted)]">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-brand-500)]" />
-            Job assigned that day · Each non-available weekday deducts {DAY_HOURS}h from that week&apos;s {WEEK_CAPACITY}h. Click a day to set status, shift-click to select a range. Past weeks are read-only.
+          <p className="text-[0.68rem] text-[var(--ink-muted)]">
+            Hours column: <strong>bkd</strong> = hours on jobs <em>starting</em> in this period (a completed
+            job counts its actual hours), <strong>avail</strong> = {formatHours(WEEK_CAPACITY)}h a week less{" "}
+            {formatHours(DAY_HOURS)}h for each non-available weekday. Today&apos;s cell shows the hours assigned
+            to it. Click a day to set status, shift-click to select a range. Past weeks are read-only.
           </p>
         </div>
       </div>
@@ -481,9 +495,7 @@ function FilterBar({ filters, setFilters, showInactive, setShowInactive, activeF
       </Select>
       <Select className="w-auto min-w-[150px]" value={filters.workload} onChange={(e) => set("workload", e.target.value)}>
         <option value="all">Any workload</option>
-        <option value="under">Under-utilised (&lt;20h)</option>
-        <option value="at">At capacity (35–40h)</option>
-        <option value="over">Over capacity (&gt;40h)</option>
+        {Object.entries(WORKLOAD_FILTERS).map(([key, f]) => <option key={key} value={key}>{f.label}</option>)}
       </Select>
       <Button
         size="sm"
@@ -539,12 +551,15 @@ function StaffDetailDrawer({ row, open, onClose, workload, weekCapacity = WEEK_C
         {/* Weekly capacity */}
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
-            <span className="text-[0.7rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">This week&apos;s workload</span>
-            <span className={cx("text-[0.8rem] font-bold tnum", estimated > weekCapacity ? "text-[var(--danger)]" : "text-[var(--ink-soft)]")}>{estimated}h of {weekCapacity}h</span>
+            {/* "Open workload", not "this week's": these tiles sum OPEN jobs across all time,
+                while the denominator is this week's available hours. Period-scoping them would
+                break the roster card ↔ drawer mirror the verify checklist requires. */}
+            <span className="text-[0.7rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Open workload</span>
+            <span className={cx("text-[0.8rem] font-bold tnum", estimated > weekCapacity ? "text-[var(--danger)]" : "text-[var(--ink-soft)]")}>{formatHours(estimated)}h of {formatHours(weekCapacity)}h</span>
           </div>
           <Meter className="h-2.5" value={(estimated / (weekCapacity || 1)) * 100} tone={estimated > weekCapacity ? "var(--danger)" : "var(--color-brand-500)"} />
           <div className="mt-3 grid grid-cols-3 gap-2">
-            {[["Assigned", openCount], ["Estimated", `${estimated}h`], ["Actual", `${actual}h`]].map(([label, val]) => (
+            {[["Assigned", openCount], ["Estimated", `${formatHours(estimated)}h`], ["Actual", `${formatHours(actual)}h`]].map(([label, val]) => (
               <div key={label} className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
                 <strong className="block text-lg font-extrabold text-[var(--ink)] tnum">{val}</strong>
                 <span className="text-[0.58rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{label}</span>

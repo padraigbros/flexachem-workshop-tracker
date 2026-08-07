@@ -1,6 +1,6 @@
 // Job domain helpers — normalization, sorting, risk scoring, grouping.
 // Logic moved verbatim from App.jsx.
-import { JOB_TYPES, STATUS_ORDER, BUSINESS_UNITS, HOURS_STEP } from "./constants";
+import { JOB_TYPES, STATUS_ORDER, BUSINESS_UNITS, HOURS_STEP, DAY_HOURS } from "./constants";
 import { SUPABASE_START_COLUMN, SUPABASE_DUE_COLUMN } from "./supabase";
 import { asISO, daysBetween, daysUntil, offsetDate, parseISODate, parseInstant, weekStart } from "./dates";
 
@@ -28,7 +28,7 @@ export function normalizeJob(row) {
   const due = asISO(row.due || row.due_date || row.target_completion || row.target_date);
   const estimatedHours = Number(row.est_hours ?? row.estimated_hours ?? row.hours_required ?? row.hours ?? 0) || 0;
   const bookedHours = Number(row.hrs ?? 0) || estimatedHours;
-  const start = asISO(row.start || row.start_date || row.to_be_done || row.scheduled_start) || (due ? asISO(offsetDate(-Math.max(0, Math.ceil(Number(bookedHours || 0) / 8)))) : "");
+  const start = asISO(row.start || row.start_date || row.to_be_done || row.scheduled_start) || (due ? asISO(offsetDate(-Math.max(0, Math.ceil(Number(bookedHours || 0) / DAY_HOURS)))) : "");
   const allocatedTo = String(row.allocated_to || row.employee || row.assignee || "").trim();
   const allocValue = String(row.alloc || "").trim();
   const allocation = allocatedTo || (allocValue && allocValue.toLowerCase() !== "unassigned" ? allocValue : "") || "Unassigned";
@@ -171,8 +171,11 @@ export function makeGroups(items, keyGetter) {
   }, {});
 }
 
+// Days a job occupies on the calendar. With both dates it's the real window; with either
+// missing it falls back to the hours a working day holds (DAY_HOURS, not a bare 8 — the
+// shop's day changed to 7.5h and a hardcoded 8 here would quietly under-count the span).
 export function jobCalendarSpan(job) {
-  if (!job.start || !job.due) return Math.max(1, Math.ceil((Number(job.hrs) || 1) / 8));
+  if (!job.start || !job.due) return Math.max(1, Math.ceil((Number(job.hrs) || 1) / DAY_HOURS));
   return Math.max(1, daysBetween(job.start, job.due) + 1);
 }
 

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { WEEK_CAPACITY } from "../../lib/constants";
+import { WEEK_CAPACITY, DAY_HOURS } from "../../lib/constants";
+import { formatHours } from "../../lib/format";
 import {
   CALENDAR_STATUS_META, WEEKDAY_LABELS, monthGrid, indexEntries, holidayIndex,
   statusOn, weekAvailableHours,
@@ -121,7 +122,7 @@ export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntr
                 );
               }).concat(
                 <div key={`${week[0].date}-hrs`} className={cx("ml-1 flex items-center justify-center rounded-xl border-l border-[var(--line)] bg-[var(--surface-sunken)] px-2 text-[0.72rem] font-bold tnum", reduced ? "text-[var(--danger)]" : "text-[var(--ink-muted)]")}>
-                  {weekHours}h
+                  {formatHours(weekHours)}h
                 </div>,
               );
             })}
@@ -130,7 +131,7 @@ export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntr
           {/* Legend — every status, swatches matching the grid's colour language. */}
           <CalendarLegend className="border-t border-[var(--line)] pt-3" />
           <p className="text-[0.7rem] text-[var(--ink-muted)]">
-            Each non-available weekday deducts {WEEK_CAPACITY / 5}h from that week&apos;s {WEEK_CAPACITY}h capacity. Public holidays are read-only.
+            Each non-available weekday deducts {formatHours(DAY_HOURS)}h from that week&apos;s {formatHours(WEEK_CAPACITY)}h capacity. Public holidays are read-only.
           </p>
         </div>
       </div>

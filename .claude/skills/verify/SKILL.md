@@ -169,21 +169,41 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Each staff row has a **calendar icon** → month calendar (Modal) with prev/next + Today.
       Clicking an editable weekday opens a status picker (Available / Training / Leave / Sick);
       setting a status colours the day (icon, not truncated text), drops that week's trailing
-      **hours badge** (set-apart column) by 8h; Available removes the entry, restores the hour.
+      **hours badge** (set-apart column) by 7.5h; Available removes the entry, restores the hour.
       **Today** = solid brand-orange number badge; the day being edited = brand ring (distinct
       cues). Picker flips up on bottom rows and clamps horizontally so it stays in the modal.
       Legend lists all 5 statuses. Entries persist (demo: localStorage `flexachem_workshop_calendar_v1`; cloud: `staff_calendar`).
 - [ ] **Irish public holidays** (config seed `DEFAULT_HOLIDAYS` / cloud `public_holidays`) show
       on every calendar in **purple**, are **read-only** (disabled, name in tooltip), and reduce
-      that week's hours by 8h each. Capacity = 40 − 8×(non-available weekdays), floored at 0.
+      that week's hours by 7.5h each. Capacity = 37.5 − 7.5×(non-available weekdays), floored
+      at 0. Every SUM of those fractional figures renders through `formatHours`
+      (`src/lib/format.js`) — a bare `{hours}h` will eventually print float dust.
 - [ ] `/staff` shows three stacked sections (NOT a List/Calendar toggle): the **Team roster
       card**, then a **Team Availability** calendar section (per-staff rows × day columns,
       week/month toggle, filters, click/shift-click to set status; "Open full calendar" opens
       the per-person Modal), then the **per-person workload cards**. Editing availability in the
       calendar updates a person's card live. Each card's tiles are **Assigned / Estimated /
       Actual** (open-job count, Σ estimated `hrs`, Σ `actualHrs`) and the capacity line/meter use
-      the person's **available** hours this week (`weekAvailableHours`), e.g. "3h of 32h week"
-      when on leave — NOT a flat 40h. The calendar's detail drawer mirrors the same tiles/capacity.
+      the person's **available** hours this week (`weekAvailableHours`), e.g. "3h of 30h week"
+      when on leave — NOT a flat 37.5h. The calendar's detail drawer mirrors the same
+      tiles/capacity under the heading **"Open workload"** (not "this week's": the tiles sum
+      OPEN jobs across all time against a this-week denominator — do not period-scope them
+      without also changing the cards, or the mirror breaks).
+- [ ] **Team Availability Hours column is two stacked figures**: `Nh BKD` over `Nh AVAIL`.
+      **bkd** = hours on jobs *starting* in the shown period (`bookedHoursByName`,
+      `src/lib/workload.js`), where a **Complete job counts its ACTUAL hours**, falling back to
+      its estimate — completed work must NOT vanish from the total. **avail** = the capacity
+      rule above. The two reds are independent: bkd reddens when it exceeds avail, avail
+      reddens when it is short of full capacity. Hovering gives all three numbers including
+      capacity. The **workload filter tests the same bkd figure** the row displays.
+      A job belongs to exactly ONE period — the one containing its start date, falling back to
+      due (`jobPeriodDate`, shared with JobModal's capacity warning). That bound is what makes
+      counting Complete jobs safe: without it the totals accumulate every job in history.
+      JobModal's warning deliberately still EXCLUDES Complete jobs — it forecasts free time,
+      where finished work no longer occupies any.
+- [ ] **Only today's day cell carries a job figure** (`Nh assigned`, week mode only —
+      month cells are 32×36px and have no room). There is **no per-day dot any more**; a period
+      that does not contain today shows no per-day job indication at all, by design.
 - [ ] **Assignment dropdown** (JobModal): staff unavailable on any weekday in the job's
       start..due range are **disabled** with a reason (e.g. "— On leave (27 Jul)"); Unassigned
       and the job's current assignee stay selectable. A **non-blocking** amber capacity warning
@@ -291,6 +311,39 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-08-07: **The work week is 37.5h (7.5h × 5), and the Hours column now measures work.**
+  - `WEEK_CAPACITY 40 → 37.5`, `DAY_HOURS 8 → 7.5` (`constants.js`). Nothing in the database
+    changed — no capacity/day-length/week-length column exists anywhere, so this needed no
+    migration. **Every meter in the app tightened ~6.7% overnight with no job data changing**;
+    someone at 38h booked moved from "at capacity" to "over capacity". Expect that question.
+  - New `src/lib/format.js` (`formatHours`) because capacity is now fractional. Applied to
+    every rendered SUM; deliberately NOT to a single stored `job.hrs` (already half-hour
+    snapped on save). The riskiest site is JobModal's capacity warning, which subtracts an
+    arbitrary-decimal booked sum from an exact multiple of 7.5.
+  - `jobCalendarSpan` and `normalizeJob`'s derived start now divide by `DAY_HOURS`, not a bare
+    8, so an hours-derived span reads one day longer. Only affects jobs missing a start or due
+    date. JobModal's "N day window" is computed from the two dates and did not change.
+  - **The Hours column changed meaning**: it was availability alone ("32h of 40h" = available
+    of possible), which read as workload and showed nothing about jobs. It is now `Nh BKD`
+    over `Nh AVAIL`. New `src/lib/workload.js` owns the booked side.
+  - **Completed jobs now count**, at their actual hours. Previously all five workload
+    aggregations dropped `status === "Complete"`, so a technician's 16h on a finished job was
+    invisible everywhere. Only the Hours column and the workload filter adopted this — the
+    drawer tiles, roster cards, dashboard panel and business-unit totals stay open-jobs-only,
+    because they have no period denominator and would accumulate history without bound.
+  - **The per-day orange dot is gone**, replaced by `Nh assigned` on today's cell only.
+    `jobDaysByName` was deleted with it. Consequence: a week or month not containing today
+    now shows no per-day job indication at all. Day cells grew `h-9 → h-11` (44px, the touch
+    floor they always should have met) to fit the second line.
+  - `WORKLOAD_FILTERS` thresholds and their option labels were two hardcoded copies of
+    20/35/40; both now derive from the constants (`<15h` / `30–37.5h` / `>37.5h`) and the
+    labels render from the map. The filter also switched from an all-time open estimate to the
+    period-scoped booked figure, so it can no longer match a row that displays something else.
+  - `HOURS_W 96 → 116`. Sized by MONTH mode, not week: a 21-weekday month is 157.5h. Verified
+    at 1280 — grid `scrollWidth` 1068 = `224 + 7×104 + 116`, Hours column pinned flush and
+    unclipped at full right scroll, name column 100px (the 2026-07-31 canary), `12.5h assigned`
+    68px inside an 86px cell (73px at three digits), `1234.5h AVAIL` 106px inside 116px, no
+    page overflow at 375, day cells 44px.
 - 2026-07-31: **Roster rows stripped back to three actions.** Removed from each row: the
   reassign dropdown, Move jobs, the open-jobs count and the Active/Inactive chip. Remove now
   shares the middle slot with the role toggle and Resend (they can never co-occur), so there

@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { UploadCloud, FileText, X, Check, AlertTriangle } from "lucide-react";
 import { JOB_TYPES, PRIORITIES, STATUS_ORDER, HOURS_STEP } from "../../lib/constants";
 import { roundHours } from "../../lib/jobs";
+import { formatHours } from "../../lib/format";
+import { jobPeriodDate } from "../../lib/workload";
 import { offsetDate, daysBetween } from "../../lib/dates";
 import { indexEntries, holidayIndex, unavailableReason, holidaysInRange, weekAvailableHours, weekdaysOfWeek } from "../../lib/calendar";
 import { customerKey } from "../../lib/customers";
@@ -95,13 +97,20 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
     if (!member || !fields.start) return null;
     const remaining = weekAvailableHours(member.id, fields.start, entriesByKey, holidays_.set);
     const weekSet = new Set(weekdaysOfWeek(fields.start));
+    // Same period rule as the Team Availability Hours column (jobPeriodDate), but Complete
+    // jobs stay EXCLUDED here on purpose: this is a forecast — "will this person have room" —
+    // and finished work no longer occupies future time. The Hours column reports what landed
+    // in a period, so it counts them. Same anchor, different question.
     const alreadyBooked = jobs
-      .filter((j) => j.id !== job.id && j.alloc === fields.alloc && j.status !== "Complete" && weekSet.has(String(j.start).slice(0, 10)))
+      .filter((j) => j.id !== job.id && j.alloc === fields.alloc && j.status !== "Complete" && weekSet.has(jobPeriodDate(j)))
       .reduce((sum, j) => sum + (Number(j.hrs) || 0), 0);
     const free = remaining - alreadyBooked;
     const need = Number(fields.hrs) || 0;
     if (need > free) {
-      return `${fields.alloc} has ${Math.max(0, free)}h free that week (${remaining}h available − ${alreadyBooked}h booked); this job needs ${need}h.`;
+      // Every figure here goes through formatHours: `free` subtracts a sum of arbitrary-decimal
+      // job hours from an exact multiple of DAY_HOURS, so this is the likeliest place in the
+      // app for float dust to reach a user.
+      return `${fields.alloc} has ${formatHours(Math.max(0, free))}h free that week (${formatHours(remaining)}h available − ${formatHours(alreadyBooked)}h booked); this job needs ${formatHours(need)}h.`;
     }
     return null;
   }, [staffByName, fields.alloc, fields.start, fields.hrs, entriesByKey, holidays_, jobs, job.id]);

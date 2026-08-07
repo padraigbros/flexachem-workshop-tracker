@@ -67,9 +67,11 @@ export const BUSINESS_UNITS = ["Pumps", "Valves", "Mechanical Seals", "Process",
 
 // Staff availability calendar. "Available" is the absence of an entry; "Public Holiday"
 // is derived from the holidays catalogue (never stored per-staff). A standard work week is
-// 5 weekdays × 8 hours = 40 hours; each non-available weekday deducts 8h from that week.
-export const WEEK_CAPACITY = 40;
-export const DAY_HOURS = 8;
+// 5 weekdays × 7.5 hours = 37.5 hours; each non-available weekday deducts 7.5h from that
+// week. Both figures are fractional — render every SUM of them through formatHours()
+// (src/lib/format.js) so a capacity never surfaces as "37.5000000001".
+export const WEEK_CAPACITY = 37.5;
+export const DAY_HOURS = 7.5;
 // Statuses a user can set on a day (Public Holiday is auto-applied, not user-settable).
 export const CALENDAR_STATUSES = ["Available", "Training", "Leave", "Sick"];
 

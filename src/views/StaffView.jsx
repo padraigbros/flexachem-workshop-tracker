@@ -10,6 +10,7 @@ import { buildRoster, rosterRole, rosterActive, rosterPending } from "../lib/sta
 import { indexEntries, holidayIndex, weekAvailableHours } from "../lib/calendar";
 import { today, toISODate } from "../lib/dates";
 import { WEEK_CAPACITY } from "../lib/constants";
+import { formatHours } from "../lib/format";
 import { Card, PanelHeader, Button, Input, Select, Field, IconButton, EmptyState, Chip, cx } from "../components/ui/primitives";
 import { Avatar, Meter } from "../components/ui/dataviz";
 import { StatusChip } from "../components/ui/StatusChip";
@@ -43,8 +44,8 @@ export function StaffView() {
   const staffByName = useMemo(() => new Map(staff.map((m) => [m.name, m])), [staff]);
 
   // Availability indexes for the per-person workload cards: a card's weekly capacity is the
-  // person's *available* hours this week (40h minus 8h per leave/training/sick/holiday day),
-  // not a flat 40h — so the meter reflects the calendar. Reuses the calendar helpers.
+  // person's *available* hours this week (37.5h minus 7.5h per leave/training/sick/holiday
+  // day), not a flat 37.5h — so the meter reflects the calendar. Reuses the calendar helpers.
   const entriesByKey = useMemo(() => indexEntries(calendar), [calendar]);
   const holidaySet = useMemo(() => holidayIndex(holidays).set, [holidays]);
   const todayISO = toISODate(today());
@@ -220,7 +221,7 @@ export function StaffView() {
           const member = staffByName.get(person);
           const inactive = member && !member.active;
           // Availability-aware weekly capacity: this week's free hours (falls back to a flat
-          // 40h for job-allocation names that have no staff record / calendar).
+          // 37.5h for job-allocation names that have no staff record / calendar).
           const capacity = member ? weekAvailableHours(member.id, todayISO, entriesByKey, holidaySet) : WEEK_CAPACITY;
           return (
             <Card key={person} className={cx(inactive && "opacity-70")}>
@@ -229,14 +230,14 @@ export function StaffView() {
                   <Avatar name={person} size={42} />
                   <div>
                     <div className="flex items-center gap-2 text-[1.05rem] font-bold tracking-tight text-[var(--ink)]">{person}{inactive && <Chip>Inactive</Chip>}</div>
-                    <div className="text-[0.72rem] text-[var(--ink-muted)] tnum">{estimated}h of {capacity}h week</div>
+                    <div className="text-[0.72rem] text-[var(--ink-muted)] tnum">{formatHours(estimated)}h of {formatHours(capacity)}h week</div>
                   </div>
                 </div>
                 <StatusChip status={blocked ? "Input Needed" : open.length ? "In Progress" : "Complete"} size="sm" />
               </div>
               <Meter className="mb-3 h-2.5" value={(estimated / (capacity || 1)) * 100} tone={estimated > capacity ? "var(--danger)" : "var(--color-brand-500)"} />
               <div className="mb-3 grid grid-cols-3 gap-2">
-                {[["Assigned", open.length], ["Estimated", `${estimated}h`], ["Actual", `${actual}h`]].map(([label, val]) => (
+                {[["Assigned", open.length], ["Estimated", `${formatHours(estimated)}h`], ["Actual", `${formatHours(actual)}h`]].map(([label, val]) => (
                   <div key={label} className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
                     <strong className="block text-lg font-extrabold text-[var(--ink)] tnum">{val}</strong>
                     <span className="text-[0.6rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{label}</span>

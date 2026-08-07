@@ -188,8 +188,11 @@ on conflict (id) do nothing;
 --     staff_calendar: one row per (staff, date) non-available entry. "Available" is the
 --     absence of a row; "Public Holiday" is derived from public_holidays and never stored
 --     per-staff. public_holidays are auto-applied to every staff calendar and are
---     admin-editable. Both drive the weekly-capacity figure (40h − 8h per non-available
+--     admin-editable. Both drive the weekly-capacity figure (37.5h − 7.5h per non-available
 --     weekday) and the availability-aware assignment dropdown on the schedule.
+--     NOTE: no capacity, day-length or week-length column exists anywhere — those figures
+--     are entirely client-derived from WEEK_CAPACITY/DAY_HOURS in src/lib/constants.js, so
+--     changing the length of the working week needs no migration.
 -- ---------------------------------------------------------------------------
 create table if not exists public.staff_calendar (
   id text primary key,

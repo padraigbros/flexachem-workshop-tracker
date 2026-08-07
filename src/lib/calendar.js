@@ -1,7 +1,7 @@
 // Staff availability calendar — domain model + pure helpers (mirrors staff.js/customers.js).
 // "Available" is the absence of an entry; "Public Holiday" is derived from the holidays
-// catalogue and never stored per-staff. Capacity: a 40h week (5 weekdays × 8h) loses 8h per
-// non-available weekday (Training / Leave / Sick, or a public holiday).
+// catalogue and never stored per-staff. Capacity: a 37.5h week (5 weekdays × 7.5h) loses
+// 7.5h per non-available weekday (Training / Leave / Sick, or a public holiday).
 import { WEEK_CAPACITY, DAY_HOURS } from "./constants";
 import { parseISODate, toISODate, formatDate } from "./dates";
 
@@ -120,7 +120,7 @@ export function weekdaysOfWeek(isoDate) {
 }
 
 // Remaining available hours for the week containing isoDate:
-// 40 − 8 × (non-available weekdays), floored at 0.
+// 37.5 − 7.5 × (non-available weekdays), floored at 0.
 export function weekAvailableHours(staffId, isoDate, entriesByKey, holidaySet) {
   const days = weekdaysOfWeek(isoDate);
   const lost = days.reduce((n, day) => (statusOn(staffId, day, entriesByKey, holidaySet) === "Available" ? n : n + 1), 0);
@@ -160,7 +160,9 @@ export function monthDates(year, month) {
 
 // Available vs. total capacity across an arbitrary set of ISO dates: only weekdays count,
 // each available weekday is worth DAY_HOURS. Generalises weekAvailableHours() to any span
-// (a single week → 40h capacity, a month → weekdays × 8h) for the timeline's Hours column.
+// (a single week → 37.5h capacity, a month → weekdays × 7.5h) for the timeline's Hours
+// column. Note the asymmetry with workload.js's bookedHoursByName, which counts EVERY date
+// in the range: nobody is rostered on a Saturday, but a job starting on one is still work.
 export function availableHoursInRange(staffId, isoDates, entriesByKey, holidaySet) {
   let available = 0;
   let capacity = 0;
