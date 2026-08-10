@@ -8,7 +8,7 @@ import { useStatusPrompt } from "../../state/StatusPromptProvider";
 import { useNow } from "../../state/useNow";
 import { WEEK_CAPACITY, DAY_HOURS } from "../../lib/constants";
 import { formatHours } from "../../lib/format";
-import { bookedHoursByName, jobPeriodDate } from "../../lib/workload";
+import { bookedHoursByName, bookedHoursByNameAndDate, jobPeriodDate } from "../../lib/workload";
 import { completedInstant, isArchived } from "../../lib/jobs";
 import {
   CALENDAR_STATUS_META, indexEntries, holidayIndex, statusOn, weekAvailableHours,
@@ -130,6 +130,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
   // what is still outstanding. Safe from unbounded growth because bookedHoursByName anchors
   // every job to exactly one period. `activeJobs` is all non-deleted jobs, Complete included.
   const bookedByName = useMemo(() => bookedHoursByName(activeJobs, days), [activeJobs, days]);
+  const bookedByNameDate = useMemo(() => bookedHoursByNameAndDate(activeJobs, days), [activeJobs, days]);
 
   // Roster → only people with a staff record (they have a calendar), grouped Admins→Staff.
   const roster = useMemo(() => buildRoster(staff, accounts).filter((r) => r.staff), [staff, accounts]);
@@ -380,10 +381,8 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                       const available_ = status === "Available";
                       const selected = selectedSet?.has(date) && selection.staffId === staffId;
                       const tinted = !weekend; // weekends get no status tint
-                      // Today's cell carries the booked figure; no other day does. Month-mode
-                      // cells are 32×36px and already hold a status icon — no room for text,
-                      // and the month's total is in the Hours column anyway.
-                      const showBooked = mode === "week" && date === todayISO && !weekend && booked > 0;
+                      const dayHours = bookedByNameDate.get(row.name)?.get(date) || 0;
+                      const showBooked = mode === "week" && !weekend && dayHours > 0;
                       return (
                         <div key={date} className="flex items-center justify-center py-1" style={{ width: cellW }}>
                           <button
@@ -409,7 +408,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                               : mode === "week" && !weekend && <span className="text-[0.66rem] text-[var(--status-done)]">Available</span>}
                             {showBooked && (
                               <span className="absolute inset-x-0 bottom-0.5 text-center text-[0.56rem] font-bold leading-none text-[var(--color-brand-500)] tnum">
-                                {formatHours(booked)}h assigned
+                                {formatHours(dayHours)}h assigned
                               </span>
                             )}
                           </button>

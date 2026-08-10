@@ -2,10 +2,10 @@
 // Deliberately separate from calendar.js, which answers the complementary question ("how
 // many hours are they available for"). The two are compared in the Team Availability Hours
 // column and nowhere else.
-//
-// Imports nothing but ./format on purpose: jobs.js pulls in supabase.js, so importing it
-// here would drag Supabase config into a module that is pure arithmetic.
-//
+
+import { DAY_HOURS } from "./constants";
+import { isWeekday, addDaysISO } from "./calendar";
+
 // PERIOD RULE: a job belongs to exactly ONE period — the one containing its start date,
 // falling back to due. This is the rule JobModal's capacity warning already shipped
 // (jobPeriodDate is now shared with it); duplicating it with a different rule would give the
@@ -60,6 +60,44 @@ export function bookedHoursByName(jobs, isoDates, { includeComplete = true } = {
     const anchor = jobPeriodDate(job);
     if (!anchor || !period.has(anchor)) return;
     map.set(name, (map.get(name) || 0) + jobWorkloadHours(job));
+  });
+  return map;
+}
+
+// name -> Map<isoDate, hours> — per-day breakdown of booked hours for the calendar grid.
+// Site Visit jobs land entirely on their start date (travel is included). All other types
+// spread at DAY_HOURS per weekday from start until exhausted.
+export function bookedHoursByNameAndDate(jobs, isoDates) {
+  const period = new Set(isoDates || []);
+  const map = new Map();
+  (jobs || []).forEach((job) => {
+    const name = job?.alloc;
+    if (!name || name === "Unassigned") return;
+    const anchor = jobPeriodDate(job);
+    if (!anchor || !period.has(anchor)) return;
+    const hrs = jobWorkloadHours(job);
+    if (!hrs) return;
+
+    if (!map.has(name)) map.set(name, new Map());
+    const dayMap = map.get(name);
+
+    if (job.type === "Site Visit") {
+      dayMap.set(anchor, (dayMap.get(anchor) || 0) + hrs);
+    } else {
+      let remaining = hrs;
+      let cursor = anchor;
+      const MAX_DAYS = 60;
+      for (let i = 0; i < MAX_DAYS && remaining > 0; i++) {
+        if (isWeekday(cursor)) {
+          if (period.has(cursor)) {
+            const chunk = Math.min(remaining, DAY_HOURS);
+            dayMap.set(cursor, (dayMap.get(cursor) || 0) + chunk);
+          }
+          remaining -= Math.min(remaining, DAY_HOURS);
+        }
+        cursor = addDaysISO(cursor, 1);
+      }
+    }
   });
   return map;
 }
