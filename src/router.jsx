@@ -9,7 +9,7 @@ import { DashboardView } from "./views/DashboardView";
 import { ScheduleView } from "./views/ScheduleView";
 import { Skeleton } from "./components/ui/primitives";
 
-// Admin-only views are code-split — staff phones never download them.
+// Heavy views are code-split so they are only downloaded when visited.
 const StaffView = lazy(() => import("./views/StaffView").then((m) => ({ default: m.StaffView })));
 const JobTypesView = lazy(() => import("./views/JobTypesView").then((m) => ({ default: m.JobTypesView })));
 const CustomersView = lazy(() => import("./views/CustomersView").then((m) => ({ default: m.CustomersView })));
@@ -46,7 +46,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardView /> },
           { path: "schedule", element: <ScheduleView /> },
-          { path: "staff", element: admin(<StaffView />) },
+          { path: "staff", element: <Lazy><StaffView /></Lazy> },
           { path: "job-types", element: admin(<JobTypesView />) },
           { path: "customers", element: admin(<CustomersView />) },
           { path: "business-units", element: admin(<BusinessUnitsView />) },

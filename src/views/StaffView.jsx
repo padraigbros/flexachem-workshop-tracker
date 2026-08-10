@@ -31,7 +31,7 @@ export function StaffView() {
     addStaffMember, updateStaffMember, deleteStaffMember, updateAccount,
   } = useWorkshop();
   const { requestStatusChange } = useStatusPrompt();
-  const { user } = useAuthCtx();
+  const { user, isAdmin } = useAuthCtx();
   const { openJob } = useJobDrawer();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -113,7 +113,7 @@ export function StaffView() {
 
   return (
     <div className="space-y-5">
-      <Card>
+      {isAdmin && <Card>
         <PanelHeader
           title="Team"
           subtitle="Everyone who signs in or gets assigned work. Staff are assignable to jobs and have an availability calendar; admins manage the shop but aren't assignable."
@@ -199,7 +199,7 @@ export function StaffView() {
             );
           }) : <EmptyState text="No one on the team yet. Use “Add person” to invite your first staff member or admin." />}
         </div>
-      </Card>
+      </Card>}
 
       {/* Team Availability — a permanent section (was a List/Calendar toggle). */}
       <section className="space-y-3">
@@ -223,14 +223,14 @@ export function StaffView() {
         requestStatusChange={requestStatusChange}
       />
 
-      <ConfirmDialog
+      {isAdmin && <ConfirmDialog
         open={Boolean(confirmDelete)}
         title={`Remove ${confirmDelete?.name}?`}
         message="Open jobs assigned to this person will be set to Unassigned. This removes their staff record; any login account is unaffected. This cannot be undone."
         confirmLabel="Remove"
         onConfirm={() => confirmDelete && deleteStaffMember(confirmDelete.id)}
         onClose={() => setConfirmDelete(null)}
-      />
+      />}
 
       <StaffCalendarModal
         member={calendarMember}
@@ -241,7 +241,7 @@ export function StaffView() {
         onClose={() => setCalendarMember(null)}
       />
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} size="md">
+      {isAdmin && <Modal open={addOpen} onClose={() => setAddOpen(false)} size="md">
         <form onSubmit={submit} className="flex flex-col">
           <ModalHeader
             eyebrow="Invite to the team"
@@ -268,7 +268,7 @@ export function StaffView() {
             <Button type="submit" variant="primary" disabled={inviting} className="gap-1.5"><UserPlus size={16} />{inviting ? "Sending…" : "Add & invite"}</Button>
           </div>
         </form>
-      </Modal>
+      </Modal>}
     </div>
   );
 }
@@ -331,7 +331,7 @@ function WorkloadCards({ people, groups, staffByName, entriesByKey, holidaySet, 
               </div>
             </div>
             <div className="grid gap-2">
-              {items.length ? items.map((job) => <MiniJob key={job.id} job={job} onSelect={openJob} onStatus={requestStatusChange} />) : <EmptyState text="No filtered work allocated." />}
+              {[...active, ...closed].length ? [...active, ...closed].map((job) => <MiniJob key={job.id} job={job} onSelect={openJob} onStatus={requestStatusChange} />) : <EmptyState text="No filtered work allocated." />}
             </div>
           </Card>
         );

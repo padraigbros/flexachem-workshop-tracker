@@ -6,7 +6,7 @@ import { LayoutDashboard, KanbanSquare, Users, Wrench, Building2, CalendarClock,
 export const NAV_ITEMS = [
   { to: "/", label: "Dashboard", hint: "Live command centre", icon: LayoutDashboard, end: true, admin: false },
   { to: "/schedule", label: "Schedule", hint: "Drag status columns", icon: KanbanSquare, admin: false },
-  { to: "/staff", label: "Staff", hint: "Manage staff & workload", icon: Users, admin: true },
+  { to: "/staff", label: "Staff", hint: "Availability & workload", icon: Users, admin: false },
   { to: "/job-types", label: "Job Types", hint: "Maintain the catalogue", icon: Wrench, admin: true },
   { to: "/business-units", label: "Business Units", hint: "Pumps, valves, mechanical seals", icon: Building2, admin: true },
   { to: "/customers", label: "Customers", hint: "Customer catalogue & reports", icon: Handshake, admin: true },
@@ -18,7 +18,7 @@ export const NAV_ITEMS = [
 export const PAGE_META = {
   "/": ["Workshop Command Centre", "Live visibility across staff, business units and due-date risk."],
   "/schedule": ["Schedule Production Board", "Drag cards between status lanes or use the quick status controls."],
-  "/staff": ["Staff Management", "Add staff, deactivate leavers, reassign open jobs and monitor workload."],
+  "/staff": ["Team & Workload", "Availability, schedules and workload at a glance."],
   "/job-types": ["Job Type Management", "Add job types, batch-move jobs, deactivate or remove unused types."],
   "/customers": ["Customer Management", "Add customers, batch-move jobs, deactivate or remove unused ones."],
   "/business-units": ["Business Unit Portfolio", "Roll up jobs by Pumps, Valves, Mechanical Seals, Process and Venting."],

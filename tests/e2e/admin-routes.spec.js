@@ -5,7 +5,7 @@ import { seedUser } from "./helpers.js";
 // path can only be exercised against a real cloud staff account (documented limitation).
 // Markers are visible page HEADINGS (not nav hints / subtitles, which can be hidden on mobile).
 const ADMIN_ROUTES = [
-  ["/staff", /staff management/i],
+  ["/staff", /team & workload/i],
   ["/job-types", /job type management/i],
   ["/customers", /customer management/i],
   ["/business-units", "Pumps"],
