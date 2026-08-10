@@ -182,13 +182,15 @@ code reading. `npx vite build` must pass at the end.
       card**, then a **Team Availability** calendar section (per-staff rows × day columns,
       week/month toggle, filters, click/shift-click to set status; "Open full calendar" opens
       the per-person Modal), then the **per-person workload cards**. Editing availability in the
-      calendar updates a person's card live. Each card's tiles are **Assigned / Estimated /
-      Actual** (open-job count, Σ estimated `hrs`, Σ `actualHrs`) and the capacity line/meter use
-      the person's **available** hours this week (`weekAvailableHours`), e.g. "3h of 30h week"
-      when on leave — NOT a flat 37.5h. The calendar's detail drawer mirrors the same
-      tiles/capacity under the heading **"Open workload"** (not "this week's": the tiles sum
-      OPEN jobs across all time against a this-week denominator — do not period-scope them
-      without also changing the cards, or the mirror breaks).
+      calendar updates a person's card live. Each card's tiles are **Active / Closed**
+      (active-job count / completed-this-week count), **Est vs hrs left** (Σ estimated `hrs` of
+      active jobs starting this week / live remaining work-hours via `hoursLeftInWeek`), and
+      **Hours complete** (Σ `actualHrs` from jobs completed this week). The capacity header/meter
+      use `estimated` vs `hrsLeft` (meter goes red when estimates exceed remaining hours — this
+      is intentional late-week behaviour). The `WorkloadCards` component isolates a `useNow(60s)`
+      timer so the 60s tick doesn't re-render the roster or calendar. The calendar's detail
+      drawer mirrors the same tiles/capacity under the heading **"This week"**, with its own
+      `useNow` that only ticks when the drawer is open.
 - [ ] **Team Availability Hours column is two stacked figures**: `Nh BKD` over `Nh AVAIL`.
       **bkd** = hours on jobs *starting* in the shown period (`bookedHoursByName`,
       `src/lib/workload.js`), where a **Complete job counts its ACTUAL hours**, falling back to
@@ -311,6 +313,18 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-08-10: **Workload card tiles redesigned from Assigned/Estimated/Actual to
+  Active/Closed, Est vs hrs left, Hours complete.** The old tiles were static open-job
+  aggregates. The new tiles track the current week: Active = non-Complete jobs, Closed =
+  jobs completed this week (not archived). Est = Σ hrs of active jobs whose `jobPeriodDate`
+  falls in this week. Hrs left = live countdown via `hoursLeftInWeek` (7.5h/day, lunch
+  deducted, ticks every 60s). Hours complete = Σ actualHrs from this week's closed jobs.
+  Header/meter use estimated vs hrsLeft; meter goes red when estimates exceed remaining
+  hours — intentional late-week behaviour, not a bug. `WorkloadCards` extracted into its own
+  component to isolate the `useNow(60s)` timer from the roster and calendar. Drawer mirrors
+  cards exactly (heading changed from "Open workload" to "This week", own `useNow`).
+  New files: `src/state/useNow.js`. New functions in existing files: `hoursLeftToday`
+  (`dates.js`), `hoursLeftInWeek` (`calendar.js`).
 - 2026-08-07: **The work week is 37.5h (7.5h × 5), and the Hours column now measures work.**
   - `WEEK_CAPACITY 40 → 37.5`, `DAY_HOURS 8 → 7.5` (`constants.js`). Nothing in the database
     changed — no capacity/day-length/week-length column exists anywhere, so this needed no

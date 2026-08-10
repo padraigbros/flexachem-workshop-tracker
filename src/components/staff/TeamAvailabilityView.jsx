@@ -5,15 +5,18 @@ import {
 import { useWorkshop } from "../../state/WorkshopProvider";
 import { useJobDrawer } from "../../state/useJobDrawer";
 import { useStatusPrompt } from "../../state/StatusPromptProvider";
+import { useNow } from "../../state/useNow";
 import { WEEK_CAPACITY, DAY_HOURS } from "../../lib/constants";
 import { formatHours } from "../../lib/format";
-import { bookedHoursByName } from "../../lib/workload";
+import { bookedHoursByName, jobPeriodDate } from "../../lib/workload";
+import { completedInstant, isArchived } from "../../lib/jobs";
 import {
   CALENDAR_STATUS_META, indexEntries, holidayIndex, statusOn, weekAvailableHours,
   weekDates, monthDates, mondayOf, addDaysISO, availableHoursInRange, datesInRange, isWeekday,
+  weekdaysOfWeek, hoursLeftInWeek,
 } from "../../lib/calendar";
 import { buildRoster, rosterRole, rosterActive } from "../../lib/staff";
-import { today, toISODate, parseISODate, formatDate } from "../../lib/dates";
+import { today, toISODate, parseISODate, formatDate, weekStart } from "../../lib/dates";
 import { Button, Input, Select, Chip, EmptyState, Skeleton, cx } from "../ui/primitives";
 import { Avatar, Meter } from "../ui/dataviz";
 import { Drawer, DrawerHeader } from "../ui/overlay";
@@ -90,22 +93,36 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
     ? `${formatDate(days[0])} – ${formatDate(days[6], { year: "numeric" })}`
     : `${MONTHS[month]} ${year}`;
 
-  // Open-job workload per person (mirrors the Staff list cards): drives the workload filter,
-  // the row's job overlay and the detail panel.
+  // Per-person tile data: active jobs, closed-this-week, estimated-this-week, hours-complete.
+  // Mirrors the StaffView card tiles so the drawer and cards agree. Uses todayISO (stable
+  // within a day) — the live hoursLeft countdown is computed in the drawer via useNow.
+  const thisWeekDays = useMemo(() => weekdaysOfWeek(todayISO), [todayISO]);
+  const thisWeekSet = useMemo(() => new Set(thisWeekDays), [thisWeekDays]);
   const workloadByName = useMemo(() => {
+    const ws = weekStart(now);
     const map = new Map();
     activeJobs.forEach((job) => {
-      if (job.status === "Complete" || !job.alloc) return;
-      const cur = map.get(job.alloc) || { open: 0, hours: 0, actual: 0, blocked: 0, jobs: [] };
-      cur.open += 1;
-      cur.hours += Number(job.hrs || 0);
-      cur.actual += Number(job.actualHrs || 0);
-      if (job.status === "Input Needed") cur.blocked += 1;
-      cur.jobs.push(job);
+      if (!job.alloc) return;
+      const cur = map.get(job.alloc) || { active: 0, closed: 0, estimatedThisWeek: 0, hoursComplete: 0, blocked: 0, jobs: [] };
+      if (job.status === "Complete") {
+        const ci = completedInstant(job);
+        if (ci && ci.getTime() >= ws.getTime() && !job.archived) {
+          cur.closed += 1;
+          cur.hoursComplete += Number(job.actualHrs || 0);
+        }
+      } else {
+        cur.active += 1;
+        if (job.status === "Input Needed") cur.blocked += 1;
+        cur.jobs.push(job);
+        const anchor = jobPeriodDate(job);
+        if (anchor && thisWeekSet.has(anchor)) {
+          cur.estimatedThisWeek += Number(job.hrs || 0);
+        }
+      }
       map.set(job.alloc, cur);
     });
     return map;
-  }, [activeJobs]);
+  }, [activeJobs, thisWeekSet, todayISO]);
 
   // Hours booked against each person in the shown period — the Hours column's top line, the
   // workload filter's input, and today's per-cell figure. Unlike workloadByName above this
@@ -456,7 +473,8 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
         open={Boolean(detail)}
         onClose={() => setDetail(null)}
         workload={detail ? workloadByName.get(detail.name) : null}
-        weekCapacity={detail?.staff ? weekAvailableHours(detail.staff.id, todayISO, entriesByKey, holidaySet) : WEEK_CAPACITY}
+        entriesByKey={entriesByKey}
+        holidaySet={holidaySet}
         moveTargets={detail ? activePeople.filter((n) => n !== detail.name) : []}
         onOpenFullCalendar={onOpenFullCalendar}
         onMoveJobs={reassignStaffJobs}
@@ -516,19 +534,22 @@ function FilterBar({ filters, setFilters, showInactive, setShowInactive, activeF
 }
 
 // ---- Detail slide-out ----------------------------------------------------
-function StaffDetailDrawer({ row, open, onClose, workload, weekCapacity = WEEK_CAPACITY, moveTargets, onOpenFullCalendar, onMoveJobs, onToggleRole, openJob, onStatus }) {
+function StaffDetailDrawer({ row, open, onClose, workload, entriesByKey, holidaySet, moveTargets, onOpenFullCalendar, onMoveJobs, onToggleRole, openJob, onStatus }) {
   const [moveTarget, setMoveTarget] = useState("Unassigned");
   useEffect(() => { setMoveTarget("Unassigned"); }, [row]);
+  const liveNow = useNow(60_000);
   if (!row) return null;
 
   const member = row.staff;
   const admin = rosterRole(row) === "admin";
-  const estimated = workload?.hours || 0;
-  const actual = workload?.actual || 0;
-  const openCount = workload?.open || 0;
+  const activeCount = workload?.active || 0;
+  const closedCount = workload?.closed || 0;
+  const estimated = workload?.estimatedThisWeek || 0;
+  const hoursComplete = workload?.hoursComplete || 0;
   const blocked = workload?.blocked || 0;
   const jobs = workload?.jobs || [];
   const hasAccount = Boolean(row.account);
+  const hrsLeft = member ? hoursLeftInWeek(member.id, liveNow, entriesByKey, holidaySet) : WEEK_CAPACITY;
 
   const header = (
     <DrawerHeader>
@@ -551,20 +572,27 @@ function StaffDetailDrawer({ row, open, onClose, workload, weekCapacity = WEEK_C
         {/* Weekly capacity */}
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
-            {/* "Open workload", not "this week's": these tiles sum OPEN jobs across all time,
-                while the denominator is this week's available hours. Period-scoping them would
-                break the roster card ↔ drawer mirror the verify checklist requires. */}
-            <span className="text-[0.7rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Open workload</span>
-            <span className={cx("text-[0.8rem] font-bold tnum", estimated > weekCapacity ? "text-[var(--danger)]" : "text-[var(--ink-soft)]")}>{formatHours(estimated)}h of {formatHours(weekCapacity)}h</span>
+            <span className="text-[0.7rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">This week</span>
+            <span className={cx("text-[0.8rem] font-bold tnum", estimated > hrsLeft ? "text-[var(--danger)]" : "text-[var(--ink-soft)]")}>{formatHours(estimated)}h of {formatHours(hrsLeft)}h</span>
           </div>
-          <Meter className="h-2.5" value={(estimated / (weekCapacity || 1)) * 100} tone={estimated > weekCapacity ? "var(--danger)" : "var(--color-brand-500)"} />
+          <Meter className="h-2.5" value={(estimated / (hrsLeft || 1)) * 100} tone={estimated > hrsLeft ? "var(--danger)" : "var(--color-brand-500)"} />
           <div className="mt-3 grid grid-cols-3 gap-2">
-            {[["Assigned", openCount], ["Estimated", `${formatHours(estimated)}h`], ["Actual", `${formatHours(actual)}h`]].map(([label, val]) => (
-              <div key={label} className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
-                <strong className="block text-lg font-extrabold text-[var(--ink)] tnum">{val}</strong>
-                <span className="text-[0.58rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{label}</span>
-              </div>
-            ))}
+            <div className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
+              <strong className="block text-[0.95rem] font-extrabold text-[var(--ink)] tnum">
+                {activeCount} <span className="text-[var(--ink-muted)]">/</span> {closedCount}
+              </strong>
+              <span className="text-[0.55rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Active / Closed</span>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
+              <strong className={cx("block text-[0.95rem] font-extrabold tnum", estimated > hrsLeft ? "text-[var(--danger)]" : "text-[var(--ink)]")}>
+                {formatHours(estimated)} <span className="text-[var(--ink-muted)]">/</span> {formatHours(hrsLeft)}
+              </strong>
+              <span className="text-[0.55rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Est vs hrs left</span>
+            </div>
+            <div className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
+              <strong className="block text-[0.95rem] font-extrabold text-[var(--ink)] tnum">{formatHours(hoursComplete)}h</strong>
+              <span className="text-[0.55rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Hours complete</span>
+            </div>
           </div>
         </div>
 
@@ -578,7 +606,7 @@ function StaffDetailDrawer({ row, open, onClose, workload, weekCapacity = WEEK_C
               <option>Unassigned</option>
               {moveTargets.map((n) => <option key={n}>{n}</option>)}
             </Select>
-            <Button variant="ghost" className="gap-1.5" disabled={!openCount} onClick={() => onMoveJobs?.(row.name, moveTarget)}>
+            <Button variant="ghost" className="gap-1.5" disabled={!activeCount} onClick={() => onMoveJobs?.(row.name, moveTarget)}>
               <Briefcase size={15} />Move jobs
             </Button>
           </div>
@@ -597,7 +625,7 @@ function StaffDetailDrawer({ row, open, onClose, workload, weekCapacity = WEEK_C
         <div>
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[0.7rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Open jobs</span>
-            {openCount > 0 && <StatusChip status={blocked ? "Input Needed" : "In Progress"} size="sm" />}
+            {activeCount > 0 && <StatusChip status={blocked ? "Input Needed" : "In Progress"} size="sm" />}
           </div>
           <div className="grid gap-2">
             {jobs.length

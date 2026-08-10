@@ -84,6 +84,24 @@ export function formatDateTime(value) {
   return parsed.toLocaleString("en-IE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+// Work-hours remaining in today's workshop day, rounded down to the nearest 0.5h.
+// Workshop schedule: 09:00–17:30 with an unpaid lunch break 13:00–14:00 = 7.5h/day.
+// Before 09:00 → full day (7.5h). After 17:30 → 0. Non-workdays → caller's problem
+// (this is a pure clock function; the caller checks weekday + availability).
+export function hoursLeftToday(now = new Date()) {
+  const timeMin = now.getHours() * 60 + now.getMinutes();
+  const START = 540;   // 09:00
+  const LUNCH_S = 780; // 13:00
+  const LUNCH_E = 840; // 14:00
+  const END = 1050;    // 17:30
+  const from = Math.max(timeMin, START);
+  if (from >= END) return 0;
+  let mins = END - from;
+  const lunchOverlap = Math.max(0, Math.min(LUNCH_E, END) - Math.max(LUNCH_S, from));
+  mins -= lunchOverlap;
+  return Math.max(0, Math.floor(mins / 30) * 0.5);
+}
+
 const rtf = new Intl.RelativeTimeFormat("en-IE", { numeric: "auto" });
 const RELATIVE_UNITS = [
   ["year", 31536000000],

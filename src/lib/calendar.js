@@ -3,7 +3,7 @@
 // catalogue and never stored per-staff. Capacity: a 37.5h week (5 weekdays × 7.5h) loses
 // 7.5h per non-available weekday (Training / Leave / Sick, or a public holiday).
 import { WEEK_CAPACITY, DAY_HOURS } from "./constants";
-import { parseISODate, toISODate, formatDate } from "./dates";
+import { parseISODate, toISODate, formatDate, hoursLeftToday } from "./dates";
 
 // Per-status colour + label. Tokens resolve to CSS variables defined in styles/app.css so
 // they follow the light/dark theme like the rest of the app. Available uses the "done" green.
@@ -125,6 +125,22 @@ export function weekAvailableHours(staffId, isoDate, entriesByKey, holidaySet) {
   const days = weekdaysOfWeek(isoDate);
   const lost = days.reduce((n, day) => (statusOn(staffId, day, entriesByKey, holidaySet) === "Available" ? n : n + 1), 0);
   return Math.max(0, WEEK_CAPACITY - lost * DAY_HOURS);
+}
+
+// Live remaining work-hours in the week: today's countdown (based on current clock) plus
+// DAY_HOURS for each future available weekday. Past days contribute nothing, so this figure
+// shrinks as the week progresses and reaches 0 on Friday evening.
+export function hoursLeftInWeek(staffId, now, entriesByKey, holidaySet) {
+  const todayDate = toISODate(now);
+  const days = weekdaysOfWeek(todayDate);
+  let total = 0;
+  for (const day of days) {
+    if (statusOn(staffId, day, entriesByKey, holidaySet) !== "Available") continue;
+    if (day < todayDate) continue;
+    if (day === todayDate) { total += hoursLeftToday(now); continue; }
+    total += DAY_HOURS;
+  }
+  return total;
 }
 
 // ---- Timeline (team availability) ---------------------------------------
