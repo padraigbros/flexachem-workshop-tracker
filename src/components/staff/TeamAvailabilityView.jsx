@@ -3,6 +3,7 @@ import {
   ChevronLeft, ChevronRight, Search, Star, X, CalendarDays, Briefcase, Eye, EyeOff,
 } from "lucide-react";
 import { useWorkshop } from "../../state/WorkshopProvider";
+import { useAuthCtx } from "../../state/AuthProvider";
 import { useJobDrawer } from "../../state/useJobDrawer";
 import { useStatusPrompt } from "../../state/StatusPromptProvider";
 import { useNow } from "../../state/useNow";
@@ -59,6 +60,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
     staff, accounts, calendar, holidays, activeJobs, loading,
     setCalendarEntry, reassignStaffJobs, updateAccount, activePeople,
   } = useWorkshop();
+  const { isAdmin } = useAuthCtx();
   const { openJob } = useJobDrawer();
   const { requestStatusChange } = useStatusPrompt();
 
@@ -73,6 +75,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
   const [selection, setSelection] = useState(null); // { staffId, name, anchor, dates:[iso] }
   const [detail, setDetail] = useState(null); // roster row shown in the slide-out
   const [visibleCount, setVisibleCount] = useState(20);
+  const [selectedDay, setSelectedDay] = useState(todayISO);
 
   const entriesByKey = useMemo(() => indexEntries(calendar), [calendar]);
   const { set: holidaySet, names: holidayNames } = useMemo(() => holidayIndex(holidays), [holidays]);
@@ -132,6 +135,12 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
   const bookedByName = useMemo(() => bookedHoursByName(activeJobs, days), [activeJobs, days]);
   const bookedByNameDate = useMemo(() => bookedHoursByNameAndDate(activeJobs, days), [activeJobs, days]);
 
+  const mobileWeek = useMemo(() => weekDates(anchor), [anchor]);
+  const mobileBookedByNameDate = useMemo(
+    () => bookedHoursByNameAndDate(activeJobs, mobileWeek),
+    [activeJobs, mobileWeek],
+  );
+
   // Roster → only people with a staff record (they have a calendar), grouped Admins→Staff.
   const roster = useMemo(() => buildRoster(staff, accounts).filter((r) => r.staff), [staff, accounts]);
 
@@ -187,6 +196,18 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
     else setAnchor(toISODate(new Date(year, month + delta, 1)));
   };
   const goToday = () => { setSelection(null); setAnchor(todayISO); };
+  const stepWeek = (delta) => { setSelection(null); setAnchor((a) => addDaysISO(a, delta * 7)); };
+
+  useEffect(() => {
+    const mon = mobileWeek[0];
+    const fri = mobileWeek[4];
+    setSelectedDay((prev) => {
+      if (prev >= mon && prev <= fri) return prev;
+      if (todayISO >= mon && todayISO <= fri) return todayISO;
+      return mon;
+    });
+  }, [mobileWeek, todayISO]);
+
   const applyPreset = (preset) => {
     setSelection(null);
     if (preset === "this-week") { setMode("week"); setAnchor(todayISO); }
@@ -249,8 +270,116 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
         activeFilterCount={activeFilterCount}
       />
 
-      {/* Timeline card */}
-      <div className="card overflow-hidden p-0">
+      {/* Mobile: day-focused vertical list (week strip + per-day staff rows) */}
+      <div className="card overflow-hidden p-0 lg:hidden">
+        <div className="flex items-center justify-between border-b border-[var(--line)] p-3">
+          <div className="text-[0.95rem] font-bold text-[var(--ink)]">
+            {formatDate(mobileWeek[0])} – {formatDate(mobileWeek[4], { year: "numeric" })}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="subtle" onClick={goToday}>Today</Button>
+            <Button size="icon" variant="ghost" aria-label="Previous week" className="h-9 w-9 rounded-xl" onClick={() => stepWeek(-1)}><ChevronLeft size={16} /></Button>
+            <Button size="icon" variant="ghost" aria-label="Next week" className="h-9 w-9 rounded-xl" onClick={() => stepWeek(1)}><ChevronRight size={16} /></Button>
+          </div>
+        </div>
+
+        <div className="flex border-b border-[var(--line)] bg-[var(--surface-sunken)]">
+          {mobileWeek.slice(0, 5).map((d) => {
+            const wd = (parseISODate(d).getDay() + 6) % 7;
+            const dayNum = Number(d.slice(8, 10));
+            const isToday = d === todayISO;
+            const isSelected = d === selectedDay;
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setSelectedDay(d)}
+                className="flex flex-1 flex-col items-center gap-0.5 py-2.5"
+              >
+                <span className={cx("text-[0.6rem] font-bold uppercase tracking-wider", isSelected ? "text-[var(--color-brand-500)]" : "text-[var(--ink-muted)]")}>{DOW[wd]}</span>
+                <span className={cx(
+                  "grid h-8 w-8 place-items-center rounded-full text-[0.82rem] font-bold transition-colors",
+                  isSelected && isToday && "bg-[var(--color-brand-500)] text-white",
+                  isSelected && !isToday && "bg-[var(--surface-sunken)] ring-2 ring-[var(--color-brand-500)] text-[var(--ink)]",
+                  !isSelected && isToday && "font-extrabold text-[var(--color-brand-500)]",
+                  !isSelected && !isToday && "text-[var(--ink-soft)]",
+                )}>
+                  {dayNum}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {loading && !roster.length ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+          </div>
+        ) : !roster.length ? (
+          <EmptyState icon={CalendarDays} title="No staff yet" text="Add a staff member to start tracking team availability." />
+        ) : !rows.length ? (
+          <EmptyState icon={Search} title="No matches" text="No staff match the current filters." />
+        ) : (
+          <div className="divide-y divide-[var(--line)]">
+            {renderItems.map((item) => {
+              if (item.type === "group") {
+                return (
+                  <div key={item.key} className="flex items-center gap-1.5 bg-[var(--surface-sunken)] px-3.5 py-1.5 text-[0.6rem] font-extrabold uppercase tracking-wider text-[var(--ink-muted)]">
+                    {item.label === "Admins" && <Star size={11} />}{item.label}
+                    <Chip className="ml-1">{item.count}</Chip>
+                  </div>
+                );
+              }
+              const row = item.row;
+              const staffId = row.staff.id;
+              const active = rosterActive(row);
+              const status = statusOn(staffId, selectedDay, entriesByKey, holidaySet);
+              const meta = CALENDAR_STATUS_META[status];
+              const Icon = STATUS_ICON[status];
+              const editable = isEditable(staffId, selectedDay, active);
+              const dayHours = mobileBookedByNameDate.get(row.name)?.get(selectedDay) || 0;
+              const selected = selectedSet?.has(selectedDay) && selection?.staffId === staffId;
+              return (
+                <div key={row.key} className={cx("flex items-center gap-3 px-3.5 py-2.5", !active && "opacity-55")}>
+                  <button type="button" onClick={() => setDetail(row)} className="flex flex-1 items-center gap-2.5 min-w-0 text-left">
+                    <Avatar name={row.name} size={36} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-[0.85rem] font-semibold text-[var(--ink)]">{row.name}</span>
+                        {rosterRole(row) === "admin" && <Star size={11} className="shrink-0 text-[var(--status-active)]" />}
+                      </div>
+                      {dayHours > 0 && (
+                        <span className="text-[0.7rem] font-semibold text-[var(--color-brand-500)] tnum">{formatHours(dayHours)}h booked</span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!editable}
+                    onClick={(e) => editable && onDayClick(e, row, selectedDay, active)}
+                    className={cx(
+                      "flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2.5 text-[0.72rem] font-semibold transition-transform",
+                      editable && "active:scale-95",
+                      selected && "ring-2 ring-[var(--color-brand-500)] ring-offset-1 ring-offset-[var(--surface-card)]",
+                    )}
+                    style={{ color: meta.ink, background: meta.bg }}
+                  >
+                    {Icon && <Icon size={14} />}
+                    {meta.label}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="border-t border-[var(--line)] p-3">
+          <CalendarLegend />
+        </div>
+      </div>
+
+      {/* Desktop: horizontal timeline */}
+      <div className="hidden card overflow-hidden p-0 lg:block">
         {/* Toolbar: period label, presets, week/month toggle, navigation */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] p-3.5">
           <div className="flex items-center gap-2">
@@ -453,7 +582,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
 
       {/* Bulk / single status action bar */}
       {selection && (
-        <div className="fixed inset-x-0 bottom-4 z-[70] mx-auto flex w-fit max-w-[calc(100vw-1.5rem)] items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-2.5 pl-4 shadow-[var(--shadow-float)]">
+        <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[70] mx-auto flex w-fit max-w-[calc(100vw-1.5rem)] items-center gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface-card)] p-2.5 pl-4 shadow-[var(--shadow-float)] lg:bottom-4">
           <div className="text-[0.78rem] font-semibold text-[var(--ink)]">
             {selection.name} · {selection.dates.length === 1 ? formatDate(selection.dates[0], { year: "numeric" }) : `${selection.dates.length} days`}
           </div>
@@ -474,6 +603,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
         workload={detail ? workloadByName.get(detail.name) : null}
         entriesByKey={entriesByKey}
         holidaySet={holidaySet}
+        isAdmin={isAdmin}
         moveTargets={detail ? activePeople.filter((n) => n !== detail.name) : []}
         onOpenFullCalendar={onOpenFullCalendar}
         onMoveJobs={reassignStaffJobs}
@@ -533,7 +663,7 @@ function FilterBar({ filters, setFilters, showInactive, setShowInactive, activeF
 }
 
 // ---- Detail slide-out ----------------------------------------------------
-function StaffDetailDrawer({ row, open, onClose, workload, entriesByKey, holidaySet, moveTargets, onOpenFullCalendar, onMoveJobs, onToggleRole, openJob, onStatus }) {
+function StaffDetailDrawer({ row, open, onClose, workload, entriesByKey, holidaySet, isAdmin, moveTargets, onOpenFullCalendar, onMoveJobs, onToggleRole, openJob, onStatus }) {
   const [moveTarget, setMoveTarget] = useState("Unassigned");
   useEffect(() => { setMoveTarget("Unassigned"); }, [row]);
   const liveNow = useNow(60_000);
@@ -600,24 +730,26 @@ function StaffDetailDrawer({ row, open, onClose, workload, entriesByKey, holiday
           <Button variant="primary" className="w-full gap-1.5" onClick={() => { onOpenFullCalendar?.(member); onClose(); }}>
             <CalendarDays size={16} />Open full calendar
           </Button>
-          <div className="flex gap-2">
-            <Select className="flex-1" value={moveTarget} onChange={(e) => setMoveTarget(e.target.value)}>
-              <option>Unassigned</option>
-              {moveTargets.map((n) => <option key={n}>{n}</option>)}
-            </Select>
-            <Button variant="ghost" className="gap-1.5" disabled={!activeCount} onClick={() => onMoveJobs?.(row.name, moveTarget)}>
-              <Briefcase size={15} />Move jobs
+          {isAdmin && <>
+            <div className="flex gap-2">
+              <Select className="flex-1" value={moveTarget} onChange={(e) => setMoveTarget(e.target.value)}>
+                <option>Unassigned</option>
+                {moveTargets.map((n) => <option key={n}>{n}</option>)}
+              </Select>
+              <Button variant="ghost" className="gap-1.5" disabled={!activeCount} onClick={() => onMoveJobs?.(row.name, moveTarget)}>
+                <Briefcase size={15} />Move jobs
+              </Button>
+            </div>
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={!hasAccount}
+              title={hasAccount ? undefined : "This person has no login account yet"}
+              onClick={() => row.account && onToggleRole?.(row.account.id, { role: admin ? "staff" : "admin" })}
+            >
+              {admin ? "Make staff" : "Make admin"}
             </Button>
-          </div>
-          <Button
-            variant="secondary"
-            className="w-full"
-            disabled={!hasAccount}
-            title={hasAccount ? undefined : "This person has no login account yet"}
-            onClick={() => row.account && onToggleRole?.(row.account.id, { role: admin ? "staff" : "admin" })}
-          >
-            {admin ? "Make staff" : "Make admin"}
-          </Button>
+          </>}
         </div>
 
         {/* Open jobs */}

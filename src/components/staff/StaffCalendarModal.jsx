@@ -45,7 +45,7 @@ export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntr
           onClose={onClose}
         />
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-6">
+        <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-6">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[1rem] font-bold text-[var(--ink)]">{MONTHS[view.month]} {view.year}</div>
             <div className="flex items-center gap-1.5">
@@ -56,11 +56,11 @@ export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntr
           </div>
 
           {/* Weekday header: 5 weekday columns + weekend + a set-apart weekly hours column. */}
-          <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_auto] gap-1.5 text-center">
+          <div className="grid grid-cols-7 gap-1 text-center sm:grid-cols-[repeat(7,minmax(0,1fr))_auto] sm:gap-1.5">
             {WEEKDAY_LABELS.map((label) => (
               <div key={label} className="pb-1 text-[0.6rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{label}</div>
             ))}
-            <div className="ml-1 border-l border-[var(--line)] pb-1 pl-2 text-[0.6rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Hours</div>
+            <div className="ml-1 hidden border-l border-[var(--line)] pb-1 pl-2 text-[0.6rem] font-bold uppercase tracking-wider text-[var(--ink-muted)] sm:block">Hours</div>
 
             {weeks.map((week, wi) => {
               const weekHours = weekAvailableHours(staffId, week[0].date, entriesByKey, holidaySet);
@@ -121,7 +121,7 @@ export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntr
                   </div>
                 );
               }).concat(
-                <div key={`${week[0].date}-hrs`} className={cx("ml-1 flex items-center justify-center rounded-xl border-l border-[var(--line)] bg-[var(--surface-sunken)] px-2 text-[0.72rem] font-bold tnum", reduced ? "text-[var(--danger)]" : "text-[var(--ink-muted)]")}>
+                <div key={`${week[0].date}-hrs`} className={cx("ml-1 hidden items-center justify-center rounded-xl border-l border-[var(--line)] bg-[var(--surface-sunken)] px-2 text-[0.72rem] font-bold tnum sm:flex", reduced ? "text-[var(--danger)]" : "text-[var(--ink-muted)]")}>
                   {formatHours(weekHours)}h
                 </div>,
               );
