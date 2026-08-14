@@ -236,7 +236,7 @@ export function StaffView() {
           <CalendarRange size={18} className="shrink-0 text-[var(--color-brand-500)]" />
           <div className="min-w-0">
             <h3 className="text-[1.05rem] font-bold tracking-tight text-[var(--ink)]">Team Availability</h3>
-            <p className="text-[0.78rem] text-[var(--ink-muted)]">Every technician&apos;s week at a glance — set Training, Leave, Sick or Blocked days across the team.</p>
+            <p className="text-[0.78rem] text-[var(--ink-muted)]">Every technician&apos;s week at a glance — set Training, Leave, Sick or Booked days across the team.</p>
           </div>
         </div>
         <TeamAvailabilityView onOpenFullCalendar={setCalendarMember} />

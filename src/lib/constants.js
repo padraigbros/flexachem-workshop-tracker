@@ -85,10 +85,15 @@ export const BUSINESS_UNITS = ["Pumps", "Valves", "Mechanical Seals", "Process",
 export const WEEK_CAPACITY = 37.5;
 export const DAY_HOURS = 7.5;
 // Statuses a user can set on a day (Public Holiday is auto-applied, not user-settable).
-// Blocked is a HARD status like Leave/Sick — it costs the day's hours and blocks assignment.
+// Booked is a HARD status like Leave/Sick — it costs the day's hours and blocks assignment.
 // It exists for time that is spoken for without being absence (cover, stocktake, a site day
 // that isn't a job yet), which is why it reads as neutral rather than as a reason.
-export const CALENDAR_STATUSES = ["Available", "Training", "Leave", "Sick", "Blocked"];
+//
+// It was briefly called "Blocked", which collided with the Input Needed job status whose short
+// label is also "Blocked" (STATUS_META above). Note "Booked" is not collision-free either — the
+// Team Availability hours column calls job hours "bkd" — so keep the two apart in any copy:
+// a booked DAY is availability, booked HOURS are work.
+export const CALENDAR_STATUSES = ["Available", "Training", "Leave", "Sick", "Booked"];
 
 // Irish public holidays, auto-applied to every staff calendar. Mirrored by the seed in
 // supabase-setup.sql; also the demo-mode seed (no Supabase configured). ISO 'YYYY-MM-DD'.

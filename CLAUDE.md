@@ -85,6 +85,12 @@ Writes to production are the one place to slow down.
   still marked `staff`, concluded none were technicians, and emptied both the assignment
   dropdown and the entire availability calendar. Work out which order is the safe one and say
   so explicitly — do not assume the deploy can go first.
+- **Renaming a stored enum value takes THREE steps, not one** (see 006/007). Widen the check to
+  accept both → deploy the frontend that writes the new value and tolerates the old → migrate
+  the rows and drop the old value. Migrating the rows first hands the RUNNING frontend a value
+  its lookup table has no entry for; the 'Blocked' → 'Booked' rename had 23 real rows and would
+  have thrown on `meta.bg` for every user until the new build landed. `metaFor()` now makes
+  that survivable, but the ordering is still the actual fix.
 
 **Run what CI runs, at the size CI runs it.**
 
@@ -191,6 +197,8 @@ Every migration applied to production is recorded in `supabase/migrations/`, in 
 | `003-failure-only-alerting.sql` | created `job_alerts`; enabled `pg_cron` and scheduled `sweep-job-errors` hourly at `:07`. Deliberately did NOT install `on_job_created` |
 | `004-unschedule-sweep-job-errors.sql` | removed that cron — the function could never succeed (see open item 1). `job_alerts`, the function and `pg_cron` all stay |
 | `005-technician-role-and-blocked-status.sql` | added the `technician` role (widening the role check, which was still named `profiles_role_check`) and promoted all 16 non-admin accounts to it; recreated `handle_new_user` for three roles; widened `staff_calendar_status_check` to accept `Blocked`. Backups in `backup.accounts_005` / `backup.staff_calendar_005` |
+| `006-allow-booked-status.sql` | step 1 of the `Blocked` → `Booked` rename: widened the status check to accept BOTH. No rows touched, so the running frontend was unaffected |
+| `007-rename-blocked-to-booked.sql` | step 2: migrated the 23 existing `Blocked` rows to `Booked` and dropped `Blocked` from the check. Applied only AFTER the renaming frontend was live |
 
 Add the file in the same change as the `apply_migration` call, so the repo and the database
 never disagree about what has run.

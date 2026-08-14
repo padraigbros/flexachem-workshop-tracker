@@ -180,7 +180,7 @@ code reading. `npx vite build` must pass at the end.
       BOTH the roster row and the availability drawer go through `setPersonRole`, which
       backfills a missing staff record on promotion — the drawer used to skip that.
 - [ ] Each staff row has a **calendar icon** → month calendar (Modal) with prev/next + Today.
-      Clicking an editable weekday opens a status picker (Available / Training / Leave / Sick / Blocked);
+      Clicking an editable weekday opens a status picker (Available / Training / Leave / Sick / Booked);
       setting a status colours the day (icon, not truncated text), drops that week's trailing
       **hours badge** (set-apart column) by 7.5h; Available removes the entry, restores the hour.
       **Today** = solid brand-orange number badge; the day being edited = brand ring (distinct
@@ -221,13 +221,22 @@ code reading. `npx vite build` must pass at the end.
       working days from its period date at `DAY_HOURS` a day (`bookedHoursByNameAndDate`,
       src/lib/workload.js); a Site Visit puts all its hours on the start date instead. There is
       **no per-day dot any more**.
-- [ ] **`Blocked` is a HARD status**, like Leave/Sick: it costs 7.5h of that week's capacity
-      and disables the person in the assignment dropdown ("Blocked out (14 Aug)"). Nothing
+- [ ] **`Booked` is a HARD status**, like Leave/Sick: it costs 7.5h of that week's capacity
+      and disables the person in the assignment dropdown ("Booked (14 Aug)"). Nothing
       special-cases it — every capacity helper tests `!== "Available"`. It renders as a **45°
-      chevron hatch** (`--cal-blocked-stripe`) over a neutral slate fill, applied via
+      chevron hatch** (`--cal-booked-stripe`) over a neutral slate fill, applied via
       `statusStyle()` in calendarShared.jsx so the swatch, picker, grid cell and mobile pill
       cannot drift apart. The status FILTER options are derived from `CALENDAR_STATUSES` —
       they were hardcoded, and were the one place a new status did not reach on its own.
+      It shipped for ~1h as "Blocked" and was renamed: the Input Needed job status already
+      renders a chip reading "Blocked". "Booked" is not collision-free either (the hours column
+      calls job hours "bkd"), so keep the wording apart — a booked DAY is availability, booked
+      HOURS are work.
+- [ ] **An unrecognised status must RENDER, not crash.** Every lookup goes through `metaFor()`
+      (src/lib/calendar.js), which falls back to a muted swatch labelled with the raw status.
+      Callers indexing `CALENDAR_STATUS_META` directly and reading `.bg` is what made a rename
+      dangerous: rows written by the previous build outlive it, and 23 real `Blocked` rows sat
+      in exactly that gap during the rename.
 - [ ] **Assignment dropdown** (JobModal): staff unavailable on any weekday in the job's
       start..due range are **disabled** with a reason (e.g. "— On leave (27 Jul)"); Unassigned
       and the job's current assignee stay selectable. A **non-blocking** amber capacity warning

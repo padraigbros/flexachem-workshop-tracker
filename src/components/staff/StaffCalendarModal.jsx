@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { WEEK_CAPACITY, DAY_HOURS } from "../../lib/constants";
 import { formatHours } from "../../lib/format";
 import {
-  CALENDAR_STATUS_META, WEEKDAY_LABELS, monthGrid, indexEntries, holidayIndex,
+  metaFor, WEEKDAY_LABELS, monthGrid, indexEntries, holidayIndex,
   statusOn, weekAvailableHours,
 } from "../../lib/calendar";
 import { today, toISODate } from "../../lib/dates";
@@ -68,7 +68,7 @@ export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntr
               const flipUp = wi >= weeks.length - 2; // open the picker upward for the bottom rows
               return week.map((cell, ci) => {
                 const status = statusOn(staffId, cell.date, entriesByKey, holidaySet);
-                const meta = CALENDAR_STATUS_META[status];
+                const meta = metaFor(status);
                 const Icon = STATUS_ICON[status];
                 const isHoliday = status === "Public Holiday";
                 const dayNum = Number(cell.date.slice(8, 10));

@@ -2,7 +2,7 @@
 // legend/grid swatch, and the inline status picker. Used by both the single-person modal
 // (StaffCalendarModal) and the Team Availability timeline so the two read as one colour
 // language and behave identically when setting a day's status.
-import { X, GraduationCap, Palmtree, Thermometer, Landmark, Ban } from "lucide-react";
+import { X, GraduationCap, Palmtree, Thermometer, Landmark, CalendarClock } from "lucide-react";
 import { CALENDAR_STATUSES } from "../../lib/constants";
 import { CALENDAR_STATUS_META } from "../../lib/calendar";
 import { cx } from "../ui/primitives";
@@ -12,18 +12,18 @@ export const STATUS_ICON = {
   Training: GraduationCap,
   Leave: Palmtree,
   Sick: Thermometer,
-  Blocked: Ban,
+  Booked: CalendarClock,
   "Public Holiday": Landmark,
 };
 
 // Every calendar surface paints its own background inline, so a status with a `pattern`
-// (currently only Blocked's 45° chevron) has to layer it over `bg` at each site. One helper
+// (currently only Booked's 45° chevron) has to layer it over `bg` at each site. One helper
 // keeps the swatch, the picker, the grid cell and the mobile pill from drifting apart.
 //
 // Uses the `backgroundColor` LONGHAND deliberately. With the `background` shorthand alongside
 // `backgroundImage`, React expands the shorthand into its longhands and then writes
 // background-image separately — which left `background-color: ` EMPTY on the element, so a
-// Blocked cell rendered the chevron over the previous status's fill. A var() in a shorthand
+// Booked cell rendered the chevron over the previous status's fill. A var() in a shorthand
 // becomes a pending-substitution value, which is what makes the two orders disagree.
 export const statusStyle = (meta, extra) => ({
   color: meta.ink,
@@ -77,9 +77,9 @@ export function DayPicker({ current, title = "Set status", onPick, onClose }) {
             <button
               key={status}
               type="button"
-              // "Blocked" on its own is ambiguous app-wide — the Input Needed job status
-              // renders a chip with exactly that text — so name the action, not just the
-              // status. The visible label stays inside the accessible name.
+              // A bare status word is ambiguous app-wide: the Input Needed job status renders
+              // a chip reading "Blocked", and the hours column calls job hours "bkd". Name the
+              // action, not just the status. The visible label stays inside the accessible name.
               aria-label={`Set ${meta.label}`}
               onClick={() => onPick(status)}
               className={cx(

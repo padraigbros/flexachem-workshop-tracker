@@ -12,7 +12,7 @@ import { formatHours } from "../../lib/format";
 import { bookedHoursByName, bookedHoursByNameAndDate, jobPeriodDate } from "../../lib/workload";
 import { completedInstant, isArchived } from "../../lib/jobs";
 import {
-  CALENDAR_STATUS_META, indexEntries, holidayIndex, statusOn, weekAvailableHours,
+  metaFor, indexEntries, holidayIndex, statusOn, weekAvailableHours,
   weekDates, monthDates, mondayOf, addDaysISO, availableHoursInRange, datesInRange, isWeekday,
   weekdaysOfWeek, hoursLeftInWeek,
 } from "../../lib/calendar";
@@ -321,7 +321,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
               const staffId = row.staff.id;
               const active = rosterActive(row);
               const status = statusOn(staffId, selectedDay, entriesByKey, holidaySet);
-              const meta = CALENDAR_STATUS_META[status];
+              const meta = metaFor(status);
               const Icon = STATUS_ICON[status];
               const editable = isEditable(staffId, selectedDay, active);
               const dayHours = mobileBookedByNameDate.get(row.name)?.get(selectedDay) || 0;
@@ -469,7 +469,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                     {/* Day cells */}
                     {days.map((date) => {
                       const status = statusOn(staffId, date, entriesByKey, holidaySet);
-                      const meta = CALENDAR_STATUS_META[status];
+                      const meta = metaFor(status);
                       const Icon = STATUS_ICON[status];
                       const isHoliday = status === "Public Holiday";
                       const weekend = !isWeekday(date);
@@ -599,13 +599,13 @@ function FilterBar({ filters, setFilters, showInactive, setShowInactive, activeF
       </div>
       {/* No role filter: every row on this grid is a technician by construction. */}
       {/* Derived from CALENDAR_STATUSES, not a hand-written list — these options were the one
-          place a new status did not reach on its own, so Blocked would have been settable but
+          place a new status did not reach on its own, so Booked would have been settable but
           not filterable. "Available" is excluded: it is the absence of an entry, so filtering
           on it would mean "has no status", which the workload filter already covers better. */}
       <Select className="w-auto min-w-[130px]" value={filters.status} onChange={(e) => set("status", e.target.value)}>
         <option value="all">Any status</option>
         {CALENDAR_STATUSES.filter((status) => status !== "Available").map((status) => (
-          <option key={status} value={status}>{CALENDAR_STATUS_META[status]?.reason || status}</option>
+          <option key={status} value={status}>{metaFor(status).reason}</option>
         ))}
       </Select>
       <Select className="w-auto min-w-[150px]" value={filters.workload} onChange={(e) => set("workload", e.target.value)}>
