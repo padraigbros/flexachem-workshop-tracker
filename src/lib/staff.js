@@ -81,21 +81,33 @@ export function staffRecordForAccount(account) {
   });
 }
 
-// Staff-role accounts that have no matching staff record (matched by email, falling back to
+// Technician accounts that have no matching staff record (matched by email, falling back to
 // name for records with no email). These are the people who show up in the roster but can't
-// be given work or a calendar.
+// be given work or a calendar. Only technicians qualify: admins manage the shop and staff
+// (sales, managers) sign in without doing workshop work, so neither needs a staff record.
 export function missingStaffAccounts(staff, accounts) {
   const emails = new Set((staff || []).map((m) => String(m.email || "").toLowerCase()).filter(Boolean));
   const names = new Set((staff || []).map((m) => staffKey(m.name)));
   return (accounts || [])
-    .filter((p) => p.role !== "admin" && p.active !== false && (p.name || p.email))
+    .filter((p) => p.role === "technician" && p.active !== false && (p.name || p.email))
     .filter((p) => {
       const email = String(p.email || "").toLowerCase();
       return email ? !emails.has(email) : !names.has(staffKey(p.name));
     });
 }
 
-export const rosterRole = (row) => (row.account?.role === "admin" ? "admin" : "staff");
+// The role that drives everything downstream. Note the DEFAULT is `technician`, not `staff`:
+// a staff record with no login account at all (demo mode stores no `accounts` rows, and an
+// admin can add a person before their invite is accepted) must stay assignable, or the app
+// silently has nobody to give work to. Only an account explicitly marked admin or staff is
+// treated as non-assignable.
+export const rosterRole = (row) => {
+  const role = row.account?.role;
+  return role === "admin" || role === "staff" ? role : "technician";
+};
+
+// Assignable to jobs + has an availability calendar. The single question every caller asks.
+export const isTechnicianRow = (row) => rosterRole(row) === "technician";
 export const rosterActive = (row) => (row.account ? row.account.active !== false : row.staff ? row.staff.active : true);
 export const rosterPending = (row) => row.account?.onboarded === false;
 

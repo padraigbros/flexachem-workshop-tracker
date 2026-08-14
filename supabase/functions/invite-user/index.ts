@@ -1,6 +1,7 @@
 // Supabase Edge Function: invite a new staff member by email (admin-only).
 //
-// Called from the app via supabase.functions.invoke("invite-user", { body: { email, name, role } }).
+// Called from the app via supabase.functions.invoke("invite-user", { body: { email, name, role } }), where role is
+// one of admin | staff | technician.
 // Uses the service-role key to send Supabase's built-in invite email — the recipient clicks
 // the link, lands on <APP_URL>/invite, and sets a password (no separate email verification,
 // since the invite already proves the address). Token expiry + single-use are handled by
@@ -24,6 +25,8 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+const ROLES = ["admin", "staff", "technician"];
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -70,7 +73,12 @@ Deno.serve(async (req) => {
   }
   const email = String(body.email || "").trim().toLowerCase();
   const name = String(body.name || "").trim();
-  const role = body.role === "admin" ? "admin" : "staff";
+  // Three roles, whitelisted. `technician` is the Service & Assembly team: assignable to jobs
+  // and given an availability calendar. `staff` is sales/managers — signs in, not assignable.
+  // Anything unrecognised falls back to `staff`, never `technician`: a malformed request must
+  // not be able to grant assignability. The Add-person form always sends an explicit role and
+  // defaults to technician, which is where the "usual case" is expressed instead.
+  const role = ROLES.includes(String(body.role)) ? String(body.role) : "staff";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "invalid email" }, 400);
 
   // 3. Send the invite. Metadata drives handle_new_user (name/role/onboarded=false).

@@ -74,6 +74,13 @@
   --cal-sick-bg: #fff0ee;
   --cal-holiday: #7c3aed;
   --cal-holiday-bg: #f3ecff;
+  /* Blocked is deliberately the only NEUTRAL calendar status. Training/leave/sick/holiday each
+     say WHY someone is gone; blocked only says the time is spoken for, so it borrows the
+     queued slate rather than claiming one of the reason colours. The chevron hatch, not the
+     hue, is what makes it legible at a glance. */
+  --cal-blocked: #55617a;
+  --cal-blocked-bg: #eef2f7;
+  --cal-blocked-stripe: rgb(85 97 122 / 0.28);
 
   --prio-critical: #c2413b;
   --prio-critical-bg: #fff0ee;
@@ -122,6 +129,9 @@
   --cal-sick-bg: rgb(248 113 113 / 0.14);
   --cal-holiday: #c4a3ff;
   --cal-holiday-bg: rgb(168 130 255 / 0.16);
+  --cal-blocked: #a7b6cc;
+  --cal-blocked-bg: rgb(148 163 184 / 0.14);
+  --cal-blocked-stripe: rgb(167 182 204 / 0.30);
 
   --prio-critical: #ff8f88;
   --prio-critical-bg: rgb(248 113 113 / 0.15);

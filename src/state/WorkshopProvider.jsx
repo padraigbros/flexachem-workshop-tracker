@@ -702,6 +702,26 @@ export function WorkshopProvider({ children }) {
     return LOCAL_OK;
   }, [fail]);
 
+  // Change a person's role. Lives here because both places that offer it — the Team roster row
+  // and the availability drawer — previously did their own thing, and the drawer's version
+  // skipped the staff-record backfill below. A technician needs a `staff` row to be assignable
+  // or have a calendar; without this, promoting someone from the drawer left them with a
+  // technician badge and nothing else until another admin happened to load the app.
+  //
+  // Demotion deliberately LEAVES the staff row in place. Deleting it would cascade away their
+  // staff_calendar history and orphan the name-based job linkage (CLAUDE.md §5); keeping it
+  // makes the change reversible — promote them back and their calendar is intact.
+  const setPersonRole = useCallback(async (row, nextRole) => {
+    const account = row?.account;
+    if (!account) return LOCAL_OK;
+    const result = await updateAccount(account.id, { role: nextRole });
+    if (result?.ok === false) return result;
+    if (nextRole === "technician" && !row.staff) {
+      await addStaffMember({ name: row.name, email: row.email, role: "Workshop technician", active: true });
+    }
+    return result;
+  }, [updateAccount, addStaffMember]);
+
   // ---- Derived data (moved verbatim from App) --------------------------
   const activeJobs = useMemo(() => jobs.filter((job) => !job.deleted), [jobs]);
   const deletedJobs = useMemo(() => jobs.filter((job) => job.deleted), [jobs]);
@@ -712,21 +732,30 @@ export function WorkshopProvider({ children }) {
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [activeJobs, staff]);
 
-  // Emails of accounts with the admin role — admins manage the shop but are NOT assignable
-  // to jobs (only staff-role people are). Matched to staff records by email.
-  const adminEmails = useMemo(
-    () => new Set(accounts.filter((p) => p.role === "admin").map((p) => String(p.email || "").toLowerCase()).filter(Boolean)),
+  // Emails of accounts that are NOT technicians. Only the Service & Assembly team is
+  // assignable to jobs: admins manage the shop, and staff (sales, managers) sign in without
+  // doing workshop work. Matched to staff records by email.
+  //
+  // Stated as an EXCLUSION set rather than an inclusion one on purpose: a staff record whose
+  // email matches no account at all stays assignable. Demo mode holds no `accounts` rows, so
+  // an inclusion set would empty the assignment dropdown for the whole Playwright suite while
+  // the build still passed — the exact gap CLAUDE.md §3 describes. Mirrors rosterRole's
+  // default in src/lib/staff.js; the two must agree.
+  const nonTechnicianEmails = useMemo(
+    () => new Set(accounts.filter((p) => p.role !== "technician").map((p) => String(p.email || "").toLowerCase()).filter(Boolean)),
     [accounts],
   );
 
   // No DEFAULT_STAFF fallback here — cloud staff state (see fetch effect above) is
-  // now the source of truth, including when it's genuinely empty. Admin-role accounts are
-  // excluded so they never appear in the job-assignment dropdown.
+  // now the source of truth, including when it's genuinely empty. Non-technician accounts are
+  // excluded so they never appear in the job-assignment dropdown. This one memo also feeds the
+  // availability drawer's "Move jobs" targets and the @-mention candidates, so all three
+  // surfaces agree on who can hold work.
   const activePeople = useMemo(() => staff
-    .filter((member) => member.active && !(member.email && adminEmails.has(String(member.email).toLowerCase())))
+    .filter((member) => member.active && !(member.email && nonTechnicianEmails.has(String(member.email).toLowerCase())))
     .map((member) => member.name)
     .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b)), [staff, adminEmails]);
+    .sort((a, b) => a.localeCompare(b)), [staff, nonTechnicianEmails]);
 
   const businessUnits = useMemo(() => {
     const set = new Set(BUSINESS_UNITS);
@@ -863,7 +892,7 @@ export function WorkshopProvider({ children }) {
     setCalendarEntry, addHoliday, deleteHoliday, inviteStaff,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
     addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs,
-    setJobArchived, updateAccount, auditPatch,
+    setJobArchived, updateAccount, setPersonRole, auditPatch,
     getJob: (id) => jobs.find((j) => j.id === id) || null,
   }), [
     jobs, staff, jobTypes, customers, calendar, holidays, accounts, loading, syncState, staffSyncState, jobTypeSyncState, customerSyncState,
@@ -874,7 +903,7 @@ export function WorkshopProvider({ children }) {
     addStaffMember, updateStaffMember, deleteStaffMember, reassignStaffJobs,
     setCalendarEntry, addHoliday, deleteHoliday, inviteStaff,
     addJobType, updateJobType, deleteJobType, reassignJobTypeJobs,
-    addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs, setJobArchived, updateAccount, auditPatch,
+    addCustomer, updateCustomer, deleteCustomer, reassignCustomerJobs, setJobArchived, updateAccount, setPersonRole, auditPatch,
   ]);
 
   return <WorkshopContext.Provider value={value}>{children}</WorkshopContext.Provider>;

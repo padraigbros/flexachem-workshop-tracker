@@ -1,13 +1,13 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
-  ChevronLeft, ChevronRight, Search, Star, X, CalendarDays, Briefcase, Eye, EyeOff,
+  ChevronLeft, ChevronRight, Search, X, CalendarDays, Briefcase, Eye, EyeOff,
 } from "lucide-react";
 import { useWorkshop } from "../../state/WorkshopProvider";
 import { useAuthCtx } from "../../state/AuthProvider";
 import { useJobDrawer } from "../../state/useJobDrawer";
 import { useStatusPrompt } from "../../state/StatusPromptProvider";
 import { useNow } from "../../state/useNow";
-import { WEEK_CAPACITY, DAY_HOURS } from "../../lib/constants";
+import { WEEK_CAPACITY, DAY_HOURS, CALENDAR_STATUSES, ACCOUNT_ROLES, ACCOUNT_ROLE_META } from "../../lib/constants";
 import { formatHours } from "../../lib/format";
 import { bookedHoursByName, bookedHoursByNameAndDate, jobPeriodDate } from "../../lib/workload";
 import { completedInstant, isArchived } from "../../lib/jobs";
@@ -16,14 +16,14 @@ import {
   weekDates, monthDates, mondayOf, addDaysISO, availableHoursInRange, datesInRange, isWeekday,
   weekdaysOfWeek, hoursLeftInWeek,
 } from "../../lib/calendar";
-import { buildRoster, rosterRole, rosterActive } from "../../lib/staff";
+import { buildRoster, rosterRole, rosterActive, isTechnicianRow } from "../../lib/staff";
 import { today, toISODate, parseISODate, formatDate, weekStart } from "../../lib/dates";
-import { Button, Input, Select, Chip, EmptyState, Skeleton, cx } from "../ui/primitives";
+import { Button, Input, Select, EmptyState, Skeleton, cx } from "../ui/primitives";
 import { Avatar, Meter } from "../ui/dataviz";
 import { Drawer, DrawerHeader } from "../ui/overlay";
 import { StatusChip } from "../ui/StatusChip";
 import { MiniJob } from "../jobs/JobBits";
-import { STATUS_ICON, DayPicker, CalendarLegend } from "./calendarShared";
+import { STATUS_ICON, DayPicker, CalendarLegend, statusStyle } from "./calendarShared";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -58,7 +58,7 @@ function cellTooltip(status, isHoliday, holidayName) {
 export function TeamAvailabilityView({ onOpenFullCalendar }) {
   const {
     staff, accounts, calendar, holidays, activeJobs, loading,
-    setCalendarEntry, reassignStaffJobs, updateAccount, activePeople,
+    setCalendarEntry, reassignStaffJobs, setPersonRole, activePeople,
   } = useWorkshop();
   const { isAdmin } = useAuthCtx();
   const { openJob } = useJobDrawer();
@@ -70,7 +70,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
 
   const [mode, setMode] = useState("week"); // "week" | "month"
   const [anchor, setAnchor] = useState(todayISO); // any date within the shown period
-  const [filters, setFilters] = useState({ search: "", role: "all", status: "all", workload: "all" });
+  const [filters, setFilters] = useState({ search: "", status: "all", workload: "all" });
   const [showInactive, setShowInactive] = useState(false);
   const [selection, setSelection] = useState(null); // { staffId, name, anchor, dates:[iso] }
   const [detail, setDetail] = useState(null); // roster row shown in the slide-out
@@ -141,15 +141,21 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
     [activeJobs, mobileWeek],
   );
 
-  // Roster → only people with a staff record (they have a calendar), grouped Admins→Staff.
-  const roster = useMemo(() => buildRoster(staff, accounts).filter((r) => r.staff), [staff, accounts]);
+  // Roster → technicians only. A calendar answers "who can take this job and when", so the
+  // people who can never hold a job do not belong on it: admins manage the shop and staff
+  // (sales, managers) sign in without doing workshop work. Both halves of the test matter —
+  // the role decides whether they SHOULD appear, the staff record is what they'd be keyed by
+  // (statusOn, bookedHoursByNameAndDate and isEditable all take a staff id).
+  const roster = useMemo(
+    () => buildRoster(staff, accounts).filter((r) => r.staff && isTechnicianRow(r)),
+    [staff, accounts],
+  );
 
   const rows = useMemo(() => {
     const term = filters.search.trim().toLowerCase();
     return roster.filter((row) => {
       if (!showInactive && !rosterActive(row)) return false;
       if (term && !row.name.toLowerCase().includes(term)) return false;
-      if (filters.role !== "all" && rosterRole(row) !== filters.role) return false;
       if (filters.status !== "all") {
         const hit = days.some((d) => isWeekday(d) && statusOn(row.staff.id, d, entriesByKey, holidaySet) === filters.status);
         if (!hit) return false;
@@ -165,25 +171,14 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
     });
   }, [roster, filters, showInactive, days, entriesByKey, holidaySet, bookedByName]);
 
-  // Group into Admins then Staff, so the timeline reads role-first.
-  const groups = useMemo(() => {
-    const admins = rows.filter((r) => rosterRole(r) === "admin");
-    const staffRows = rows.filter((r) => rosterRole(r) !== "admin");
-    return [
-      { key: "admin", label: "Admins", rows: admins },
-      { key: "staff", label: "Staff", rows: staffRows },
-    ].filter((g) => g.rows.length);
-  }, [rows]);
-
-  // Flatten to a render list (group headers + rows) so lazy-loading can slice a single list.
-  const renderItems = useMemo(() => {
-    const items = [];
-    groups.forEach((g) => {
-      items.push({ type: "group", key: `g-${g.key}`, label: g.label, count: g.rows.length });
-      g.rows.forEach((row) => items.push({ type: "row", key: row.key, row }));
-    });
-    return items;
-  }, [groups]);
+  // A flat render list. There used to be Admins/Staff group headers here, but every row is a
+  // technician now, so the only heading the grid could show would say the same thing on every
+  // row. Kept as a list of items rather than plain `rows` because the lazy slice below works
+  // on it.
+  const renderItems = useMemo(
+    () => rows.map((row) => ({ type: "row", key: row.key, row })),
+    [rows],
+  );
 
   const lazy = rows.length > 20;
   const shownItems = lazy ? renderItems.slice(0, visibleCount) : renderItems;
@@ -258,7 +253,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
     return () => io.disconnect();
   }, [lazy, renderItems.length]);
 
-  const activeFilterCount = (filters.role !== "all") + (filters.status !== "all") + (filters.workload !== "all") + Boolean(filters.search.trim());
+  const activeFilterCount = (filters.status !== "all") + (filters.workload !== "all") + Boolean(filters.search.trim());
 
   return (
     <div className="space-y-4">
@@ -316,20 +311,12 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
           </div>
         ) : !roster.length ? (
-          <EmptyState icon={CalendarDays} title="No staff yet" text="Add a staff member to start tracking team availability." />
+          <EmptyState icon={CalendarDays} title="No technicians yet" text="Add someone with the Technician role to start tracking team availability." />
         ) : !rows.length ? (
-          <EmptyState icon={Search} title="No matches" text="No staff match the current filters." />
+          <EmptyState icon={Search} title="No matches" text="No technicians match the current filters." />
         ) : (
           <div className="divide-y divide-[var(--line)]">
             {renderItems.map((item) => {
-              if (item.type === "group") {
-                return (
-                  <div key={item.key} className="flex items-center gap-1.5 bg-[var(--surface-sunken)] px-3.5 py-1.5 text-[0.6rem] font-extrabold uppercase tracking-wider text-[var(--ink-muted)]">
-                    {item.label === "Admins" && <Star size={11} />}{item.label}
-                    <Chip className="ml-1">{item.count}</Chip>
-                  </div>
-                );
-              }
               const row = item.row;
               const staffId = row.staff.id;
               const active = rosterActive(row);
@@ -344,10 +331,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                   <button type="button" onClick={() => setDetail(row)} className="flex flex-1 items-center gap-2.5 min-w-0 text-left">
                     <Avatar name={row.name} size={36} />
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate text-[0.85rem] font-semibold text-[var(--ink)]">{row.name}</span>
-                        {rosterRole(row) === "admin" && <Star size={11} className="shrink-0 text-[var(--status-active)]" />}
-                      </div>
+                      <span className="block truncate text-[0.85rem] font-semibold text-[var(--ink)]">{row.name}</span>
                       {dayHours > 0 && (
                         <span className="text-[0.7rem] font-semibold text-[var(--color-brand-500)] tnum">{formatHours(dayHours)}h booked</span>
                       )}
@@ -362,7 +346,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                       editable && "active:scale-95",
                       selected && "ring-2 ring-[var(--color-brand-500)] ring-offset-1 ring-offset-[var(--surface-card)]",
                     )}
-                    style={{ color: meta.ink, background: meta.bg }}
+                    style={statusStyle(meta)}
                   >
                     {Icon && <Icon size={14} />}
                     {meta.label}
@@ -418,9 +402,9 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
           </div>
         ) : !roster.length ? (
-          <EmptyState icon={CalendarDays} title="No staff yet" text="Add a staff member to start tracking team availability." />
+          <EmptyState icon={CalendarDays} title="No technicians yet" text="Add someone with the Technician role to start tracking team availability." />
         ) : !rows.length ? (
-          <EmptyState icon={Search} title="No matches" text="No staff match the current filters. Clear a filter to see more." />
+          <EmptyState icon={Search} title="No matches" text="No technicians match the current filters. Clear a filter to see more." />
         ) : (
           <div className="overflow-x-auto">
             <div style={{ minWidth: rowW }}>
@@ -457,23 +441,9 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
 
               {/* Rows */}
               {shownItems.map((item) => {
-                if (item.type === "group") {
-                  return (
-                    <div key={item.key} className="flex border-b border-[var(--line)] bg-[var(--surface-sunken)]">
-                      <div
-                        className="sticky left-0 z-10 flex items-center gap-1.5 bg-[var(--surface-sunken)] px-3.5 py-1.5 text-[0.6rem] font-extrabold uppercase tracking-wider text-[var(--ink-muted)]"
-                        style={{ width: INFO_W }}
-                      >
-                        {item.label === "Admins" && <Star size={11} />}{item.label}
-                        <Chip className="ml-1">{item.count}</Chip>
-                      </div>
-                    </div>
-                  );
-                }
                 const row = item.row;
                 const staffId = row.staff.id;
                 const active = rosterActive(row);
-                const admin = rosterRole(row) === "admin";
                 const { available, capacity } = availableHoursInRange(staffId, days, entriesByKey, holidaySet);
                 const booked = bookedByName.get(row.name) || 0;
                 // Two INDEPENDENT red conditions: booked can exceed available on a full week,
@@ -491,10 +461,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                     >
                       <Avatar name={row.name} size={34} />
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <strong className="block truncate text-[0.82rem] text-[var(--ink)]">{row.name}</strong>
-                          {admin && <Star size={11} className="shrink-0 text-[var(--status-active)]" />}
-                        </div>
+                        <strong className="block truncate text-[0.82rem] text-[var(--ink)]">{row.name}</strong>
                         <span className="block truncate text-[0.68rem] text-[var(--ink-muted)]">{row.email || "Workshop technician"}</span>
                       </div>
                     </button>
@@ -529,8 +496,8 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
                               selected && "ring-2 ring-[var(--color-brand-500)] ring-offset-1 ring-offset-[var(--surface-card)]",
                             )}
                             style={available_
-                              ? (tinted ? { background: meta.bg } : undefined)
-                              : { color: meta.ink, background: meta.bg }}
+                              ? (tinted ? { backgroundColor: meta.bg } : undefined)
+                              : statusStyle(meta)}
                           >
                             {!available_ && Icon
                               ? <Icon size={mode === "week" ? 15 : 13} strokeWidth={2.4} style={{ color: meta.ink }} />
@@ -574,8 +541,9 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
           <p className="text-[0.68rem] text-[var(--ink-muted)]">
             Hours column: <strong>bkd</strong> = hours on jobs <em>starting</em> in this period (a completed
             job counts its actual hours), <strong>avail</strong> = {formatHours(WEEK_CAPACITY)}h a week less{" "}
-            {formatHours(DAY_HOURS)}h for each non-available weekday. Today&apos;s cell shows the hours assigned
-            to it. Click a day to set status, shift-click to select a range. Past weeks are read-only.
+            {formatHours(DAY_HOURS)}h for each non-available weekday. In week view each weekday cell shows
+            the hours assigned to it. Click a day to set status, shift-click to select a range. Past
+            weeks are read-only.
           </p>
         </div>
       </div>
@@ -607,7 +575,7 @@ export function TeamAvailabilityView({ onOpenFullCalendar }) {
         moveTargets={detail ? activePeople.filter((n) => n !== detail.name) : []}
         onOpenFullCalendar={onOpenFullCalendar}
         onMoveJobs={reassignStaffJobs}
-        onToggleRole={updateAccount}
+        onSetRole={setPersonRole}
         openJob={openJob}
         onStatus={requestStatusChange}
       />
@@ -625,20 +593,20 @@ function FilterBar({ filters, setFilters, showInactive, setShowInactive, activeF
         <Input
           value={filters.search}
           onChange={(e) => set("search", e.target.value)}
-          placeholder="Search staff…"
+          placeholder="Search technicians…"
           className="pl-9"
         />
       </div>
-      <Select className="w-auto min-w-[120px]" value={filters.role} onChange={(e) => set("role", e.target.value)}>
-        <option value="all">All roles</option>
-        <option value="admin">Admins</option>
-        <option value="staff">Staff</option>
-      </Select>
+      {/* No role filter: every row on this grid is a technician by construction. */}
+      {/* Derived from CALENDAR_STATUSES, not a hand-written list — these options were the one
+          place a new status did not reach on its own, so Blocked would have been settable but
+          not filterable. "Available" is excluded: it is the absence of an entry, so filtering
+          on it would mean "has no status", which the workload filter already covers better. */}
       <Select className="w-auto min-w-[130px]" value={filters.status} onChange={(e) => set("status", e.target.value)}>
         <option value="all">Any status</option>
-        <option value="Training">On training</option>
-        <option value="Leave">On leave</option>
-        <option value="Sick">Off sick</option>
+        {CALENDAR_STATUSES.filter((status) => status !== "Available").map((status) => (
+          <option key={status} value={status}>{CALENDAR_STATUS_META[status]?.reason || status}</option>
+        ))}
       </Select>
       <Select className="w-auto min-w-[150px]" value={filters.workload} onChange={(e) => set("workload", e.target.value)}>
         <option value="all">Any workload</option>
@@ -654,7 +622,7 @@ function FilterBar({ filters, setFilters, showInactive, setShowInactive, activeF
         {showInactive ? "Showing inactive" : "Hide inactive"}
       </Button>
       {activeFilterCount > 0 && (
-        <Button size="sm" variant="ghost" className="gap-1" onClick={() => setFilters({ search: "", role: "all", status: "all", workload: "all" })}>
+        <Button size="sm" variant="ghost" className="gap-1" onClick={() => setFilters({ search: "", status: "all", workload: "all" })}>
           <X size={13} />Clear
         </Button>
       )}
@@ -663,14 +631,14 @@ function FilterBar({ filters, setFilters, showInactive, setShowInactive, activeF
 }
 
 // ---- Detail slide-out ----------------------------------------------------
-function StaffDetailDrawer({ row, open, onClose, workload, entriesByKey, holidaySet, isAdmin, moveTargets, onOpenFullCalendar, onMoveJobs, onToggleRole, openJob, onStatus }) {
+function StaffDetailDrawer({ row, open, onClose, workload, entriesByKey, holidaySet, isAdmin, moveTargets, onOpenFullCalendar, onMoveJobs, onSetRole, openJob, onStatus }) {
   const [moveTarget, setMoveTarget] = useState("Unassigned");
   useEffect(() => { setMoveTarget("Unassigned"); }, [row]);
   const liveNow = useNow(60_000);
   if (!row) return null;
 
   const member = row.staff;
-  const admin = rosterRole(row) === "admin";
+  const role = rosterRole(row);
   const activeCount = workload?.active || 0;
   const closedCount = workload?.closed || 0;
   const estimated = workload?.estimatedThisWeek || 0;
@@ -686,7 +654,7 @@ function StaffDetailDrawer({ row, open, onClose, workload, entriesByKey, holiday
         <div className="flex items-center gap-3">
           <Avatar name={row.name} size={46} />
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[1.05rem] font-bold tracking-tight">{row.name}{admin && <Star size={14} />}</div>
+            <div className="text-[1.05rem] font-bold tracking-tight">{row.name}</div>
             <div className="truncate text-[0.75rem] text-white/70">{row.email || "Workshop technician"}</div>
           </div>
         </div>
@@ -740,15 +708,19 @@ function StaffDetailDrawer({ row, open, onClose, workload, entriesByKey, holiday
                 <Briefcase size={15} />Move jobs
               </Button>
             </div>
-            <Button
-              variant="secondary"
-              className="w-full"
+            {/* Demoting from here removes the person from this very grid — that is the point,
+                and it is reversible: their staff record and calendar entries are kept. */}
+            <Select
+              aria-label={`Role for ${row.name}`}
+              value={role}
               disabled={!hasAccount}
               title={hasAccount ? undefined : "This person has no login account yet"}
-              onClick={() => row.account && onToggleRole?.(row.account.id, { role: admin ? "staff" : "admin" })}
+              onChange={(e) => onSetRole?.(row, e.target.value)}
             >
-              {admin ? "Make staff" : "Make admin"}
-            </Button>
+              {ACCOUNT_ROLES.map((key) => (
+                <option key={key} value={key}>{ACCOUNT_ROLE_META[key].label}</option>
+              ))}
+            </Select>
           </>}
         </div>
 

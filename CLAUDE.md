@@ -79,6 +79,12 @@ Writes to production are the one place to slow down.
 - After a schema change: query the live DB for the result, then create a job in the real app
   and reload to confirm it persisted.
 - Report what you ran and what you did not. Never describe an unverified change as working.
+- **Order matters when a migration and a deploy change the same rule.** Migration 005 was safe
+  to apply ahead of its frontend (the live build only asked `role = 'admin'`, so a technician
+  still read as non-admin), but the reverse would have shipped a build that saw 16 accounts
+  still marked `staff`, concluded none were technicians, and emptied both the assignment
+  dropdown and the entire availability calendar. Work out which order is the safe one and say
+  so explicitly — do not assume the deploy can go first.
 
 **Run what CI runs, at the size CI runs it.**
 
@@ -131,9 +137,24 @@ in no migration file, so nothing in the repo will tell you about them.
     that dashboard-authored SQL skips every safeguard the repo has.
 - **People are split across two tables**: `accounts` (login: role, active, theme, onboarded;
   PK = `auth.users.id`; renamed from `profiles` on 30 Jul 2026) and `staff` (assignable
-  technician + calendar). Matched **by email**. Admins deliberately get **no** `staff` row and
-  are not assignable. The `profiles` compatibility view was dropped once the new build went
-  live — nothing named `profiles` exists any more.
+  technician + calendar). Matched **by email**. The `profiles` compatibility view was dropped
+  once the new build went live — nothing named `profiles` exists any more.
+- **There are THREE roles** (migration 005, 14 Aug 2026): `technician` | `staff` | `admin`.
+  - **`technician`** = the Service & Assembly team. The ONLY role that is assignable to a job
+    or appears on the availability calendar, and the only one that gets a `staff` row.
+  - **`staff`** = sales and managers. Signs in, sees the same non-admin sections as before,
+    but holds no work. **This is a change of meaning** — `staff` used to mean "assignable".
+  - **`admin`** = manages the shop, also not assignable. `private.is_admin()` is unchanged, so
+    route/RLS access is still a clean admin/non-admin split; the third role adds no access.
+  - The capability derivation **inverted**: it used to be "isn't an admin ⇒ assignable", it is
+    now "is a technician ⇒ assignable". Consequence: `rosterRole` (src/lib/staff.js) and
+    `activePeople` (WorkshopProvider) both DEFAULT a person with no account to `technician`,
+    and state the exclusion as a negative set. Demo mode has no `accounts` rows at all, so an
+    inclusion test would leave the whole Playwright suite with nobody assignable while the
+    build still passed. Change one of those two and you must change the other.
+  - Demoting a technician **keeps** their `staff` row (and so their `staff_calendar` history).
+    Deleting it would cascade the calendar away and orphan the name-based job link below.
+  - The constraint is now `accounts_role_check`; the theme one is still `profiles_theme_check`.
 - **Alerting: Sentry is the live channel; the Resend email path has never worked.**
   As of 30 Jul 2026, Sentry is wired and verified end-to-end (org `padraigbrosnan`, project
   `flexachem-workshop-tracker`, region `https://de.sentry.io`; `VITE_SENTRY_DSN` set on Vercel
@@ -169,6 +190,7 @@ Every migration applied to production is recorded in `supabase/migrations/`, in 
 | `002-drop-profiles-shim-and-pin-trigger-search-path.sql` | dropped the shim once the new build was live; pinned `search_path` on the two hand-written job/staff triggers |
 | `003-failure-only-alerting.sql` | created `job_alerts`; enabled `pg_cron` and scheduled `sweep-job-errors` hourly at `:07`. Deliberately did NOT install `on_job_created` |
 | `004-unschedule-sweep-job-errors.sql` | removed that cron — the function could never succeed (see open item 1). `job_alerts`, the function and `pg_cron` all stay |
+| `005-technician-role-and-blocked-status.sql` | added the `technician` role (widening the role check, which was still named `profiles_role_check`) and promoted all 16 non-admin accounts to it; recreated `handle_new_user` for three roles; widened `staff_calendar_status_check` to accept `Blocked`. Backups in `backup.accounts_005` / `backup.staff_calendar_005` |
 
 Add the file in the same change as the `apply_migration` call, so the repo and the database
 never disagree about what has run.

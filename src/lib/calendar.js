@@ -1,17 +1,39 @@
 // Staff availability calendar — domain model + pure helpers (mirrors staff.js/customers.js).
 // "Available" is the absence of an entry; "Public Holiday" is derived from the holidays
 // catalogue and never stored per-staff. Capacity: a 37.5h week (5 weekdays × 7.5h) loses
-// 7.5h per non-available weekday (Training / Leave / Sick, or a public holiday).
+// 7.5h per non-available weekday (Training / Leave / Sick / Blocked, or a public holiday).
+//
+// Every capacity and availability helper below tests `!== "Available"` rather than naming
+// statuses, which is why adding Blocked needed no logic change here: a new hard status costs
+// a day and blocks assignment automatically. A SOFT status would be the change that hurts —
+// it would need exempting in weekAvailableHours, hoursLeftInWeek, availableHoursInRange and
+// unavailableReason, the way "Public Holiday" already is in the last of those.
 import { WEEK_CAPACITY, DAY_HOURS } from "./constants";
 import { parseISODate, toISODate, formatDate, hoursLeftToday } from "./dates";
 
 // Per-status colour + label. Tokens resolve to CSS variables defined in styles/app.css so
 // they follow the light/dark theme like the rest of the app. Available uses the "done" green.
+//
+// `reason` is the phrasing used when this status blocks an assignment. It lives here rather
+// than being derived from the key because `On ${status.toLowerCase()}` produced "On sick" and
+// would have produced "On blocked" — every status now reads the way the filters already
+// label it. `pattern` is an optional background-image layered over `bg`; only Blocked uses it.
 export const CALENDAR_STATUS_META = {
   Available: { label: "Available", ink: "var(--status-done)", bg: "var(--status-done-bg)" },
-  Training: { label: "Training", ink: "var(--cal-training)", bg: "var(--cal-training-bg)" },
-  Leave: { label: "Leave", ink: "var(--cal-leave)", bg: "var(--cal-leave-bg)" },
-  Sick: { label: "Sick", ink: "var(--cal-sick)", bg: "var(--cal-sick-bg)" },
+  Training: { label: "Training", ink: "var(--cal-training)", bg: "var(--cal-training-bg)", reason: "On training" },
+  Leave: { label: "Leave", ink: "var(--cal-leave)", bg: "var(--cal-leave-bg)", reason: "On leave" },
+  Sick: { label: "Sick", ink: "var(--cal-sick)", bg: "var(--cal-sick-bg)", reason: "Off sick" },
+  Blocked: {
+    label: "Blocked",
+    ink: "var(--cal-blocked)",
+    bg: "var(--cal-blocked-bg)",
+    reason: "Blocked out",
+    // 45° chevron hatch — Outlook's "tentative" texture, and the one status that reads as
+    // "spoken for" rather than as a reason for absence. Carried in the meta rather than as a
+    // CSS class because every calendar surface paints its own background as an inline style;
+    // a class would have to win against that on five separate elements.
+    pattern: "repeating-linear-gradient(45deg, var(--cal-blocked-stripe) 0 4px, transparent 4px 8px)",
+  },
   "Public Holiday": { label: "Public Holiday", ink: "var(--cal-holiday)", bg: "var(--cal-holiday-bg)" },
 };
 
@@ -223,7 +245,8 @@ export function unavailableReason(staffId, startISO, endISO, entriesByKey, holid
     if (!isWeekday(date)) continue;
     const status = statusOn(staffId, date, entriesByKey, holidaySet);
     if (status === "Available" || status === "Public Holiday") continue;
-    return `On ${status.toLowerCase()} (${formatDate(date)})`;
+    const reason = CALENDAR_STATUS_META[status]?.reason || `On ${status.toLowerCase()}`;
+    return `${reason} (${formatDate(date)})`;
   }
   return null;
 }

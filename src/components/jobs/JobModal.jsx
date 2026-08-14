@@ -292,7 +292,7 @@ export function JobModal({ job, open, people, staff = [], calendar = [], holiday
                 {Array.from(new Set([...(jobTypes?.length ? jobTypes : JOB_TYPES), fields.type].filter(Boolean))).map((v) => <option key={v}>{v}</option>)}
               </Select>
             </Field>
-            <Field label="Staff / Technician">
+            <Field label="Technician">
               <Select value={fields.alloc} onChange={(e) => set("alloc", e.target.value)}>
                 <option>Unassigned</option>
                 {assignablePeople.map((p) => {

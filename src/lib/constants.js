@@ -3,6 +3,18 @@
 // Views a non-admin (staff) account may open.
 export const STAFF_VIEWS = ["dashboard", "board"];
 
+// Account roles. The split that matters is TECHNICIAN vs everyone else: a technician is the
+// Service & Assembly team — assignable to jobs and given an availability calendar — while
+// staff (sales, managers) and admins are neither. Route and nav access is a separate axis and
+// still keys off `admin` alone, so promoting someone to technician grants no extra access.
+// Ordered technician-first because that is the common case when adding a person.
+export const ACCOUNT_ROLES = ["technician", "staff", "admin"];
+export const ACCOUNT_ROLE_META = {
+  technician: { label: "Technician", hint: "Assignable to jobs, has an availability calendar" },
+  staff: { label: "Staff", hint: "Sales and managers — signs in, not assignable to jobs" },
+  admin: { label: "Admin", hint: "Manages the shop, not assignable to jobs" },
+};
+
 // Fields tracked by the audit trail (null = tracked via explicit action label only).
 export const AUDIT_LABELS = {
   status: "Status",
@@ -73,7 +85,10 @@ export const BUSINESS_UNITS = ["Pumps", "Valves", "Mechanical Seals", "Process",
 export const WEEK_CAPACITY = 37.5;
 export const DAY_HOURS = 7.5;
 // Statuses a user can set on a day (Public Holiday is auto-applied, not user-settable).
-export const CALENDAR_STATUSES = ["Available", "Training", "Leave", "Sick"];
+// Blocked is a HARD status like Leave/Sick — it costs the day's hours and blocks assignment.
+// It exists for time that is spoken for without being absence (cover, stocktake, a site day
+// that isn't a job yet), which is why it reads as neutral rather than as a reason.
+export const CALENDAR_STATUSES = ["Available", "Training", "Leave", "Sick", "Blocked"];
 
 // Irish public holidays, auto-applied to every staff calendar. Mirrored by the seed in
 // supabase-setup.sql; also the demo-mode seed (no Supabase configured). ISO 'YYYY-MM-DD'.

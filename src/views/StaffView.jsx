@@ -7,10 +7,10 @@ import { useJobDrawer } from "../state/useJobDrawer";
 import { useNow } from "../state/useNow";
 import { supabase } from "../lib/supabase";
 import { makeGroups, completedInstant, isArchived } from "../lib/jobs";
-import { buildRoster, rosterRole, rosterActive, rosterPending } from "../lib/staff";
+import { buildRoster, rosterRole, rosterActive, rosterPending, isTechnicianRow } from "../lib/staff";
 import { indexEntries, holidayIndex, weekAvailableHours, weekdaysOfWeek, hoursLeftInWeek } from "../lib/calendar";
 import { today, toISODate, weekStart } from "../lib/dates";
-import { WEEK_CAPACITY } from "../lib/constants";
+import { WEEK_CAPACITY, ACCOUNT_ROLES, ACCOUNT_ROLE_META } from "../lib/constants";
 import { formatHours } from "../lib/format";
 import { jobPeriodDate } from "../lib/workload";
 import { Card, PanelHeader, Button, Input, Select, Field, IconButton, EmptyState, Chip, cx } from "../components/ui/primitives";
@@ -26,16 +26,16 @@ const cloud = Boolean(supabase);
 
 export function StaffView() {
   const {
-    filteredJobs: jobs, staff, people, accounts,
+    filteredJobs: jobs, staff, accounts,
     calendar, holidays, setCalendarEntry, inviteStaff,
-    addStaffMember, updateStaffMember, deleteStaffMember, updateAccount,
+    addStaffMember, updateStaffMember, deleteStaffMember, updateAccount, setPersonRole, activePeople,
   } = useWorkshop();
   const { requestStatusChange } = useStatusPrompt();
   const { user, isAdmin } = useAuthCtx();
   const { openJob } = useJobDrawer();
 
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", role: "staff" });
+  const [form, setForm] = useState({ name: "", email: "", role: "technician" });
   const [addSubmitted, setAddSubmitted] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -43,6 +43,14 @@ export function StaffView() {
   const [resending, setResending] = useState(null);
 
   const groups = makeGroups(jobs, (j) => j.alloc);
+
+  // Who gets a workload card: every technician, plus whoever still holds one of the filtered
+  // jobs (including "Unassigned", which is a real bucket of work). Not the provider's `people`
+  // list any more — a demoted technician keeps their staff record so their calendar survives a
+  // change of mind, and `people` would leave them here forever as an empty card.
+  const workloadPeople = Array.from(new Set([...activePeople, ...Object.keys(groups)]))
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
   const staffByName = useMemo(() => new Map(staff.map((m) => [m.name, m])), [staff]);
 
   // Availability indexes for the per-person workload cards: a card's weekly capacity is the
@@ -61,12 +69,13 @@ export function StaffView() {
   const isActiveRow = rosterActive;
   const isPending = rosterPending;
 
-  const staffCount = roster.filter((r) => roleOf(r) !== "admin").length;
+  const technicianCount = roster.filter((r) => roleOf(r) === "technician").length;
+  const staffCount = roster.filter((r) => roleOf(r) === "staff").length;
   const adminCount = roster.filter((r) => roleOf(r) === "admin").length;
   const pendingCount = roster.filter(isPending).length;
 
   const emailError = form.email && !EMAIL_RE.test(form.email.trim()) ? "Enter a valid email" : null;
-  const resetForm = () => { setForm({ name: "", email: "", role: "staff" }); setAddSubmitted(false); };
+  const resetForm = () => { setForm({ name: "", email: "", role: "technician" }); setAddSubmitted(false); };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -75,9 +84,10 @@ export function StaffView() {
     const email = form.email.trim();
     if (!name || !email || emailError) return;
     setInviting(true);
-    // Staff are assignable technicians (staff record + calendar); admins manage only. In demo
-    // mode (no accounts) always create the record so the person is visible.
-    if (!cloud || form.role === "staff") addStaffMember({ name, email, role: "Workshop technician", active: true });
+    // Only technicians are assignable and get a calendar, and that needs a `staff` record —
+    // the account role alone is not enough. In demo mode (no accounts at all) always create
+    // the record so the person is visible.
+    if (!cloud || form.role === "technician") addStaffMember({ name, email, role: "Workshop technician", active: true });
     try {
       await inviteStaff({ email, name, role: form.role });
     } finally {
@@ -92,17 +102,15 @@ export function StaffView() {
     if (row.account) updateAccount(row.account.id, { active });
   };
 
-  const toggleRole = (row) => {
+  // The staff-record backfill that assignability depends on lives in setPersonRole, so the
+  // roster and the availability drawer cannot drift apart. Only the self-demotion warning is
+  // kept here, because it needs the signed-in user.
+  const changeRole = (row, nextRole) => {
     const p = row.account;
-    if (!p) return;
-    if (p.id === user?.id && !window.confirm("Change your own role? You will lose admin access immediately.")) return;
-    const nextRole = p.role === "admin" ? "staff" : "admin";
-    updateAccount(p.id, { role: nextRole });
-    // Becoming staff means becoming assignable — which needs a staff record, not just the
-    // account role. Without this an admin demoted to staff got no calendar and no jobs.
-    if (nextRole === "staff" && !row.staff) {
-      addStaffMember({ name: row.name, email: row.email, role: "Workshop technician", active: true });
-    }
+    if (!p || nextRole === p.role) return;
+    if (p.id === user?.id && p.role === "admin"
+      && !window.confirm("Change your own role? You will lose admin access immediately.")) return;
+    setPersonRole(row, nextRole);
   };
 
   const resend = async (row) => {
@@ -116,10 +124,11 @@ export function StaffView() {
       {isAdmin && <Card>
         <PanelHeader
           title="Team"
-          subtitle="Everyone who signs in or gets assigned work. Staff are assignable to jobs and have an availability calendar; admins manage the shop but aren't assignable."
+          subtitle="Everyone who signs in or gets assigned work. Technicians are assignable to jobs and have an availability calendar; staff (sales and managers) and admins are not."
           action={(
             <div className="flex flex-wrap items-center gap-1.5">
-              <Chip>{staffCount} staff</Chip>
+              <Chip>{technicianCount} technician</Chip>
+              {cloud && <Chip>{staffCount} staff</Chip>}
               {cloud && <Chip>{adminCount} admin</Chip>}
               {pendingCount > 0 && <Chip>{pendingCount} pending</Chip>}
               <Button variant="primary" size="sm" className="gap-1.5" onClick={() => { resetForm(); setAddOpen(true); }}><UserPlus size={15} />Add person</Button>
@@ -128,7 +137,9 @@ export function StaffView() {
         />
         <div className="grid gap-2.5">
           {roster.length ? roster.map((row) => {
-            const admin = roleOf(row) === "admin";
+            const role = roleOf(row);
+            const admin = role === "admin";
+            const technician = role === "technician";
             const member = row.staff;
             const active = isActiveRow(row);
             const pending = isPending(row);
@@ -153,8 +164,15 @@ export function StaffView() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                  <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.66rem] font-bold", admin ? "bg-[var(--status-active-bg)] text-[var(--status-active)]" : "bg-[var(--surface-sunken)] text-[var(--ink-muted)]")}>
-                    {admin && <Star size={10} />}{admin ? "Admin" : "Staff"}
+                  {/* Three roles, three weights: admin is the privileged one (starred), a
+                      technician is the one who can hold work, and staff is the quiet default. */}
+                  <span className={cx(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.66rem] font-bold",
+                    admin && "bg-[var(--status-active-bg)] text-[var(--status-active)]",
+                    technician && "bg-[var(--status-done-bg)] text-[var(--status-done)]",
+                    !admin && !technician && "bg-[var(--surface-sunken)] text-[var(--ink-muted)]",
+                  )}>
+                    {admin && <Star size={10} />}{ACCOUNT_ROLE_META[role].label}
                   </span>
                   {/* No Active/Inactive chip: the Deactivate/Reactivate button already says
                       which state the person is in, and the row dims when inactive. Pending
@@ -168,9 +186,10 @@ export function StaffView() {
                     what pulled the admin rows out of line with the staff rows. Below `lg`
                     this reverts to the wrapping flex row. */}
                 <div className="flex flex-wrap items-center gap-2 lg:grid lg:grid-cols-[2.125rem_6.625rem_6.625rem] lg:gap-2">
-                  {/* Slot 1 — calendar, staff only. Admins keep the empty placeholder so
-                      their remaining controls stay in the same columns. */}
-                  {member && !admin
+                  {/* Slot 1 — calendar, technicians only (they are the only people with one).
+                      Everyone else keeps the empty placeholder so the remaining controls stay
+                      in the same columns. */}
+                  {member && technician
                     ? <IconButton label={`${row.name}'s calendar`} className="h-9 w-9" onClick={() => setCalendarMember(member)}><CalendarDays size={16} /></IconButton>
                     : <span className="hidden lg:block" />}
 
@@ -185,7 +204,17 @@ export function StaffView() {
                     pending && row.email ? (
                       <Button size="sm" variant="secondary" className="gap-1 whitespace-nowrap lg:w-full" disabled={resending === row.key} onClick={() => resend(row)}><Send size={13} />{resending === row.key ? "Sending…" : "Resend"}</Button>
                     ) : (
-                      <Button size="sm" variant="secondary" className="whitespace-nowrap lg:w-full" onClick={() => toggleRole(row)}>{admin ? "Make staff" : "Make admin"}</Button>
+                      // A Select rather than a button: with three roles a toggle would need two
+                      // clicks to reach the third. It must stay inside the 6.625rem slot — the
+                      // name column is minmax(0,1fr) and pays for any width added here.
+                      <Select
+                        aria-label={`Role for ${row.name}`}
+                        className="h-9 !px-2 text-[0.78rem] lg:w-full"
+                        value={role}
+                        onChange={(e) => changeRole(row, e.target.value)}
+                      >
+                        {ACCOUNT_ROLES.map((key) => <option key={key} value={key}>{ACCOUNT_ROLE_META[key].label}</option>)}
+                      </Select>
                     )
                   ) : member ? (
                     <Button size="sm" variant="danger" disabled={isSelf} onClick={() => setConfirmDelete(member)} className="gap-1 whitespace-nowrap lg:w-full"><Trash2 size={13} />Remove</Button>
@@ -197,7 +226,7 @@ export function StaffView() {
                 </div>
               </div>
             );
-          }) : <EmptyState text="No one on the team yet. Use “Add person” to invite your first staff member or admin." />}
+          }) : <EmptyState text="No one on the team yet. Use “Add person” to invite your first technician." />}
         </div>
       </Card>}
 
@@ -207,14 +236,14 @@ export function StaffView() {
           <CalendarRange size={18} className="shrink-0 text-[var(--color-brand-500)]" />
           <div className="min-w-0">
             <h3 className="text-[1.05rem] font-bold tracking-tight text-[var(--ink)]">Team Availability</h3>
-            <p className="text-[0.78rem] text-[var(--ink-muted)]">Everyone&apos;s week at a glance — set Training, Leave or Sick days across the whole team.</p>
+            <p className="text-[0.78rem] text-[var(--ink-muted)]">Every technician&apos;s week at a glance — set Training, Leave, Sick or Blocked days across the team.</p>
           </div>
         </div>
         <TeamAvailabilityView onOpenFullCalendar={setCalendarMember} />
       </section>
 
       <WorkloadCards
-        people={people}
+        people={workloadPeople}
         groups={groups}
         staffByName={staffByName}
         entriesByKey={entriesByKey}
@@ -256,10 +285,11 @@ export function StaffView() {
             <Field label="Email address" error={(addSubmitted && !form.email.trim() ? "Required" : null) || emailError}>
               <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="name@company.com" />
             </Field>
-            <Field label="Role" hint="Staff are assignable to jobs and get a calendar. Admins get every section but aren't assignable.">
+            <Field label="Role" hint={ACCOUNT_ROLE_META[form.role]?.hint}>
               <Select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
-                <option value="staff">Staff — assignable technician</option>
-                <option value="admin">Admin — manage only</option>
+                {ACCOUNT_ROLES.map((key) => (
+                  <option key={key} value={key}>{ACCOUNT_ROLE_META[key].label} — {ACCOUNT_ROLE_META[key].hint}</option>
+                ))}
               </Select>
             </Field>
           </div>

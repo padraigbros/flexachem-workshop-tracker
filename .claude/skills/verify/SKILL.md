@@ -138,14 +138,15 @@ code reading. `npx vite build` must pass at the end.
 - [ ] `/staff` is a **single unified "Team" card** (the old separate "Staff management" +
       "Login accounts" cards were merged). One row per person, reconciling the staff record
       (assignable, has a calendar) with its login account row in `accounts` (role, sign-in status),
-      **matched by email**. Row shows: avatar, name, email, **Admin/Staff** badge, and
+      **matched by email**. Row shows: avatar, name, email, **Technician/Staff/Admin** badge
+      (technician green, admin blue + star, staff muted), and
       **Pending** when an invited person has never signed in. Deliberately NOT shown: an
       Active/Inactive chip (Deactivate/Reactivate says it, and the row dims) and the
       open-jobs count.
 - [ ] **Exactly three action slots per row, fixed width `34px 106px 106px`:**
       1. calendar (staff only; admins get an empty placeholder so columns still line up)
-      2. **role toggle OR Resend OR Remove** — mutually exclusive by construction, which is
-         why they share one slot and no gap is ever left: the role toggle needs an account,
+      2. **role Select OR Resend OR Remove** — mutually exclusive by construction, which is
+         why they share one slot and no gap is ever left: the role Select needs an account,
          Resend needs an account that has never signed in, and **Remove is only offered for a
          staff record with NO account**. A staff record is derived from an active staff-role
          account, so deleting one for a person who can log in just gets it recreated by the
@@ -160,19 +161,31 @@ code reading. `npx vite build` must pass at the end.
       every name rendered at 0px, Playwright reported it hidden, and `mentions.spec.js` failed
       while the page looked fine at 1900px. **Check `/staff` at 1280 after any change here** —
       `document.querySelector('.grid strong').getBoundingClientRect().width` must be > 0.
-- [ ] **The Staff/Technician dropdown shows "Unassigned" exactly once.** `alloc` is one text
+- [ ] **The Technician dropdown shows "Unassigned" exactly once.** `alloc` is one text
       column meaning either a person or nobody; `JobModal` must not fold the literal
       "Unassigned" into its list of technicians alongside the hardcoded option.
-- [ ] **Only Staff-role people are assignable.** `activePeople` excludes any staff whose
-      email matches an admin-role account, so admins never appear in the JobModal assignment
-      dropdown or the per-person job cards. Demo mode has no accounts → everyone is staff.
+- [ ] **Only TECHNICIANS are assignable, and only technicians appear on the availability
+      calendar.** There are three roles (`technician` / `staff` / `admin`); assignability and
+      having a calendar hang off `technician`, NOT off "isn't an admin" as they used to.
+      `activePeople` (WorkshopProvider) excludes any staff record whose email matches a
+      non-technician account, and TeamAvailabilityView filters its roster with
+      `isTechnicianRow`. **The exclusion is stated as a NEGATIVE set on purpose**: a staff
+      record matching no account at all stays assignable, because demo mode holds no `accounts`
+      rows and an inclusion test would empty the dropdown for the entire Playwright suite while
+      the build still passed. `rosterRole` (src/lib/staff.js) defaults to `technician` for the
+      same reason — the two must agree.
+- [ ] **Demoting a technician keeps their `staff` row and calendar entries.** They vanish from
+      the calendar and the assignment dropdown, but promoting them back restores everything;
+      deleting the row would cascade away their `staff_calendar` history. Role changes from
+      BOTH the roster row and the availability drawer go through `setPersonRole`, which
+      backfills a missing staff record on promotion — the drawer used to skip that.
 - [ ] Each staff row has a **calendar icon** → month calendar (Modal) with prev/next + Today.
-      Clicking an editable weekday opens a status picker (Available / Training / Leave / Sick);
+      Clicking an editable weekday opens a status picker (Available / Training / Leave / Sick / Blocked);
       setting a status colours the day (icon, not truncated text), drops that week's trailing
       **hours badge** (set-apart column) by 7.5h; Available removes the entry, restores the hour.
       **Today** = solid brand-orange number badge; the day being edited = brand ring (distinct
       cues). Picker flips up on bottom rows and clamps horizontally so it stays in the modal.
-      Legend lists all 5 statuses. Entries persist (demo: localStorage `flexachem_workshop_calendar_v1`; cloud: `staff_calendar`).
+      Legend lists all 6 statuses. Entries persist (demo: localStorage `flexachem_workshop_calendar_v1`; cloud: `staff_calendar`).
 - [ ] **Irish public holidays** (config seed `DEFAULT_HOLIDAYS` / cloud `public_holidays`) show
       on every calendar in **purple**, are **read-only** (disabled, name in tooltip), and reduce
       that week's hours by 7.5h each. Capacity = 37.5 − 7.5×(non-available weekdays), floored
@@ -203,16 +216,28 @@ code reading. `npx vite build` must pass at the end.
       counting Complete jobs safe: without it the totals accumulate every job in history.
       JobModal's warning deliberately still EXCLUDES Complete jobs — it forecasts free time,
       where finished work no longer occupies any.
-- [ ] **Only today's day cell carries a job figure** (`Nh assigned`, week mode only —
-      month cells are 32×36px and have no room). There is **no per-day dot any more**; a period
-      that does not contain today shows no per-day job indication at all, by design.
+- [ ] **Every weekday cell carries its own job figure** (`Nh assigned`, week mode only —
+      month cells are 32×36px and have no room). A job's hours are spread forward across
+      working days from its period date at `DAY_HOURS` a day (`bookedHoursByNameAndDate`,
+      src/lib/workload.js); a Site Visit puts all its hours on the start date instead. There is
+      **no per-day dot any more**.
+- [ ] **`Blocked` is a HARD status**, like Leave/Sick: it costs 7.5h of that week's capacity
+      and disables the person in the assignment dropdown ("Blocked out (14 Aug)"). Nothing
+      special-cases it — every capacity helper tests `!== "Available"`. It renders as a **45°
+      chevron hatch** (`--cal-blocked-stripe`) over a neutral slate fill, applied via
+      `statusStyle()` in calendarShared.jsx so the swatch, picker, grid cell and mobile pill
+      cannot drift apart. The status FILTER options are derived from `CALENDAR_STATUSES` —
+      they were hardcoded, and were the one place a new status did not reach on its own.
 - [ ] **Assignment dropdown** (JobModal): staff unavailable on any weekday in the job's
       start..due range are **disabled** with a reason (e.g. "— On leave (27 Jul)"); Unassigned
       and the job's current assignee stay selectable. A **non-blocking** amber capacity warning
       shows when the selected person's free hours that week < the job's hours (save still works).
-- [ ] **Add person** is a Modal (Name, Email validated, Role Staff/Admin). Staff → staff
-      record (assignable) + invite; Admin → invite only (no staff record) except demo mode
-      always adds a record so the person is visible. Cloud invokes the `invite-user` Edge
+- [ ] **Add person** is a Modal (Name, Email validated, Role Technician/Staff/Admin,
+      **defaulting to Technician**). Technician → staff record (assignable) + invite; Staff and
+      Admin → invite only (no staff record) except demo mode always adds a record so the person
+      is visible. Note the deliberate asymmetry: the FORM defaults to technician (the common
+      case), but the `invite-user` edge function and `handle_new_user` both fall back to
+      `staff` for an unrecognised role — a malformed request must never grant assignability. Cloud invokes the `invite-user` Edge
       Function; demo toasts that invites need Supabase. `/invite` (public route) establishes
       the invite session and asks for a password only (no email re-verification), then
       `complete_onboarding` flips the account to onboarded (drops the "Pending" chip).

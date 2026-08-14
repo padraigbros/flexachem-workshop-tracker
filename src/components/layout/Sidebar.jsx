@@ -7,6 +7,7 @@ import { SyncBadge } from "./SyncBadge";
 import { ThemeToggle } from "./ThemeToggle";
 import { Avatar } from "../ui/dataviz";
 import { cx } from "../ui/primitives";
+import { ACCOUNT_ROLE_META } from "../../lib/constants";
 import logoUrl from "../../assets/flexachem-logo.png";
 
 // Desktop sidebar (hidden < lg — the mobile tab bar takes over).
@@ -66,7 +67,7 @@ export function Sidebar() {
             <span className={cx(
               "mt-1 inline-block rounded px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider",
               isAdmin ? "bg-[#e3eefc] text-[#1c4d8f]" : "bg-white/15 text-[#cbd8e8]",
-            )}>{isAdmin ? "Admin" : "Staff"}</span>
+            )}>{ACCOUNT_ROLE_META[user?.role]?.label || "Staff"}</span>
           </div>
           <div className="flex flex-col gap-1.5">
             <ThemeToggle className="h-8 w-8 border-white/15 bg-white/10 text-white" />

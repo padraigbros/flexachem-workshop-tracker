@@ -9,7 +9,7 @@ import {
 import { today, toISODate } from "../../lib/dates";
 import { Modal, ModalHeader } from "../ui/overlay";
 import { Button, cx } from "../ui/primitives";
-import { STATUS_ICON, DayPicker, CalendarLegend } from "./calendarShared";
+import { STATUS_ICON, DayPicker, CalendarLegend, statusStyle } from "./calendarShared";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -95,8 +95,8 @@ export function StaffCalendarModal({ member, open, calendar, holidays, onSetEntr
                         isSelected && "ring-2 ring-[var(--color-brand-500)]",
                       )}
                       style={available
-                        ? (tinted ? { background: meta.bg, color: "var(--ink)" } : { color: "var(--ink)" })
-                        : { color: meta.ink, background: meta.bg }}
+                        ? (tinted ? { backgroundColor: meta.bg, color: "var(--ink)" } : { color: "var(--ink)" })
+                        : statusStyle(meta)}
                     >
                       <span
                         className={cx("grid h-6 w-6 place-items-center rounded-full", isToday && "bg-[var(--color-brand-500)] font-extrabold text-white")}
