@@ -213,7 +213,10 @@ never disagree about what has run.
   is reachable only through the command palette. Adding a NON-admin item costs an admin one
   tab slot; adding an admin item after index 4 costs nothing. As of 20 Aug 2026 the admin bar
   is Dashboard · Schedule · Calendar · Staff · Job Types — Calendar took Business Units'
-  slot deliberately. Sidebar, mobile bar and palette all derive from `NAV_ITEMS`, so the
+  slot deliberately — and everyone else sees three: Dashboard · Schedule · Calendar.
+  **Before removing the last non-admin content from a page, check what that page still shows a
+  non-admin.** `/staff` was opened to all users in 4ee73f1 for the calendar and the job cards;
+  once both moved to `/calendar` it rendered blank for them, so it went back to admin-only. Sidebar, mobile bar and palette all derive from `NAV_ITEMS`, so the
   single edit is `nav.js` (plus `PAGE_META`, which supplies the Topbar `<h1>`).
 - **A Framer Motion `drag` ancestor swallows taps on its children.** The `Drawer` sheet sets
   `touch-action: pan-x`, which hands every vertical touch to the drag gesture; Framer

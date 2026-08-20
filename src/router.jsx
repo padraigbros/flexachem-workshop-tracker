@@ -50,7 +50,7 @@ export const router = createBrowserRouter([
           { index: true, element: <DashboardView /> },
           { path: "schedule", element: <ScheduleView /> },
           { path: "calendar", element: <Lazy><CalendarView /></Lazy> },
-          { path: "staff", element: <Lazy><StaffView /></Lazy> },
+          { path: "staff", element: admin(<StaffView />) },
           { path: "job-types", element: admin(<JobTypesView />) },
           { path: "customers", element: admin(<CustomersView />) },
           { path: "business-units", element: admin(<BusinessUnitsView />) },

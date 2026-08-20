@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useWorkshop } from "../state/WorkshopProvider";
 import { StaffCalendarModal } from "../components/staff/StaffCalendarModal";
 import { TeamAvailabilityView } from "../components/staff/TeamAvailabilityView";
+import { WorkloadCards } from "../components/staff/WorkloadCards";
 
 // Team Availability on its own route (moved off /staff on 20 Aug 2026). The grid was the
 // middle of three stacked sections there and was the thing people actually opened the page
@@ -21,6 +22,11 @@ export function CalendarView() {
   return (
     <div className="space-y-5">
       <TeamAvailabilityView onOpenFullCalendar={setCalendarMember} />
+
+      {/* Job cards under the grid (moved off /staff 20 Aug 2026): the grid says who is free,
+          the cards say what each of them is already carrying. WorkloadCards owns its own 60s
+          tick, so it does not re-render the grid every minute. */}
+      <WorkloadCards />
 
       <StaffCalendarModal
         member={calendarMember}

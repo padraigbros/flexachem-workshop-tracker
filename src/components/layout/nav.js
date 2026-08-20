@@ -10,13 +10,17 @@ import { LayoutDashboard, KanbanSquare, Users, Wrench, Building2, CalendarClock,
 // Business Units was pushed off that bar deliberately when Calendar took its own tab on
 // 20 Aug 2026; it remains in the desktop sidebar and the palette.
 //
+// Everyone who is NOT an admin sees three tabs: Dashboard, Schedule, Calendar. /staff went
+// back to admin-only on 20 Aug 2026 when the job cards followed the availability grid onto
+// /calendar — it had nothing left on it for a non-admin but a blank page.
+//
 // Adding a NON-admin item costs an admin one tab slot. Adding an admin item after index 4
 // costs nothing. Decide which you are doing before you add a row here.
 export const NAV_ITEMS = [
   { to: "/", label: "Dashboard", hint: "Live command centre", icon: LayoutDashboard, end: true, admin: false },
   { to: "/schedule", label: "Schedule", hint: "Drag status columns", icon: KanbanSquare, admin: false },
   { to: "/calendar", label: "Calendar", hint: "Team availability week & month", icon: CalendarRange, admin: false },
-  { to: "/staff", label: "Staff", hint: "Team roster & workload", icon: Users, admin: false },
+  { to: "/staff", label: "Staff", hint: "Team roster & invitations", icon: Users, admin: true },
   { to: "/job-types", label: "Job Types", hint: "Maintain the catalogue", icon: Wrench, admin: true },
   { to: "/business-units", label: "Business Units", hint: "Pumps, valves, mechanical seals", icon: Building2, admin: true },
   { to: "/customers", label: "Customers", hint: "Customer catalogue & reports", icon: Handshake, admin: true },
@@ -28,8 +32,8 @@ export const NAV_ITEMS = [
 export const PAGE_META = {
   "/": ["Workshop Command Centre", "Live visibility across staff, business units and due-date risk."],
   "/schedule": ["Schedule Production Board", "Drag cards between status lanes or use the quick status controls."],
-  "/calendar": ["Team Availability", "Every technician's week at a glance — set Training, Leave, Sick or Booked days."],
-  "/staff": ["Team & Workload", "The roster, and what each technician is carrying."],
+  "/calendar": ["Team Availability", "Who is free this week, and what each of them is already carrying."],
+  "/staff": ["Team Roster", "Who signs in, what they can do, and who still owes a first login."],
   "/job-types": ["Job Type Management", "Add job types, batch-move jobs, deactivate or remove unused types."],
   "/customers": ["Customer Management", "Add customers, batch-move jobs, deactivate or remove unused ones."],
   "/business-units": ["Business Unit Portfolio", "Roll up jobs by Pumps, Valves, Mechanical Seals, Process and Venting."],

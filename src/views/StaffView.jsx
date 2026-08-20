@@ -1,23 +1,13 @@
 import { useMemo, useState } from "react";
 import { UserPlus, Trash2, Star, CalendarDays, Send } from "lucide-react";
 import { useWorkshop } from "../state/WorkshopProvider";
-import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useAuthCtx } from "../state/AuthProvider";
-import { useJobDrawer } from "../state/useJobDrawer";
-import { useNow } from "../state/useNow";
 import { supabase } from "../lib/supabase";
-import { makeGroups, completedInstant, isArchived } from "../lib/jobs";
-import { buildRoster, rosterRole, rosterActive, rosterPending, isTechnicianRow } from "../lib/staff";
-import { indexEntries, holidayIndex, weekAvailableHours, weekdaysOfWeek, hoursLeftInWeek } from "../lib/calendar";
-import { today, toISODate, weekStart } from "../lib/dates";
-import { WEEK_CAPACITY, ACCOUNT_ROLES, ACCOUNT_ROLE_META } from "../lib/constants";
-import { formatHours } from "../lib/format";
-import { jobPeriodDate } from "../lib/workload";
+import { buildRoster, rosterRole, rosterActive, rosterPending } from "../lib/staff";
+import { ACCOUNT_ROLES, ACCOUNT_ROLE_META } from "../lib/constants";
 import { Card, PanelHeader, Button, Input, Select, Field, IconButton, EmptyState, Chip, cx } from "../components/ui/primitives";
-import { Avatar, Meter } from "../components/ui/dataviz";
-import { StatusChip } from "../components/ui/StatusChip";
+import { Avatar } from "../components/ui/dataviz";
 import { ConfirmDialog, Modal, ModalHeader } from "../components/ui/overlay";
-import { MiniJob } from "../components/jobs/JobBits";
 import { StaffCalendarModal } from "../components/staff/StaffCalendarModal";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -25,13 +15,10 @@ const cloud = Boolean(supabase);
 
 export function StaffView() {
   const {
-    filteredJobs: jobs, staff, accounts,
-    calendar, holidays, setCalendarEntry, inviteStaff,
-    addStaffMember, updateStaffMember, deleteStaffMember, updateAccount, setPersonRole, activePeople,
+    staff, accounts, calendar, holidays, setCalendarEntry, inviteStaff,
+    addStaffMember, updateStaffMember, deleteStaffMember, updateAccount, setPersonRole,
   } = useWorkshop();
-  const { requestStatusChange } = useStatusPrompt();
   const { user, isAdmin } = useAuthCtx();
-  const { openJob } = useJobDrawer();
 
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", role: "technician" });
@@ -40,24 +27,6 @@ export function StaffView() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [calendarMember, setCalendarMember] = useState(null);
   const [resending, setResending] = useState(null);
-
-  const groups = makeGroups(jobs, (j) => j.alloc);
-
-  // Who gets a workload card: every technician, plus whoever still holds one of the filtered
-  // jobs (including "Unassigned", which is a real bucket of work). Not the provider's `people`
-  // list any more — a demoted technician keeps their staff record so their calendar survives a
-  // change of mind, and `people` would leave them here forever as an empty card.
-  const workloadPeople = Array.from(new Set([...activePeople, ...Object.keys(groups)]))
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b));
-  const staffByName = useMemo(() => new Map(staff.map((m) => [m.name, m])), [staff]);
-
-  // Availability indexes for the per-person workload cards: a card's weekly capacity is the
-  // person's *available* hours this week (37.5h minus 7.5h per leave/training/sick/holiday
-  // day), not a flat 37.5h — so the meter reflects the calendar. Reuses the calendar helpers.
-  const entriesByKey = useMemo(() => indexEntries(calendar), [calendar]);
-  const holidaySet = useMemo(() => holidayIndex(holidays).set, [holidays]);
-  const todayISO = toISODate(today());
 
   // Unified roster: one row per person, reconciling the staff record (assignable to jobs,
   // has a calendar) with the login account (role, sign-in status). Matched by email.
@@ -229,16 +198,6 @@ export function StaffView() {
         </div>
       </Card>}
 
-      <WorkloadCards
-        people={workloadPeople}
-        groups={groups}
-        staffByName={staffByName}
-        entriesByKey={entriesByKey}
-        holidaySet={holidaySet}
-        openJob={openJob}
-        requestStatusChange={requestStatusChange}
-      />
-
       {isAdmin && <ConfirmDialog
         open={Boolean(confirmDelete)}
         title={`Remove ${confirmDelete?.name}?`}
@@ -286,73 +245,6 @@ export function StaffView() {
           </div>
         </form>
       </Modal>}
-    </div>
-  );
-}
-
-// ---- Workload cards (isolated so useNow doesn't re-render the roster/calendar) ----
-function WorkloadCards({ people, groups, staffByName, entriesByKey, holidaySet, openJob, requestStatusChange }) {
-  const liveNow = useNow(60_000);
-  const todayISO = toISODate(liveNow);
-  const thisWeekDates = useMemo(() => weekdaysOfWeek(todayISO), [todayISO]);
-  const thisWeekSet = useMemo(() => new Set(thisWeekDates), [thisWeekDates]);
-  const ws = useMemo(() => weekStart(liveNow), [todayISO]);
-
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {people.map((person) => {
-        const items = groups[person] || [];
-        const active = items.filter((j) => j.status !== "Complete");
-        const closed = items.filter((j) => j.status === "Complete" && !isArchived(j, liveNow));
-        const blocked = active.filter((j) => j.status === "Input Needed").length;
-        const member = staffByName.get(person);
-        const inactive = member && !member.active;
-
-        const estimated = active
-          .filter((j) => thisWeekSet.has(jobPeriodDate(j)))
-          .reduce((s, j) => s + Number(j.hrs || 0), 0);
-        const hrsLeft = member
-          ? hoursLeftInWeek(member.id, liveNow, entriesByKey, holidaySet)
-          : WEEK_CAPACITY;
-        const hoursComplete = closed.reduce((s, j) => s + Number(j.actualHrs || 0), 0);
-
-        return (
-          <Card key={person} className={cx(inactive && "opacity-70")}>
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <Avatar name={person} size={42} />
-                <div>
-                  <div className="flex items-center gap-2 text-[1.05rem] font-bold tracking-tight text-[var(--ink)]">{person}{inactive && <Chip>Inactive</Chip>}</div>
-                  <div className="text-[0.72rem] text-[var(--ink-muted)] tnum">{formatHours(estimated)}h of {formatHours(hrsLeft)}h week</div>
-                </div>
-              </div>
-              <StatusChip status={blocked ? "Input Needed" : active.length ? "In Progress" : "Complete"} size="sm" />
-            </div>
-            <Meter className="mb-3 h-2.5" value={(estimated / (hrsLeft || 1)) * 100} tone={estimated > hrsLeft ? "var(--danger)" : "var(--color-brand-500)"} />
-            <div className="mb-3 grid grid-cols-3 gap-2">
-              <div className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
-                <strong className="block text-[0.95rem] font-extrabold text-[var(--ink)] tnum">
-                  {active.length} <span className="text-[var(--ink-muted)]">/</span> {closed.length}
-                </strong>
-                <span className="text-[0.55rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Active / Closed</span>
-              </div>
-              <div className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
-                <strong className={cx("block text-[0.95rem] font-extrabold tnum", estimated > hrsLeft ? "text-[var(--danger)]" : "text-[var(--ink)]")}>
-                  {formatHours(estimated)} <span className="text-[var(--ink-muted)]">/</span> {formatHours(hrsLeft)}
-                </strong>
-                <span className="text-[0.55rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Est vs hrs left</span>
-              </div>
-              <div className="rounded-xl bg-[var(--surface-sunken)] p-2.5 text-center">
-                <strong className="block text-[0.95rem] font-extrabold text-[var(--ink)] tnum">{formatHours(hoursComplete)}h</strong>
-                <span className="text-[0.55rem] font-bold uppercase tracking-wider text-[var(--ink-muted)]">Hours complete</span>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              {[...active, ...closed].length ? [...active, ...closed].map((job) => <MiniJob key={job.id} job={job} onSelect={openJob} onStatus={requestStatusChange} />) : <EmptyState text="No filtered work allocated." />}
-            </div>
-          </Card>
-        );
-      })}
     </div>
   );
 }

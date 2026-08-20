@@ -203,28 +203,40 @@ code reading. `npx vite build` must pass at the end.
       that week's hours by 7.5h each. Capacity = 37.5 − 7.5×(non-available weekdays), floored
       at 0. Every SUM of those fractional figures renders through `formatHours`
       (`src/lib/format.js`) — a bare `{hours}h` will eventually print float dust.
-- [ ] **`/calendar` is its own tab** and owns the **Team Availability** grid (per-staff rows
-      × day columns, week/month toggle, filters, click/shift-click to set status; "Open full
-      calendar" opens the per-person Modal). It is open to ALL signed-in users, like `/staff`.
-      It renders no heading of its own — the Topbar `<h1>` comes from `PAGE_META["/calendar"]`.
-- [ ] **`/staff` is now two stacked sections**: the **Team roster card** (admin only), then
-      the **per-person workload cards**. The availability grid moved to `/calendar` on
-      20 Aug 2026; the per-person calendar Modal still opens from the roster row's calendar
-      icon. Editing availability on `/calendar` updates a person's workload card live.
+- [ ] **`/calendar` is its own tab, open to ALL signed-in users**, and holds TWO stacked
+      sections: the **Team Availability grid** (per-staff rows × day columns, week/month
+      toggle, filters, click/shift-click to set status; "Open full calendar" opens the
+      per-person Modal), then the **per-person workload cards** below it. The grid says who is
+      free; the cards say what each of them is already carrying. It renders no heading of its
+      own — the Topbar `<h1>` comes from `PAGE_META["/calendar"]`. Editing availability in the
+      grid updates the cards below live.
+- [ ] **`WorkloadCards` lives in `src/components/staff/WorkloadCards.jsx` and reads context
+      directly** (not props). Its `useNow(60_000)` tick MUST stay inside that component — it
+      keeps "hours left in the week" live, and hoisting it into `CalendarView` would re-render
+      the availability grid every minute for nothing. Its `thisWeekSet` memo is keyed on the
+      ISO DAY string, not on the ticking `Date`, or it rebuilds 1,440 times a day.
+      `weekdaysOfWeek` takes an ISO STRING — passing the `Date` silently returns `[]`.
+- [ ] **`/staff` is ADMIN-ONLY and holds only the Team roster card.** Guarded by
+      `RequireAdmin` in router.jsx and flagged `admin: true` in nav.js. This reverted commit
+      4ee73f1 ("Open /staff to all users") on 20 Aug 2026: once the availability grid AND the
+      job cards had both moved to `/calendar`, a non-admin landing on `/staff` saw a blank
+      page. The per-person calendar Modal still opens from the roster row's calendar icon.
+      The in-component `{isAdmin && …}` wrappers are kept deliberately as belt-and-braces —
+      if the route is ever reopened, the page degrades to empty rather than leaking the roster.
 - [ ] **The mobile tab bar shows Dashboard · Schedule · Calendar · Staff · Job Types** for an
       admin (Business Units was pushed off it by the Calendar tab and lives in the sidebar and
-      the palette), and Dashboard · Schedule · Calendar · Staff for everyone else. `MobileNav`
-      slices the first 5 admin-visible `NAV_ITEMS`, so **nav order is load-bearing** — adding
-      a non-admin item costs an admin one tab slot. On mobile there is no other menu, so
-      anything past slot 5 is reachable only through the command palette. Each card's tiles are **Active / Closed**
-      (active-job count / completed-this-week count), **Est vs hrs left** (Σ estimated `hrs` of
-      active jobs starting this week / live remaining work-hours via `hoursLeftInWeek`), and
-      **Hours complete** (Σ `actualHrs` from jobs completed this week). The capacity header/meter
-      use `estimated` vs `hrsLeft` (meter goes red when estimates exceed remaining hours — this
-      is intentional late-week behaviour). The `WorkloadCards` component isolates a `useNow(60s)`
-      timer so the 60s tick doesn't re-render the roster or calendar. The calendar's detail
-      drawer mirrors the same tiles/capacity under the heading **"This week"**, with its own
-      `useNow` that only ticks when the drawer is open.
+      the palette), and **Dashboard · Schedule · Calendar** — three tabs — for everyone else.
+      `MobileNav` slices the first 5 admin-visible `NAV_ITEMS`, so **nav order is
+      load-bearing** — adding a non-admin item costs an admin one tab slot. On mobile there is
+      no other menu, so anything past slot 5 is reachable only through the command palette.
+- [ ] **Each workload card's tiles are Active / Closed** (active-job count /
+      completed-this-week count), **Est vs hrs left** (Σ estimated `hrs` of active jobs
+      starting this week / live remaining work-hours via `hoursLeftInWeek`), and **Hours
+      complete** (Σ `actualHrs` from jobs completed this week). The capacity header/meter use
+      `estimated` vs `hrsLeft` (meter goes red when estimates exceed remaining hours — this is
+      intentional late-week behaviour). The calendar's detail drawer mirrors the same
+      tiles/capacity under the heading **"This week"**, with its own `useNow` that only ticks
+      while the drawer is open.
 - [ ] **Team Availability Hours column is two stacked figures**: `Nh BKD` over `Nh AVAIL`.
       **bkd** = hours on jobs *starting* in the shown period (`bookedHoursByName`,
       `src/lib/workload.js`), where a **Complete job counts its ACTUAL hours**, falling back to
@@ -330,7 +342,8 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Theme toggle flips instantly, persists across reload (key `flexachem_theme_v3`),
       updates `<meta theme-color>`. New visitors default to LIGHT. Signed-in users:
       toggle mirrors to `accounts.theme` via the `set_my_theme` RPC and follows the account.
-- [ ] Auth: staff-role users are redirected from admin routes (`/staff` → `/`); demo mode
+- [ ] Auth: non-admin users are redirected from admin routes (`/staff` → `/`, and `/staff` IS
+      an admin route again as of 20 Aug 2026); demo mode
       auto-grants admin; logout returns to `/login`. Desktop signs out from the sidebar card;
       **mobile** signs out from the Topbar account (avatar) sheet — the only mobile sign-out.
 - [ ] **No staff are seeded anywhere, demo or cloud.** `PEOPLE`/`DEFAULT_STAFF` in
@@ -380,7 +393,21 @@ code reading. `npx vite build` must pass at the end.
     "add new items after index 4" note in `nav.js`, which has been rewritten to explain the
     budget instead. Sidebar, mobile bar and palette all derive from `NAV_ITEMS`, so no other
     file needed touching.
-  - Android `versionCode 3 → 4` / `versionName 2.0 → 2.1` for the accompanying APK.
+  - **Second pass, same day:** the per-person **job cards moved to `/calendar` too**, under the
+    grid — capacity now reads as one page (who is free, then what they are carrying).
+    `WorkloadCards` was extracted out of StaffView into
+    `src/components/staff/WorkloadCards.jsx` and wired straight to context instead of being
+    prop-drilled. Its `useNow(60s)` tick stays inside it so the grid does not re-render every
+    minute. Two bugs caught while moving it: `weekdaysOfWeek` takes an ISO STRING (passing the
+    `Date` returns `[]` and would have silently zeroed every "Est vs hrs left"), and memoising
+    the week set on the ticking `Date` rebuilt it 1,440 times a day.
+  - **That emptied `/staff` for non-admins, so `/staff` went back to admin-only** —
+    `RequireAdmin` in router.jsx, `admin: true` in nav.js. This reverts commit 4ee73f1
+    ("Open /staff to all users"), which is correct now: the calendar and the cards it was
+    opened for have both left the page. Non-admin phone bar is now three tabs
+    (Dashboard · Schedule · Calendar); the admin bar is unchanged.
+  - Android `versionCode 3 → 5` / `versionName 2.0 → 2.2` across the two passes (4 / 2.1 was
+    built and deployed for the first pass before the cards moved).
   - The @-mention suggestion list now renders through `createPortal` onto `<body>` at fixed
     coordinates measured from the textarea, and picks on `onPointerDown` instead of
     `onMouseDown`. See the checklist item above for why — the short version is that the
