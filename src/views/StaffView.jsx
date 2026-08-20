@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { UserPlus, Trash2, Star, CalendarDays, Send, CalendarRange } from "lucide-react";
+import { UserPlus, Trash2, Star, CalendarDays, Send } from "lucide-react";
 import { useWorkshop } from "../state/WorkshopProvider";
 import { useStatusPrompt } from "../state/StatusPromptProvider";
 import { useAuthCtx } from "../state/AuthProvider";
@@ -19,7 +19,6 @@ import { StatusChip } from "../components/ui/StatusChip";
 import { ConfirmDialog, Modal, ModalHeader } from "../components/ui/overlay";
 import { MiniJob } from "../components/jobs/JobBits";
 import { StaffCalendarModal } from "../components/staff/StaffCalendarModal";
-import { TeamAvailabilityView } from "../components/staff/TeamAvailabilityView";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const cloud = Boolean(supabase);
@@ -229,18 +228,6 @@ export function StaffView() {
           }) : <EmptyState text="No one on the team yet. Use “Add person” to invite your first technician." />}
         </div>
       </Card>}
-
-      {/* Team Availability — a permanent section (was a List/Calendar toggle). */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2.5">
-          <CalendarRange size={18} className="shrink-0 text-[var(--color-brand-500)]" />
-          <div className="min-w-0">
-            <h3 className="text-[1.05rem] font-bold tracking-tight text-[var(--ink)]">Team Availability</h3>
-            <p className="text-[0.78rem] text-[var(--ink-muted)]">Every technician&apos;s week at a glance — set Training, Leave, Sick or Booked days across the team.</p>
-          </div>
-        </div>
-        <TeamAvailabilityView onOpenFullCalendar={setCalendarMember} />
-      </section>
 
       <WorkloadCards
         people={workloadPeople}

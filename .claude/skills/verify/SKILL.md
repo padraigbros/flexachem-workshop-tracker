@@ -116,6 +116,18 @@ code reading. `npx vite build` must pass at the end.
       (login accounts in cloud; staff names in demo). Picking inserts `@Full Name`; posting a
       note with a mention raises a notification (demo: a self-notification so it's testable).
       Mentioned `@Name` renders highlighted in the posted note.
+- [ ] **The suggestion list must render in a PORTAL on `<body>`, and pick on `pointerdown`.**
+      It used to render inside the composer and pick on `onMouseDown`. The composer lives in
+      the JobDrawer, which is a Framer Motion drag-to-dismiss sheet — Framer sets
+      `touch-action: pan-x` on it, so the browser handed every vertical touch to the sheet
+      gesture. A thumb tap that drifted a few pixels became a drag, Framer `preventDefault`'d
+      it, and a preventDefaulted touch emits NO compatibility mouse events, so the pick never
+      ran. It failed on some phones and not others purely on touch slop. The list was also
+      unscrollable on touch for the same reason (a `touch-action` ancestor constrains its
+      descendants), which hid candidates 4–6 — most of a 24-account roster.
+      **A Playwright tap has zero drift and passed throughout**, which is why CI never saw it.
+      `mentions.spec.js` therefore asserts the STRUCTURE, not the behaviour: the option is not
+      inside an `<aside>`, and no ancestor restricts `touch-action`. Keep both assertions.
 
 ### Customers
 - [ ] `/customers` (admin) lists the seeded catalogue: add, deactivate/reactivate, batch
@@ -191,11 +203,20 @@ code reading. `npx vite build` must pass at the end.
       that week's hours by 7.5h each. Capacity = 37.5 − 7.5×(non-available weekdays), floored
       at 0. Every SUM of those fractional figures renders through `formatHours`
       (`src/lib/format.js`) — a bare `{hours}h` will eventually print float dust.
-- [ ] `/staff` shows three stacked sections (NOT a List/Calendar toggle): the **Team roster
-      card**, then a **Team Availability** calendar section (per-staff rows × day columns,
-      week/month toggle, filters, click/shift-click to set status; "Open full calendar" opens
-      the per-person Modal), then the **per-person workload cards**. Editing availability in the
-      calendar updates a person's card live. Each card's tiles are **Active / Closed**
+- [ ] **`/calendar` is its own tab** and owns the **Team Availability** grid (per-staff rows
+      × day columns, week/month toggle, filters, click/shift-click to set status; "Open full
+      calendar" opens the per-person Modal). It is open to ALL signed-in users, like `/staff`.
+      It renders no heading of its own — the Topbar `<h1>` comes from `PAGE_META["/calendar"]`.
+- [ ] **`/staff` is now two stacked sections**: the **Team roster card** (admin only), then
+      the **per-person workload cards**. The availability grid moved to `/calendar` on
+      20 Aug 2026; the per-person calendar Modal still opens from the roster row's calendar
+      icon. Editing availability on `/calendar` updates a person's workload card live.
+- [ ] **The mobile tab bar shows Dashboard · Schedule · Calendar · Staff · Job Types** for an
+      admin (Business Units was pushed off it by the Calendar tab and lives in the sidebar and
+      the palette), and Dashboard · Schedule · Calendar · Staff for everyone else. `MobileNav`
+      slices the first 5 admin-visible `NAV_ITEMS`, so **nav order is load-bearing** — adding
+      a non-admin item costs an admin one tab slot. On mobile there is no other menu, so
+      anything past slot 5 is reachable only through the command palette. Each card's tiles are **Active / Closed**
       (active-job count / completed-this-week count), **Est vs hrs left** (Σ estimated `hrs` of
       active jobs starting this week / live remaining work-hours via `hoursLeftInWeek`), and
       **Hours complete** (Σ `actualHrs` from jobs completed this week). The capacity header/meter
@@ -347,6 +368,30 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-08-20: **Team Availability moved off `/staff` onto its own `/calendar` tab, and the
+  @-mention picker was rebuilt for touch.**
+  - `/calendar` (new `src/views/CalendarView.jsx`, lazy like the other heavy views, open to
+    all signed-in users) now owns `TeamAvailabilityView`. `/staff` keeps the roster and the
+    workload cards. The per-person calendar Modal is mounted on BOTH pages — each owns its
+    own `calendarMember` state, because neither page renders the other.
+  - `NAV_ITEMS` gained Calendar at index 2, **before** Staff. That is one of the five mobile
+    tab-bar slots, so **Business Units was pushed off the admin phone tab bar** and is now
+    reachable there only via the command palette. This deliberately contradicts the old
+    "add new items after index 4" note in `nav.js`, which has been rewritten to explain the
+    budget instead. Sidebar, mobile bar and palette all derive from `NAV_ITEMS`, so no other
+    file needed touching.
+  - Android `versionCode 3 → 4` / `versionName 2.0 → 2.1` for the accompanying APK.
+  - The @-mention suggestion list now renders through `createPortal` onto `<body>` at fixed
+    coordinates measured from the textarea, and picks on `onPointerDown` instead of
+    `onMouseDown`. See the checklist item above for why — the short version is that the
+    drawer's drag gesture was eating the tap on real phones while every synthetic test tap
+    passed. Options also grew to a 44px touch target (`pointer-coarse:py-2.5`).
+  - NOT changed, deliberately: the `interactive-widget=resizes-content` viewport hint. On
+    Android Chrome the layout viewport does not shrink for the on-screen keyboard, so a
+    `position: fixed` composer can sit behind it. That is a real, separate issue, but it
+    would change fixed-element layout on every Android browser session app-wide, and the
+    composer being reachable at all (people could type, just not pick) says it is not what
+    was reported. Revisit on its own if note-composing turns out to be awkward on Android.
 - 2026-08-10: **Workload card tiles redesigned from Assigned/Estimated/Actual to
   Active/Closed, Est vs hrs left, Hours complete.** The old tiles were static open-job
   aggregates. The new tiles track the current week: Active = non-Complete jobs, Closed =

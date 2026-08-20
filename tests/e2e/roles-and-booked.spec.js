@@ -33,6 +33,10 @@ test("Booked is settable on the availability grid and costs the day's hours", as
 
   await addStaffMember(page, "Ivan Toft", "ivan.toft@flexachem.com");
 
+  // The availability grid lives on its own /calendar tab since 20 Aug 2026 (addStaffMember
+  // leaves the page on /staff, which now shows only the roster and the workload cards).
+  await page.goto("/calendar");
+
   // Assertions go through the cells' own tooltips (cellTooltip / the Hours column title), which
   // carry the derived numbers rather than re-deriving them in the spec.
   await expect(page.getByTitle("0h booked · 37.5h available of 37.5h capacity")).toBeVisible();

@@ -27,7 +27,7 @@ export async function addStaffMember(page, name, email) {
 }
 
 // All app routes, used by the layout-invariant sweep.
-export const ROUTES = ["/", "/schedule", "/staff", "/job-types", "/customers", "/business-units", "/due-dates", "/master-list", "/accuracy"];
+export const ROUTES = ["/", "/schedule", "/calendar", "/staff", "/job-types", "/customers", "/business-units", "/due-dates", "/master-list", "/accuracy"];
 
 // Assert the page itself never scrolls horizontally (only inner scrollers may).
 export async function expectNoHorizontalScroll(page) {

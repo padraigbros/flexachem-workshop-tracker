@@ -208,6 +208,21 @@ never disagree about what has run.
 - Match the surrounding code's comment density and idiom. Comments here explain *why*,
   especially where a naive change would reintroduce a fixed bug — keep that convention.
 - All colour via semantic tokens; no raw hex in `src/**/*.jsx`.
+- **Nav order is a budget too.** `MobileNav` renders the first FIVE admin-visible
+  `NAV_ITEMS`, and mobile — including the APK — has no other menu, so anything past slot 5
+  is reachable only through the command palette. Adding a NON-admin item costs an admin one
+  tab slot; adding an admin item after index 4 costs nothing. As of 20 Aug 2026 the admin bar
+  is Dashboard · Schedule · Calendar · Staff · Job Types — Calendar took Business Units'
+  slot deliberately. Sidebar, mobile bar and palette all derive from `NAV_ITEMS`, so the
+  single edit is `nav.js` (plus `PAGE_META`, which supplies the Topbar `<h1>`).
+- **A Framer Motion `drag` ancestor swallows taps on its children.** The `Drawer` sheet sets
+  `touch-action: pan-x`, which hands every vertical touch to the drag gesture; Framer
+  `preventDefault`s it, and a preventDefaulted touch emits NO compatibility mouse events. Any
+  popover inside a drawer must therefore render through `createPortal` on `<body>` and act on
+  `pointerdown`, never `onMouseDown` — and a `touch-action` ancestor also kills native
+  scrolling in any list beneath it. This is what broke @-mentions on phones (fixed 20 Aug
+  2026, `MentionTextarea.jsx`). **A Playwright tap has zero drift and passes either way**, so
+  assert the structure, not the tap.
 - **Fixed grid tracks are a budget, and `minmax(0,1fr)` pays for them.** A `1fr` column will
   collapse to zero rather than force overflow, so every pixel added to a fixed track is taken
   from the flexible one — silently, and only at narrow widths. Anything added to a row of

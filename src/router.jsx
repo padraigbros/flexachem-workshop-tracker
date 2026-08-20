@@ -11,6 +11,7 @@ import { ScheduleView } from "./views/ScheduleView";
 import { Skeleton } from "./components/ui/primitives";
 
 // Heavy views are code-split so they are only downloaded when visited.
+const CalendarView = lazy(() => import("./views/CalendarView").then((m) => ({ default: m.CalendarView })));
 const StaffView = lazy(() => import("./views/StaffView").then((m) => ({ default: m.StaffView })));
 const JobTypesView = lazy(() => import("./views/JobTypesView").then((m) => ({ default: m.JobTypesView })));
 const CustomersView = lazy(() => import("./views/CustomersView").then((m) => ({ default: m.CustomersView })));
@@ -48,6 +49,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardView /> },
           { path: "schedule", element: <ScheduleView /> },
+          { path: "calendar", element: <Lazy><CalendarView /></Lazy> },
           { path: "staff", element: <Lazy><StaffView /></Lazy> },
           { path: "job-types", element: admin(<JobTypesView />) },
           { path: "customers", element: admin(<CustomersView />) },
