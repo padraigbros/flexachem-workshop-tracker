@@ -436,6 +436,7 @@ code reading. `npx vite build` must pass at the end.
     most of a 25-account roster most weeks, which pushed the people actually holding work below
     the fold. An EmptyState covers the case where a filter hides every card. New
     `tests/e2e/workload-cards.spec.js`; cards gained `data-workload-card="<name>"`.
+    Shipped in `fd61f69` together with the fourth pass.
   - **Fourth pass — the silent admin downgrade.** Reported as "why can I only see two tabs on
     my phone?". A ~3-week-old cached bundle was still requesting the `profiles` table that
     migration 002 dropped; `AuthProvider` discarded that read's error and fell back to
@@ -447,7 +448,8 @@ code reading. `npx vite build` must pass at the end.
     the device fixed it. **This fix does not rescue already-stale clients** — they have to load
     it first. It makes the NEXT occurrence loud instead of silent.
   - Android `versionCode 3 → 6` / `versionName 2.0 → 2.3` across the passes (4 / 2.1 and
-    5 / 2.2 were built and deployed earlier in the day).
+    5 / 2.2 were built and deployed earlier in the day). All three releases are recorded with
+    their commit, deployment id and verified entry chunk in **CLAUDE.md §9 Release log**.
   - The @-mention suggestion list now renders through `createPortal` onto `<body>` at fixed
     coordinates measured from the textarea, and picks on `onPointerDown` instead of
     `onMouseDown`. See the checklist item above for why — the short version is that the

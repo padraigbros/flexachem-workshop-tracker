@@ -236,7 +236,7 @@ never disagree about what has run.
   from the flexible one — silently, and only at narrow widths. Anything added to a row of
   fixed slots has to earn its width, and has to be re-measured at 1280 (§3).
 
-## 8. Open items (as of 31 Jul 2026)
+## 8. Open items (as of 21 Aug 2026)
 
 Carried forward deliberately, not forgotten. Confirm each is still true before acting.
 
@@ -261,6 +261,57 @@ Carried forward deliberately, not forgotten. Confirm each is still true before a
 6. `VITE_SENTRY_DSN` on Vercel is flagged Sensitive, so its value can't be read back in the
    dashboard. Harmless — a DSN ships in the client bundle anyway — but don't waste time
    hunting for the value there; get it from the Sentry connector.
+7. **The shop is being handed DEBUG APKs.** `npm run apk` builds `assembleDebug`, and that is
+   what has shipped to date. `android/keystore.properties` exists, so a signed build is one
+   command away (`cd android; ./gradlew assembleRelease`, or `bundleRelease` for an AAB).
+   Decide which the phones should actually run — a debug build is debuggable and slower.
+8. **`npm run test:cloud` has two long-standing cold-start flakies** in `edit-failure.spec.js`
+   / `write-failure.spec.js` — the first spec to navigate hits a preview server that was just
+   rebuilt, times out once, and passes on retry. Confirmed pre-existing on 20 Aug by stashing
+   all local work and re-running against unmodified `main`, where it was WORSE (1 failed +
+   2 flaky). Exit code is 0. Do not chase it as a regression; fix the warm-up if it annoys.
 - Every Supabase mutation returns `{ ok, error, message }` and rolls back its optimistic
   update on failure (`runWrite`, `src/lib/writes.js`). A write returning `undefined` cannot
   tell its caller it failed — do not add one.
+
+## 9. Release log
+
+Production deploys from `main` via the Vercel GitHub integration — push to `main` IS the
+deploy. Verify a release by fetching the deployed bundle, not by trusting the build log:
+read `/index.html` for the entry chunk, then grep that chunk for a string only the new code
+contains. Every row below was verified that way.
+
+| Commit | APK | Vercel deployment | Entry chunk | Shipped |
+| --- | --- | --- | --- | --- |
+| `1ef7133` | 4 / 2.1 | `dpl_As5rZhW541QtTENJJTD9crFc1QUL` | `index-CHZbB2OT.js` | Team Availability onto its own `/calendar` tab; @-mention picker rebuilt for touch |
+| `9d513b8` | 5 / 2.2 | `dpl_8VqUrt4bGLxhbyyvJ2p58b7KxE1L` | `index-D3UXYDFT.js` | Job cards moved to `/calendar`; `/staff` back to admin-only |
+| `fd61f69` | 6 / 2.3 | `dpl_CR3fkqGbGfpEpyMveB5AsjymcqAF` | `index-CZGliNJJ.js` | Empty workload cards hidden; failed role lookup no longer downgrades an admin |
+
+Detailed per-change behaviour notes live in `.claude/skills/verify/SKILL.md` under **Known
+intentional behaviour changes** — that is the changelog, this table is just the shipping record.
+
+### The 20 Aug 2026 silent admin downgrade — read this before touching auth
+
+Reported as *"why can I only see two tabs on my phone?"*. Worth keeping because the shape of
+it will recur.
+
+- **Symptom:** an admin's phone showed a two-item nav bar, no New button and no FAB. The
+  database said `role: admin, active, onboarded` the entire time.
+- **Cause, two layers.** The device held a ~3-week-old cached bundle, from before the client
+  switched from `profiles` to `accounts` (`938bc9b`, 30 Jul). It asked for `profiles`, which
+  migration 002 dropped — confirmed `to_regclass('public.profiles')` is null. `AuthProvider`
+  then **discarded that read's error** (`const { data: account } = await …`) and fell back to
+  `role: account?.role || "staff"`. A failed read silently became a privilege downgrade.
+- **Diagnosing it without the device:** the non-admin tab set is a fingerprint for build
+  vintage. `git show <commit>:src/components/layout/nav.js` and count `admin: false` entries —
+  two tabs meant pre-`4ee73f1`, which dated the bundle to before 12 Aug on its own.
+- **Fixed in `fd61f69`:** the lookup destructures `error`, retries twice, reports to Sentry,
+  raises a stable-id persistent toast, and leaves `role` **null** rather than asserting
+  `"staff"`. Still fails closed; it just says so now.
+- **The fix cannot rescue an already-stale client** — it has to load the new bundle first.
+  Stale devices are cleared with Chrome → Settings → Site settings → All sites → the site →
+  **Clear & reset**.
+- **The service worker was NOT at fault.** The deployed `sw.js` was checked and is correct:
+  top-level `skipWaiting()` + `clientsClaim()`, no prompt-style `SKIP_WAITING` handler, and a
+  precache manifest naming the current entry chunk. If a device goes stale again *after* a
+  clean reload, that is new information and means the update path really is broken.
