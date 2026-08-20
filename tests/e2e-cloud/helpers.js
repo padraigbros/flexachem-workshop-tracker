@@ -40,7 +40,7 @@ const ADMIN_PROFILE = {
 // Sign in as an admin without touching the network, and answer every read with an empty
 // table. `onInsertJob` decides what POST /rest/v1/jobs returns — that is the whole point of
 // this suite.
-export async function seedCloudSession(page, { onInsertJob, onPatchJob, jobs = [], alertCalls }) {
+export async function seedCloudSession(page, { onInsertJob, onPatchJob, jobs = [], alertCalls, accountsStatus } = {}) {
   await page.addInitScript(
     ({ key, session }) => localStorage.setItem(key, JSON.stringify(session)),
     { key: AUTH_STORAGE_KEY, session: sessionFixture() },
@@ -75,6 +75,17 @@ export async function seedCloudSession(page, { onInsertJob, onPatchJob, jobs = [
     if (method === "PATCH" && table === "jobs" && onPatchJob) return onPatchJob(route, request);
 
     if (method === "GET") {
+      // `accountsStatus` makes the role lookup fail. That read used to discard its error and
+      // fall back to `role: "staff"`, so a broken lookup silently stripped a live admin of
+      // every admin control with no message anywhere — see AuthProvider.fetchAccount.
+      if (table === "accounts" && accountsStatus) {
+        return route.fulfill({
+          status: accountsStatus,
+          contentType: "application/json",
+          headers: { "access-control-allow-origin": "*" },
+          body: JSON.stringify({ code: "42P01", message: 'relation "public.accounts" does not exist' }),
+        });
+      }
       const body = table === "accounts" ? [ADMIN_PROFILE] : table === "jobs" ? jobs : [];
       // PostgREST returns a bare object (not an array) when the client asks for one row.
       const single = (request.headers()["accept"] || "").includes("vnd.pgrst.object");

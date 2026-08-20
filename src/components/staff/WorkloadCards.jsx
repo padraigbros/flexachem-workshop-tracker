@@ -55,12 +55,35 @@ export function WorkloadCards() {
 
   const thisWeekSet = useMemo(() => new Set(weekdaysOfWeek(todayISO)), [todayISO]);
 
+  // One card per person who actually has something to show. Anyone whose Active / Closed tile
+  // would read 0 / 0 is dropped rather than rendered as an empty placeholder: there are 25
+  // accounts on the books, so most weeks put a screen of "No filtered work allocated" between
+  // the reader and the people genuinely carrying work. Nobody disappears from the PAGE by
+  // doing this — the availability grid directly above still lists every technician, working
+  // or not. That is the whole reason this is safe to hide here and would not be on /staff.
+  //
+  // `closed` is already scoped to this week (isArchived treats anything completed before the
+  // most recent Sunday-00:00 boundary as archived). `active` deliberately is NOT scoped: an
+  // open job due next month still means that person is carrying work, and week-scoping it
+  // here would hide them from a page whose entire job is showing who is loaded.
+  const cards = people
+    .map((person) => {
+      const items = groups[person] || [];
+      return {
+        person,
+        active: items.filter((j) => j.status !== "Complete"),
+        closed: items.filter((j) => j.status === "Complete" && !isArchived(j, liveNow)),
+      };
+    })
+    .filter(({ active, closed }) => active.length > 0 || closed.length > 0);
+
+  // Every card hidden is a real state — an over-narrow filter, or a genuinely quiet week.
+  // Say so, rather than leaving a blank gap under the grid that reads as a broken page.
+  if (!cards.length) return <EmptyState text="Nobody is carrying work that matches the current filters." />;
+
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {people.map((person) => {
-        const items = groups[person] || [];
-        const active = items.filter((j) => j.status !== "Complete");
-        const closed = items.filter((j) => j.status === "Complete" && !isArchived(j, liveNow));
+      {cards.map(({ person, active, closed }) => {
         const blocked = active.filter((j) => j.status === "Input Needed").length;
         const member = staffByName.get(person);
         const inactive = member && !member.active;
@@ -74,7 +97,7 @@ export function WorkloadCards() {
         const hoursComplete = closed.reduce((s, j) => s + Number(j.actualHrs || 0), 0);
 
         return (
-          <Card key={person} className={cx(inactive && "opacity-70")}>
+          <Card key={person} data-workload-card={person} className={cx(inactive && "opacity-70")}>
             <div className="mb-3 flex items-start justify-between gap-2">
               <div className="flex items-center gap-2.5">
                 <Avatar name={person} size={42} />

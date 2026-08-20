@@ -229,6 +229,20 @@ code reading. `npx vite build` must pass at the end.
       `MobileNav` slices the first 5 admin-visible `NAV_ITEMS`, so **nav order is
       load-bearing** — adding a non-admin item costs an admin one tab slot. On mobile there is
       no other menu, so anything past slot 5 is reachable only through the command palette.
+- [ ] **A person with 0 active AND 0 closed-this-week jobs gets NO card.** Only people
+      actually carrying work are rendered; an empty 0 / 0 placeholder card is a bug. Note the
+      asymmetry, which is deliberate: `closed` is week-scoped (`isArchived` treats anything
+      completed before the most recent Sunday-00:00 boundary as archived) but `active` is NOT
+      — an open job due next month still means that person is loaded, and week-scoping it
+      would hide them from the one page whose job is showing who is loaded.
+      This is only safe because the **availability grid directly above still lists every
+      technician**, so nobody disappears from the page — `workload-cards.spec.js` asserts
+      exactly that. Do not copy this hiding into a page that has no such grid.
+      Cards carry `data-workload-card="<name>"` as the test hook.
+- [ ] **When every card is filtered out, an EmptyState says so** ("Nobody is carrying work
+      that matches the current filters."). A blank gap under the grid reads as a broken page.
+      The layout sweep does not cover this state (it never applies a filter) — if you change
+      the empty branch, re-check `main.scrollWidth <= main.clientWidth` at 1280 by hand.
 - [ ] **Each workload card's tiles are Active / Closed** (active-job count /
       completed-this-week count), **Est vs hrs left** (Σ estimated `hrs` of active jobs
       starting this week / live remaining work-hours via `hoursLeftInWeek`), and **Hours
@@ -342,6 +356,17 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Theme toggle flips instantly, persists across reload (key `flexachem_theme_v3`),
       updates `<meta theme-color>`. New visitors default to LIGHT. Signed-in users:
       toggle mirrors to `accounts.theme` via the `set_my_theme` RPC and follows the account.
+- [ ] **A FAILED account lookup must never silently downgrade a role.** `AuthProvider`
+      destructures `error` from the `accounts` read, retries it twice, and on a real failure
+      reports to Sentry (`captureAuthFailure`, action `account-lookup`) and raises a
+      persistent toast — "Couldn't load your account permissions". `role` stays **null** on
+      error and falls back to `"staff"` ONLY when the query succeeded and genuinely returned
+      no row. It still fails CLOSED (null is not admin); the point is that it says so.
+      The toast carries a **stable id** because `applySession` runs from `getSession()` AND
+      from every `onAuthStateChange` event — without it a `duration: Infinity` toast stacks a
+      permanent copy per auth event. **Demo mode cannot test any of this** (`supabase === null`
+      skips the whole branch), which is why it hid for weeks — it is covered only by
+      `tests/e2e-cloud/account-lookup-failure.spec.js` (`seedCloudSession({ accountsStatus })`).
 - [ ] Auth: non-admin users are redirected from admin routes (`/staff` → `/`, and `/staff` IS
       an admin route again as of 20 Aug 2026); demo mode
       auto-grants admin; logout returns to `/login`. Desktop signs out from the sidebar card;
@@ -406,8 +431,23 @@ code reading. `npx vite build` must pass at the end.
     ("Open /staff to all users"), which is correct now: the calendar and the cards it was
     opened for have both left the page. Non-admin phone bar is now three tabs
     (Dashboard · Schedule · Calendar); the admin bar is unchanged.
-  - Android `versionCode 3 → 5` / `versionName 2.0 → 2.2` across the two passes (4 / 2.1 was
-    built and deployed for the first pass before the cards moved).
+  - **Third pass:** workload cards for people with **no active and no closed-this-week jobs are
+    hidden entirely** rather than rendered as empty 0 / 0 placeholders. In production that is
+    most of a 25-account roster most weeks, which pushed the people actually holding work below
+    the fold. An EmptyState covers the case where a filter hides every card. New
+    `tests/e2e/workload-cards.spec.js`; cards gained `data-workload-card="<name>"`.
+  - **Fourth pass — the silent admin downgrade.** Reported as "why can I only see two tabs on
+    my phone?". A ~3-week-old cached bundle was still requesting the `profiles` table that
+    migration 002 dropped; `AuthProvider` discarded that read's error and fell back to
+    `role: "staff"`, so a live admin rendered as staff with no signal of any kind. Fixed: the
+    lookup retries twice, reports to Sentry, raises a persistent (stable-id) toast, and leaves
+    `role` null rather than asserting "staff" it never read. The stale bundle itself was a
+    client-side cache — the deployed `sw.js` was verified correct (top-level `skipWaiting()`
+    + `clientsClaim()`, manifest pointing at the current entry chunk); clearing site data on
+    the device fixed it. **This fix does not rescue already-stale clients** — they have to load
+    it first. It makes the NEXT occurrence loud instead of silent.
+  - Android `versionCode 3 → 6` / `versionName 2.0 → 2.3` across the passes (4 / 2.1 and
+    5 / 2.2 were built and deployed earlier in the day).
   - The @-mention suggestion list now renders through `createPortal` onto `<body>` at fixed
     coordinates measured from the textarea, and picks on `onPointerDown` instead of
     `onMouseDown`. See the checklist item above for why — the short version is that the

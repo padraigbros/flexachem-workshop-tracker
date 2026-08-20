@@ -226,6 +226,11 @@ never disagree about what has run.
   scrolling in any list beneath it. This is what broke @-mentions on phones (fixed 20 Aug
   2026, `MentionTextarea.jsx`). **A Playwright tap has zero drift and passes either way**, so
   assert the structure, not the tap.
+- **Never let a failed read decide a permission level.** `const { data } = await supabase...`
+  discards the error, and a `|| "staff"` fallback behind it turns any failure into a silent
+  privilege downgrade — which is how a stale cached bundle rendered a live admin as staff on
+  20 Aug 2026 with no toast, banner or Sentry event. Destructure `error`, retry, report, and
+  fall back to a role ONLY when the query genuinely returned no row. Fail closed, but say so.
 - **Fixed grid tracks are a budget, and `minmax(0,1fr)` pays for them.** A `1fr` column will
   collapse to zero rather than force overflow, so every pixel added to a fixed track is taken
   from the flexible one — silently, and only at narrow widths. Anything added to a row of
