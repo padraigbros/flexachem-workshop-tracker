@@ -279,13 +279,26 @@ Carried forward deliberately, not forgotten. Confirm each is still true before a
 Production deploys from `main` via the Vercel GitHub integration — push to `main` IS the
 deploy. Verify a release by fetching the deployed bundle, not by trusting the build log:
 read `/index.html` for the entry chunk, then grep that chunk for a string only the new code
-contains. Every row below was verified that way.
+contains. Rows 2 and 3 were verified that way; row 1 was only checked as far as the route
+resolving and the chunk being served — stated so the table is not trusted further than it
+earned.
+
+**Watch out when grepping a built bundle:** there are several `assets/index-*.js` files and
+most of them are tiny. `head -1` picks one of those, not the entry, and you get a confident
+zero for code that is present. Search every chunk, or take the entry named by `index.html`.
+The APK's hashes differ from the web deploy's for the same commit because the local build
+reads `.env.local` while Vercel builds with its own env — that difference is expected.
 
 | Commit | APK | Vercel deployment | Entry chunk | Shipped |
 | --- | --- | --- | --- | --- |
 | `1ef7133` | 4 / 2.1 | `dpl_As5rZhW541QtTENJJTD9crFc1QUL` | `index-CHZbB2OT.js` | Team Availability onto its own `/calendar` tab; @-mention picker rebuilt for touch |
 | `9d513b8` | 5 / 2.2 | `dpl_8VqUrt4bGLxhbyyvJ2p58b7KxE1L` | `index-D3UXYDFT.js` | Job cards moved to `/calendar`; `/staff` back to admin-only |
 | `fd61f69` | 6 / 2.3 | `dpl_CR3fkqGbGfpEpyMveB5AsjymcqAF` | `index-CZGliNJJ.js` | Empty workload cards hidden; failed role lookup no longer downgrades an admin |
+
+`90b3465` (this log itself) also deployed, as every push to `main` does, but is
+documentation-only: the live entry chunk stayed `index-CZGliNJJ.js`, i.e. a byte-identical
+app. Only rows that change the app get an entry above, and a docs-only push needs no APK
+rebuild — Gradle correctly leaves the existing artifact in place.
 
 Detailed per-change behaviour notes live in `.claude/skills/verify/SKILL.md` under **Known
 intentional behaviour changes** — that is the changelog, this table is just the shipping record.
