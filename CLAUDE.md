@@ -322,7 +322,8 @@ reads `.env.local` while Vercel builds with its own env — that difference is e
 | `1ef7133` | 4 / 2.1 | `dpl_As5rZhW541QtTENJJTD9crFc1QUL` | `index-CHZbB2OT.js` | Team Availability onto its own `/calendar` tab; @-mention picker rebuilt for touch |
 | `9d513b8` | 5 / 2.2 | `dpl_8VqUrt4bGLxhbyyvJ2p58b7KxE1L` | `index-D3UXYDFT.js` | Job cards moved to `/calendar`; `/staff` back to admin-only |
 | `fd61f69` | 6 / 2.3 | `dpl_CR3fkqGbGfpEpyMveB5AsjymcqAF` | `index-CZGliNJJ.js` | Empty workload cards hidden; failed role lookup no longer downgrades an admin |
-| `7640d59` | 7 / 2.4 | **web not pushed**; AAB live on Play internal testing 25 Aug | `index-BUOhTOOg.js` (APK/AAB) | Sentry live in the Android build for the first time + `platform` tag; first AAB carrying the Calendar tab and the three-role design |
+| `7640d59` | 7 / 2.4 | AAB live on Play internal testing 25 Aug | `index-BUOhTOOg.js` (APK/AAB) | Sentry live in the Android build for the first time + `platform` tag; first AAB carrying the Calendar tab and the three-role design |
+| `44a97f9` | — | `dpl_FrHPFb9zMFJf5kpaPoqCMm34F9X9` | `index-CkpgZsod.js` | The web half of the same change: `platform` tag on every browser event. Docs otherwise |
 
 The `7640d59` row is the ANDROID release. It has NOT been pushed, so the website is still
 serving `index-CZGliNJJ.js` from `fd61f69` — the entry chunk named there is the one inside the
@@ -330,6 +331,10 @@ APK and AAB, verified by unzipping each artifact rather than by reading a build 
 will also deploy the web app, because `src/lib/monitoring.js` changed (the `platform` tag):
 expect a new web entry chunk and a `platform:web` tag on every browser event. Fill in the
 deployment id and re-verify the live chunk when that happens.
+
+Both halves are now live. The web deploy was verified the §9 way — polled `/index.html` until
+the entry chunk changed off `index-CZGliNJJ.js`, fetched `index-CkpgZsod.js`, and grepped it
+for `platform",xn?"android`, the one string only this deploy contains. Present.
 
 **Play, 25 Aug 2026.** The AAB was uploaded and published to **Internal testing** as release
 `7 (2.4)`, and the track — which had been **paused** since before this session — was resumed.
