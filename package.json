@@ -17,6 +17,8 @@
           "test:cloud": "playwright test --config=playwright.cloud.config.js",
           "build:android": "vite build && cap sync android",
           "apk": "npm run build:android && cd android && .\\gradlew assembleDebug",
+          "apk:release": "npm run build:android && cd android && .\\gradlew assembleRelease",
+          "aab": "npm run build:android && cd android && .\\gradlew bundleRelease",
           "open:android": "cap open android"
      },
      "dependencies": {

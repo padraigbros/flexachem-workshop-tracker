@@ -406,6 +406,28 @@ code reading. `npx vite build` must pass at the end.
 - [ ] Zero console errors across Dashboard, Schedule, Master List, drawer open/close.
 
 ## Known intentional behaviour changes (log them here)
+- 2026-08-25: **Sentry is live in the Android build for the first time, and every report is
+  tagged with its platform.**
+  - Cause: `VITE_SENTRY_DSN` is set on Vercel but was never in `.env.local`, and the APK bakes
+    in `.env.local`. So **every APK ever shipped had monitoring inert** — including `fd61f69`,
+    whose entire purpose is reporting a failed role lookup, and whose incident happened on a
+    phone. Proof it was truly absent, not just quiet: the `sentry-*.js` chunk was **11,497
+    bytes** before (Rollup tree-shakes the SDK when the DSN is a literal `undefined`) and is
+    **88,796** after — matching the live web bundle's 88,755 to within the anon-key delta.
+  - `initMonitoring()` now sets `Sentry.setTag("platform", isNative ? "android" : "web")`.
+    Web and the APK are one bundle with one `environment`, so without the tag a crash on a
+    shop phone is indistinguishable from a desktop one. **Filter on `platform:android`.**
+  - **`.env.test` and `.env.e2e-cloud` now pin `VITE_SENTRY_DSN=` empty.** Vite loads
+    `.env.local` in EVERY mode, so adding the DSN silently armed Sentry in both Playwright
+    suites and pointed local test runs at the production project — breaking the "suites stay
+    completely offline" promise in `monitoring.js`. An absent key does NOT reset an inherited
+    one; only an explicit empty override does. Verified by grepping `dist/` and
+    `dist-e2e-cloud/` for `ingest.de.sentry.io` (1 hit before the fix, 0 after).
+  - No UI, role or navigation behaviour changed. The Calendar tab and the three-role design
+    reached Android purely by rebuilding — the APK is `vite build` + `cap sync` over the same
+    `src/`, so there was never any mobile-specific role logic to port.
+  - Android `versionCode 6 → 7` / `versionName 2.3 → 2.4`, and the shop moved from sideloaded
+    debug APKs to Play internal testing (CLAUDE.md §8 item 7).
 - 2026-08-20: **Team Availability moved off `/staff` onto its own `/calendar` tab, and the
   @-mention picker was rebuilt for touch.**
   - `/calendar` (new `src/views/CalendarView.jsx`, lazy like the other heavy views, open to

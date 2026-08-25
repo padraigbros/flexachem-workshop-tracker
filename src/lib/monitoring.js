@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react";
+import { isNative } from "./native";
 
 // Error monitoring.
 //
@@ -57,6 +58,11 @@ export function initMonitoring() {
       return event;
     },
   });
+
+  // Web and the APK are ONE bundle with one `environment`, so without this a crash on a shop
+  // phone is indistinguishable from one in a desktop browser — and the phones are exactly
+  // where the 20 Aug role-lookup failure surfaced. Filter on `platform:android` in Sentry.
+  Sentry.setTag("platform", isNative ? "android" : "web");
 }
 
 // Tie errors to a person. This is an internal tool with named staff, so knowing an error only

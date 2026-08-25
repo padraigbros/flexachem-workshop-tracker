@@ -53,22 +53,60 @@ npm run open:android
 
 ## Release (signed) APK / AAB
 
-1. Create a keystore (keep it safe and **out of git** — `.gitignore` already excludes `*.keystore`):
-   ```powershell
-   keytool -genkeypair -v -keystore flexachem.keystore -alias flexachem -keyalg RSA -keysize 2048 -validity 10000
-   ```
-2. Create `android/keystore.properties` (also git-ignored):
-   ```
-   storeFile=../../flexachem.keystore
-   storePassword=<password>
-   keyAlias=flexachem
-   keyPassword=<password>
-   ```
-3. Reference it from a `signingConfigs.release` block in `android/app/build.gradle`, then:
-   ```powershell
-   cd android; .\gradlew assembleRelease   # APK
-   cd android; .\gradlew bundleRelease      # AAB for the Play Store
-   ```
+The keystore and `android/keystore.properties` already exist on this machine, and
+`signingConfigs.release` in `android/app/build.gradle` reads them. **Back `flexachem.keystore`
+up somewhere off this machine** — since it is now also the Play *app signing* key (below),
+losing it is unrecoverable.
+
+**Both shipping artifacts must come off ONE `cap sync`**, or they are two different apps
+wearing the same version number:
+
+```powershell
+$env:VITE_COMMIT_SHA = (git rev-parse --short HEAD); npm run build:android
+cd android; .\gradlew assembleRelease bundleRelease
+```
+
+- `android\app\build\outputs\bundle\release\app-release.aab` → Play
+- `android\app\build\outputs\apk\release\Flexachem.apk` → sideload fallback
+
+`VITE_COMMIT_SHA` becomes Sentry's `release` (Vercel sets it for the web build), so a mobile
+crash says which commit it came from. `npm run apk:release` and `npm run aab` wrap the same
+thing for a single artifact.
+
+**Bump `versionCode` in `android/app/build.gradle` before every Play upload** — Play rejects a
+duplicate. Gaps are harmless.
+
+### Verify the artifact, not the build log
+
+1. `output-metadata.json` next to the APK must show the versionCode/Name you expect; for the
+   AAB read it back (`bundletool dump manifest`) rather than assuming it inherited.
+2. Unzip and take the entry chunk **named by `assets/public/index.html`** — there are several
+   tiny `assets/index-*.js` files and grepping the wrong one gives a confident zero. It must
+   contain the production project ref and, since 2.4, `ingest.de.sentry.io`.
+3. `apksigner verify --print-certs` on the release APK → `CN=Flexachem Workshop`,
+   SHA-256 `95150bc3…b274c0fd`. This must match what Play holds, or Play builds and
+   sideloaded builds stop being interchangeable.
+
+### Google Play — internal testing
+
+The app is distributed to the shop through the **Internal testing** track (up to 100 testers,
+no review wait, no public listing).
+
+1. **Play App Signing: "use an existing key from a Java keystore".** Play supplies a `pepk.jar`
+   command; run it yourself — it takes the keystore password. This is what makes the Play build
+   and the sideloaded release APK interchangeable. Letting Play generate its own key instead
+   would mean a second uninstall on every phone to migrate.
+2. Testing → Internal testing → new release → upload the AAB → add tester emails → roll out.
+   Testers accept the opt-in link with the Google account signed in on the phone.
+3. Privacy policy URL (required, already public and unauthenticated):
+   `https://flexachem-workshop-tracker.vercel.app/privacy`
+4. Store listing and screenshots do not block an internal-testing rollout.
+
+**A debug APK cannot be upgraded to a release APK** — different signing keys, so Android
+refuses. Moving a phone off a debug build needs an uninstall first, which clears the WebView's
+localStorage: the user is signed out and their theme resets. Job data is in Supabase and is
+unaffected. Warn people before, and do not uninstall anything until the Play release is live
+and verified.
 
 ## Push notifications (Android FCM) — optional
 

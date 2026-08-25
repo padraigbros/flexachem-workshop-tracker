@@ -69,6 +69,15 @@ Writes to production are the one place to slow down.
 
 ## 3. Verification — what actually proves something
 
+- **`.env.local` is loaded in EVERY Vite mode, so a secret-shaped value leaks into the test
+  builds.** Only a mode file (`.env.test`, `.env.e2e-cloud`) can override it, and the override
+  must be written explicitly — an absent key does not reset it. On 25 Aug 2026 adding
+  `VITE_SENTRY_DSN` to `.env.local` for the APK silently armed Sentry in BOTH Playwright
+  suites, so every local run reported to the PRODUCTION Sentry project, contradicting the
+  "stays completely offline" contract written in `src/lib/monitoring.js` itself. Both mode
+  files now pin `VITE_SENTRY_DSN=` empty, the same idiom `.env.test` already used for the
+  Supabase vars. **Adding any key to `.env.local` means checking what it does to the suites** —
+  grep the built `dist/` and `dist-e2e-cloud/` for the value, do not reason about it.
 - **Demo mode proves nothing about the database.** `.env.test` leaves the Supabase vars empty,
   so `supabase === null` and every write goes to localStorage. The whole Playwright suite can
   pass against a completely broken database. That gap is what hid the 29 Jul incident.
@@ -260,11 +269,23 @@ Carried forward deliberately, not forgotten. Confirm each is still true before a
    UI). Do not "fix" it without asking.
 6. `VITE_SENTRY_DSN` on Vercel is flagged Sensitive, so its value can't be read back in the
    dashboard. Harmless — a DSN ships in the client bundle anyway — but don't waste time
-   hunting for the value there; get it from the Sentry connector.
-7. **The shop is being handed DEBUG APKs.** `npm run apk` builds `assembleDebug`, and that is
-   what has shipped to date. `android/keystore.properties` exists, so a signed build is one
-   command away (`cd android; ./gradlew assembleRelease`, or `bundleRelease` for an AAB).
-   Decide which the phones should actually run — a debug build is debuggable and slower.
+   hunting for the value there. Two places DO have it: the Sentry connector (`find_dsns`),
+   and the deployed bundle itself (fetch the entry chunk named by `/index.html` and grep for
+   `ingest.de.sentry.io`). Both were checked against each other on 25 Aug and agreed.
+   **It is now also in `.env.local`**, so local/APK builds report like the website — see the
+   `.env.local`-loads-in-every-mode warning in §3 before adding anything else there.
+7. **RESOLVED 25 Aug 2026 — the shop moved off debug builds onto Play internal testing.**
+   Kept here because two facts outlive the item:
+   - **A debug APK and a release APK cannot upgrade over each other** (different signing
+     keys); Android refuses with a signature mismatch. Switching costs an uninstall, which
+     clears the WebView's localStorage — everyone is signed out and themes reset. Job data is
+     safe in Supabase. That one-time cost is why the migration was done deliberately.
+   - **Play signs with `flexachem.keystore`**, uploaded as the app signing key rather than
+     letting Play generate one. So a Play build and `apk/release/Flexachem.apk` ARE
+     interchangeable, and the sideloaded APK stays a valid fallback. Keep that keystore backed
+     up and out of git — losing it now costs more than it used to.
+   `npm run apk` still builds `assembleDebug` for local development; `npm run apk:release`
+   and `npm run aab` build the shipping artifacts.
 8. **`npm run test:cloud` has two long-standing cold-start flakies** in `edit-failure.spec.js`
    / `write-failure.spec.js` — the first spec to navigate hits a preview server that was just
    rebuilt, times out once, and passes on retry. Confirmed pre-existing on 20 Aug by stashing
