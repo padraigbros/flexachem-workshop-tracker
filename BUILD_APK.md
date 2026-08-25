@@ -83,23 +83,50 @@ duplicate. Gaps are harmless.
 2. Unzip and take the entry chunk **named by `assets/public/index.html`** — there are several
    tiny `assets/index-*.js` files and grepping the wrong one gives a confident zero. It must
    contain the production project ref and, since 2.4, `ingest.de.sentry.io`.
-3. `apksigner verify --print-certs` on the release APK → `CN=Flexachem Workshop`,
-   SHA-256 `95150bc3…b274c0fd`. This must match what Play holds, or Play builds and
-   sideloaded builds stop being interchangeable.
+3. `apksigner verify --print-certs` on the release APK -> `CN=Flexachem Workshop`,
+   SHA-256 `95150bc3...b274c0fd`. Play checks this on UPLOAD (it is the registered upload
+   key). It is NOT what ends up on a phone from Play - see the signing note below.
 
-### Google Play — internal testing
+### Google Play - internal testing
 
-The app is distributed to the shop through the **Internal testing** track (up to 100 testers,
-no review wait, no public listing).
+The shop gets the app through the **Internal testing** track (up to 100 testers, no review
+wait, no public listing). Console coordinates, confirmed 25 Aug 2026:
 
-1. **Play App Signing: "use an existing key from a Java keystore".** Play supplies a `pepk.jar`
-   command; run it yourself — it takes the keystore password. This is what makes the Play build
-   and the sideloaded release APK interchangeable. Letting Play generate its own key instead
-   would mean a second uninstall on every phone to migrate.
-2. Testing → Internal testing → new release → upload the AAB → add tester emails → roll out.
-   Testers accept the opt-in link with the Google account signed in on the phone.
-3. Privacy policy URL (required, already public and unauthenticated):
-   `https://flexachem-workshop-tracker.vercel.app/privacy`
+- App: `com.flexachem.workshop`, developer account `8700928663978881220`, app id
+  `4973573654801583013`, internal-testing track id `4701102818064680699`.
+- **Tester opt-in link:** `https://play.google.com/apps/internaltest/4701102818064680699`
+  Testers must accept it with the Google account signed in on the phone.
+
+**The signing situation, which is NOT what the earlier plan assumed.** Play App Signing was
+enabled when the app was first uploaded on 12 Aug 2026, and Play generated **its own** app
+signing key:
+
+| Key | Fingerprint | What it does |
+| --- | --- | --- |
+| App signing (Play's) | `BA:70:E4:9E:49:C6...CD:79:93` | Signs what Play actually distributes |
+| Upload (`flexachem.keystore`) | `95:15:0B:C3...C0:FD` | What Play checks when you upload |
+
+Read the app signing fingerprint off the **Digital Asset Links JSON** at the bottom of the
+App signing page - the buttons at the top only copy to the clipboard, and the value is not in
+the DOM. Digital Asset Links always quotes the app signing key.
+
+Consequences worth keeping:
+
+- **A Play build and `apk/release/Flexachem.apk` are NOT interchangeable.** Neither upgrades
+  over the other. The sideloaded APK is a separate, mutually exclusive path, not a fallback
+  for a phone that installed from Play.
+- **`flexachem.keystore` is still essential** - without it you cannot upload a release at all.
+  Back it up off this machine.
+- That choice is effectively permanent; changing it means "Change key", which is disruptive.
+
+Steps for a new internal-testing release: Testing -> Internal testing -> Create new release ->
+upload the AAB -> release notes (**500 character limit per language**, including the
+`<en-US>` tags) -> Save and publish. **Check the track is not paused** - a published release
+on a paused track reaches nobody, and the paused banner is easy to miss.
+
+Privacy policy URL (required, already public and unauthenticated):
+`https://flexachem-workshop-tracker.vercel.app/privacy`
+
 4. Store listing and screenshots do not block an internal-testing rollout.
 
 **A debug APK cannot be upgraded to a release APK** — different signing keys, so Android

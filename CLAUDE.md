@@ -280,10 +280,17 @@ Carried forward deliberately, not forgotten. Confirm each is still true before a
      keys); Android refuses with a signature mismatch. Switching costs an uninstall, which
      clears the WebView's localStorage — everyone is signed out and themes reset. Job data is
      safe in Supabase. That one-time cost is why the migration was done deliberately.
-   - **Play signs with `flexachem.keystore`**, uploaded as the app signing key rather than
-     letting Play generate one. So a Play build and `apk/release/Flexachem.apk` ARE
-     interchangeable, and the sideloaded APK stays a valid fallback. Keep that keystore backed
-     up and out of git — losing it now costs more than it used to.
+   - **Play signs with its OWN app signing key, NOT `flexachem.keystore`.** Verified in the
+     console on 25 Aug: the app signing key is `BA:70:E4:9E:49:C6…CD:79:93` (read off the
+     Digital Asset Links JSON on the App signing page, which always quotes the APP SIGNING
+     key), while `flexachem.keystore` — `95:15:0B:C3…C0:FD` — is registered as the
+     **upload** key. Play generated its own key when the app was first uploaded on 12 Aug
+     2026, and that choice is effectively permanent.
+     Consequence: a Play-distributed build and `apk/release/Flexachem.apk` are **NOT**
+     interchangeable. Neither can upgrade over the other, so the sideloaded APK is not a
+     fallback for a phone that installed from Play — it is a separate, mutually exclusive
+     distribution path. Keep `flexachem.keystore` backed up anyway: without it you cannot
+     upload a new release at all.
    `npm run apk` still builds `assembleDebug` for local development; `npm run apk:release`
    and `npm run aab` build the shipping artifacts.
 8. **`npm run test:cloud` has two long-standing cold-start flakies** in `edit-failure.spec.js`
@@ -315,7 +322,7 @@ reads `.env.local` while Vercel builds with its own env — that difference is e
 | `1ef7133` | 4 / 2.1 | `dpl_As5rZhW541QtTENJJTD9crFc1QUL` | `index-CHZbB2OT.js` | Team Availability onto its own `/calendar` tab; @-mention picker rebuilt for touch |
 | `9d513b8` | 5 / 2.2 | `dpl_8VqUrt4bGLxhbyyvJ2p58b7KxE1L` | `index-D3UXYDFT.js` | Job cards moved to `/calendar`; `/staff` back to admin-only |
 | `fd61f69` | 6 / 2.3 | `dpl_CR3fkqGbGfpEpyMveB5AsjymcqAF` | `index-CZGliNJJ.js` | Empty workload cards hidden; failed role lookup no longer downgrades an admin |
-| `7640d59` | 7 / 2.4 | **not deployed — not pushed** | `index-BUOhTOOg.js` (APK/AAB) | Sentry live in the Android build for the first time + `platform` tag; first AAB carrying the Calendar tab and the three-role design |
+| `7640d59` | 7 / 2.4 | **web not pushed**; AAB live on Play internal testing 25 Aug | `index-BUOhTOOg.js` (APK/AAB) | Sentry live in the Android build for the first time + `platform` tag; first AAB carrying the Calendar tab and the three-role design |
 
 The `7640d59` row is the ANDROID release. It has NOT been pushed, so the website is still
 serving `index-CZGliNJJ.js` from `fd61f69` — the entry chunk named there is the one inside the
@@ -323,6 +330,24 @@ APK and AAB, verified by unzipping each artifact rather than by reading a build 
 will also deploy the web app, because `src/lib/monitoring.js` changed (the `platform` tag):
 expect a new web entry chunk and a `platform:web` tag on every browser event. Fill in the
 deployment id and re-verify the live chunk when that happens.
+
+**Play, 25 Aug 2026.** The AAB was uploaded and published to **Internal testing** as release
+`7 (2.4)`, and the track — which had been **paused** since before this session — was resumed.
+Play parsed the bundle as versionCode 7 / versionName 2.4 independently, reported 0 devices
+lost against the previous release, and sized the install at 5.01 MB (+64.2 KB, about right for
+adding the Sentry SDK). Two warnings, both expected and ignorable: no deobfuscation file
+(`minifyEnabled false`, nothing to map) and no native debug symbols (the Capacitor WebView
+libs; JS crashes go to Sentry anyway).
+
+What the console showed that the plan had wrong — the app was NOT unpublished:
+
+- Closed testing (`alpha`) already had **versionCode 3 (2.0)** from 12 Aug; internal testing
+  had **1 (1.0)** from 21 Jul. So 7 was free, but not because nothing had been uploaded.
+- **Production is gated**: this is a personal developer account, so it needs 12 testers opted
+  in for 14 continuous days before "Apply for production" unlocks. Currently 0 opted in.
+  Internal testing is not subject to that gate, which is why the shop goes there.
+- Play App Signing was already enabled with a **Play-generated** app signing key — see §8
+  item 7. The "upload our own key" option was settled on 12 Aug and is not available now.
 
 What was verified on the artifacts themselves, 25 Aug 2026:
 - APK `output-metadata.json` = versionCode 7 / 2.4, and the AAB's manifest decodes to the same
@@ -335,8 +360,9 @@ What was verified on the artifacts themselves, 25 Aug 2026:
 - It contains `technician`, `/calendar`, `Booked`, `Team Availability`, the production project
   ref, `ingest.de.sentry.io`, and `7640d59` (the Sentry release tag from `VITE_COMMIT_SHA`).
 - Both signed `CN=Flexachem Workshop`, SHA-256 `95150bc3…b274c0fd` — the same key as the
-  21 Aug release APK, and the one to upload to Play so its builds stay interchangeable with a
-  sideloaded APK.
+  21 Aug release APK, and the key Play already holds as the **upload** key. Play re-signs what
+  it distributes with its own app signing key, so this fingerprint is what Play checks on
+  upload, not what lands on a phone.
 
 `90b3465` (this log itself) also deployed, as every push to `main` does, but is
 documentation-only: the live entry chunk stayed `index-CZGliNJJ.js`, i.e. a byte-identical
