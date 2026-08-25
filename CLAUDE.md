@@ -315,6 +315,28 @@ reads `.env.local` while Vercel builds with its own env — that difference is e
 | `1ef7133` | 4 / 2.1 | `dpl_As5rZhW541QtTENJJTD9crFc1QUL` | `index-CHZbB2OT.js` | Team Availability onto its own `/calendar` tab; @-mention picker rebuilt for touch |
 | `9d513b8` | 5 / 2.2 | `dpl_8VqUrt4bGLxhbyyvJ2p58b7KxE1L` | `index-D3UXYDFT.js` | Job cards moved to `/calendar`; `/staff` back to admin-only |
 | `fd61f69` | 6 / 2.3 | `dpl_CR3fkqGbGfpEpyMveB5AsjymcqAF` | `index-CZGliNJJ.js` | Empty workload cards hidden; failed role lookup no longer downgrades an admin |
+| `7640d59` | 7 / 2.4 | **not deployed — not pushed** | `index-BUOhTOOg.js` (APK/AAB) | Sentry live in the Android build for the first time + `platform` tag; first AAB carrying the Calendar tab and the three-role design |
+
+The `7640d59` row is the ANDROID release. It has NOT been pushed, so the website is still
+serving `index-CZGliNJJ.js` from `fd61f69` — the entry chunk named there is the one inside the
+APK and AAB, verified by unzipping each artifact rather than by reading a build log. Pushing it
+will also deploy the web app, because `src/lib/monitoring.js` changed (the `platform` tag):
+expect a new web entry chunk and a `platform:web` tag on every browser event. Fill in the
+deployment id and re-verify the live chunk when that happens.
+
+What was verified on the artifacts themselves, 25 Aug 2026:
+- APK `output-metadata.json` = versionCode 7 / 2.4, and the AAB's manifest decodes to the same
+  (`versionCode` → `1a 01 37`, `versionName` → `1a 03 32 2e 34`). **An AAB manifest is
+  PROTOBUF, not binary XML** — `aapt2 dump xmltree` and every AXML parser reject it. Read the
+  protobuf, or use bundletool.
+- The entry chunk is byte-identical in both artifacts (`cmp`), proving both came off one
+  `cap sync`. Two artifacts from separate syncs under one versionCode is the failure this
+  guards against.
+- It contains `technician`, `/calendar`, `Booked`, `Team Availability`, the production project
+  ref, `ingest.de.sentry.io`, and `7640d59` (the Sentry release tag from `VITE_COMMIT_SHA`).
+- Both signed `CN=Flexachem Workshop`, SHA-256 `95150bc3…b274c0fd` — the same key as the
+  21 Aug release APK, and the one to upload to Play so its builds stay interchangeable with a
+  sideloaded APK.
 
 `90b3465` (this log itself) also deployed, as every push to `main` does, but is
 documentation-only: the live entry chunk stayed `index-CZGliNJJ.js`, i.e. a byte-identical
